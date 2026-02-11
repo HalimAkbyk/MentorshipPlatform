@@ -1,0 +1,77 @@
+databases:
+  - name: mentorship-db
+    plan: free
+    databaseName: mentorship
+    user: mentorship_user
+    region: frankfurt
+
+services:
+  # Redis
+  - type: redis
+    name: mentorship-redis
+    plan: free
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  # Backend API
+  - type: web
+    name: mentorship-api
+    plan: free
+    region: frankfurt
+    runtime: docker
+    dockerfilePath: ./MentorshipPlatform.Api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: mentorship-db
+          property: connectionString
+      - key: ConnectionStrings__Redis
+        fromService:
+          name: mentorship-redis
+          type: redis
+          property: connectionString
+      - key: FrontendUrl
+        value: https://mentorship-platform-react.vercel.app
+      - key: Jwt__Secret
+        generateValue: true
+      - key: Jwt__Issuer
+        value: MentorshipPlatform
+      - key: Jwt__Audience
+        value: MentorshipPlatformUsers
+      - key: Jwt__AccessTokenExpirationMinutes
+        value: "60"
+      - key: Jwt__RefreshTokenExpirationDays
+        value: "7"
+      - key: Iyzico__ApiKey
+        sync: false
+      - key: Iyzico__SecretKey
+        sync: false
+      - key: Iyzico__BaseUrl
+        value: https://sandbox-api.iyzipay.com
+      - key: Iyzico__CallbackUrl
+        sync: false
+      - key: Twilio__AccountSid
+        sync: false
+      - key: Twilio__AuthToken
+        sync: false
+      - key: Twilio__ApiKeySid
+        sync: false
+      - key: Twilio__ApiKeySecret
+        sync: false
+      - key: Twilio__StatusCallbackUrl
+        sync: false
+      - key: Minio__Endpoint
+        value: s3.amazonaws.com
+      - key: Minio__AccessKey
+        sync: false
+      - key: Minio__SecretKey
+        sync: false
+      - key: Minio__BucketName
+        value: mentorship-platform
+      - key: Minio__UseSSL
+        value: "true"

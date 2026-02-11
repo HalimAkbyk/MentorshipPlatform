@@ -1,23 +1,32 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
-USER $APP_UID
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["MentorshipPlatform/MentorshipPlatform.csproj", "MentorshipPlatform/"]
-RUN dotnet restore "MentorshipPlatform/MentorshipPlatform.csproj"
-COPY . .
-WORKDIR "/src/MentorshipPlatform"
-RUN dotnet build "MentorshipPlatform.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "MentorshipPlatform.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# Copy solution and project files
+COPY MentorshipPlatform.sln ./
+COPY MentorshipPlatform.Api/MentorshipPlatform.Api.csproj MentorshipPlatform.Api/
+COPY MentorshipPlatform.Application/MentorshipPlatform.Application.csproj MentorshipPlatform.Application/
+COPY MentorshipPlatform.Domain/MentorshipPlatform.Domain.csproj MentorshipPlatform.Domain/
+COPY MentorshipPlatform.Infrastructure/MentorshipPlatform.Infrastructure.csproj MentorshipPlatform.Infrastructure/
+COPY MentorshipPlatform.Identity/MentorshipPlatform.Identity.csproj MentorshipPlatform.Identity/
+COPY MentorshipPlatform.Persistence/MentorshipPlatform.Persistence.csproj MentorshipPlatform.Persistence/
+
+# Restore
+RUN dotnet restore MentorshipPlatform.sln
+
+# Copy everything and build
+COPY . .
+RUN dotnet publish MentorshipPlatform.Api/MentorshipPlatform.Api.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "MentorshipPlatform.dll"]
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+ENTRYPOINT ["dotnet", "MentorshipPlatform.Api.dll"]
