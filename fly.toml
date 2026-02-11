@@ -1,0 +1,31 @@
+app = "mentorship-platform-api"
+primary_region = "fra"
+
+[build]
+  dockerfile = "MentorshipPlatform.Api/Dockerfile"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+  FrontendUrl = "https://mentorship-platform-react.vercel.app"
+  Jwt__Issuer = "MentorshipPlatform"
+  Jwt__Audience = "MentorshipPlatformUsers"
+  Iyzico__BaseUrl = "https://sandbox-api.iyzipay.com"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  grace_period = "120s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  timeout = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -86,9 +86,23 @@ builder.Services.AddScoped<IApplicationDbContext>(provider =>
     provider.GetRequiredService<ApplicationDbContext>());
 
 // Redis
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrEmpty(redisConnectionString) && redisConnectionString.StartsWith("rediss://"))
+{
+    // Convert rediss:// URL to StackExchange.Redis format
+    var uri = new Uri(redisConnectionString);
+    var password = uri.UserInfo.Contains(':') ? uri.UserInfo.Split(':')[1] : uri.UserInfo;
+    redisConnectionString = $"{uri.Host}:{uri.Port},password={password},ssl=true,abortConnect=false";
+}
+else if (!string.IsNullOrEmpty(redisConnectionString) && redisConnectionString.StartsWith("redis://"))
+{
+    var uri = new Uri(redisConnectionString);
+    var password = uri.UserInfo.Contains(':') ? uri.UserInfo.Split(':')[1] : uri.UserInfo;
+    redisConnectionString = $"{uri.Host}:{uri.Port},password={password},abortConnect=false";
+}
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = builder.Configuration.GetConnectionString("Redis");
+    options.Configuration = redisConnectionString ?? "localhost:6379";
     options.InstanceName = "MentorshipPlatform.Api:";
 });
 
@@ -156,11 +170,14 @@ builder.Services.Configure<TwilioOptions>(builder.Configuration.GetSection("Twil
 builder.Services.AddScoped<IVideoService, TwilioVideoService>();
 
 builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection("Minio"));
-var minioOptions = builder.Configuration.GetSection("Minio").Get<MinioOptions>()!;
-builder.Services.AddMinio(configureClient => configureClient
-    .WithEndpoint(minioOptions.Endpoint)
-    .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
-    .WithSSL(minioOptions.UseSSL));
+var minioOptions = builder.Configuration.GetSection("Minio").Get<MinioOptions>();
+if (minioOptions != null && !string.IsNullOrEmpty(minioOptions.Endpoint) && !string.IsNullOrEmpty(minioOptions.AccessKey))
+{
+    builder.Services.AddMinio(configureClient => configureClient
+        .WithEndpoint(minioOptions.Endpoint)
+        .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
+        .WithSSL(minioOptions.UseSSL));
+}
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
 
 // Process History (Audit Log)
@@ -171,7 +188,7 @@ builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(c => 
+    .UsePostgreSqlStorage(c =>
         c.UseNpgsqlConnection(connectionString)));
 
 builder.Services.AddHangfireServer();
@@ -190,10 +207,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Health Checks
+// Health Checks - only check PostgreSQL (Redis is optional/best-effort)
 builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString!)
-    .AddRedis(builder.Configuration.GetConnectionString("Redis")!);
+    .AddNpgSql(connectionString!);
 
 var app = builder.Build();
 
@@ -210,20 +226,27 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 });
 
 // Register recurring background jobs
-RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.ExpirePendingOrdersJob>(
-    "expire-pending-orders", job => job.Execute(), "*/5 * * * *"); // Every 5 minutes
+try
+{
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.ExpirePendingOrdersJob>(
+        "expire-pending-orders", job => job.Execute(), "*/5 * * * *"); // Every 5 minutes
 
-RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.ExpirePendingBookingsJob>(
-    "expire-pending-bookings", job => job.Execute(), "*/5 * * * *"); // Every 5 minutes
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.ExpirePendingBookingsJob>(
+        "expire-pending-bookings", job => job.Execute(), "*/5 * * * *"); // Every 5 minutes
 
-RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.PaymentReconciliationJob>(
-    "payment-reconciliation", job => job.Execute(), "0 * * * *"); // Every hour
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.PaymentReconciliationJob>(
+        "payment-reconciliation", job => job.Execute(), "0 * * * *"); // Every hour
 
-RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.DetectNoShowJob>(
-    "detect-noshow", job => job.Execute(), "*/10 * * * *"); // Every 10 minutes
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.DetectNoShowJob>(
+        "detect-noshow", job => job.Execute(), "*/10 * * * *"); // Every 10 minutes
 
-RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.CleanupStaleSessionsJob>(
-    "cleanup-stale-sessions", job => job.Execute(), "*/15 * * * *"); // Every 15 minutes
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.CleanupStaleSessionsJob>(
+        "cleanup-stale-sessions", job => job.Execute(), "*/15 * * * *"); // Every 15 minutes
+}
+catch (Exception ex)
+{
+    Log.Warning(ex, "Failed to register recurring Hangfire jobs. They will be registered on next successful startup.");
+}
 
 app.MapControllers();
 app.MapHealthChecks("/health");
@@ -234,10 +257,18 @@ var summaries = new[]
 };
 
 // Run migrations on startup
-using (var scope = app.Services.CreateScope())
+try
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await dbContext.Database.MigrateAsync();
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+        Log.Information("Database migrations applied successfully");
+    }
+}
+catch (Exception ex)
+{
+    Log.Error(ex, "An error occurred while migrating the database");
 }
 
 app.MapGet("/weatherforecast", () =>
