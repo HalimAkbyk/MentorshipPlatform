@@ -21,9 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Reference Include="Microsoft.AspNetCore.Http.Features">
-        <HintPath>..\..\..\..\..\..\usr\local\share\dotnet\x64\packs\Microsoft.AspNetCore.App.Ref\8.0.22\ref\net8.0\Microsoft.AspNetCore.Http.Features.dll</HintPath>
-      </Reference>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
 </Project>
