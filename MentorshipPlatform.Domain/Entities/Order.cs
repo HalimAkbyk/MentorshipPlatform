@@ -1,0 +1,50 @@
+using MentorshipPlatform.Domain.Common;
+using MentorshipPlatform.Domain.Enums;
+using MentorshipPlatform.Domain.Events;
+
+namespace MentorshipPlatform.Domain.Entities;
+
+public class Order : BaseEntity
+{
+    public Guid BuyerUserId { get; private set; }
+    public OrderType Type { get; private set; }
+    public Guid ResourceId { get; private set; }
+    public decimal AmountTotal { get; private set; }
+    public string Currency { get; private set; } = "TRY";
+    public OrderStatus Status { get; private set; }
+    public string? PaymentProvider { get; private set; }
+    public string? ProviderPaymentId { get; private set; }
+    public string? CheckoutToken { get; private set; }
+
+    private Order() { }
+
+    public static Order Create(
+        Guid? buyerUserId,
+        OrderType type,
+        Guid resourceId,
+        decimal amount,
+        string currency)
+    {
+        return new Order
+        {
+            BuyerUserId = buyerUserId?? Guid.NewGuid(), //Todo: burası empty gelemez, newguid idareten eklendi.
+            Type = type,
+            ResourceId = resourceId,
+            AmountTotal = amount,
+            Status = OrderStatus.Pending,
+            Currency = currency,
+        };
+    }
+
+    public void MarkAsPaid(string provider, string providerPaymentId)
+    {
+        Status = OrderStatus.Paid;
+        PaymentProvider = provider;
+        ProviderPaymentId = providerPaymentId;
+        AddDomainEvent(new OrderPaidEvent(Id, BuyerUserId, Type, ResourceId, AmountTotal));
+    }
+
+    public void SetCheckoutToken(string token) => CheckoutToken = token;
+    public void MarkAsFailed() => Status = OrderStatus.Failed;
+    public void MarkAsRefunded() => Status = OrderStatus.Refunded;
+}

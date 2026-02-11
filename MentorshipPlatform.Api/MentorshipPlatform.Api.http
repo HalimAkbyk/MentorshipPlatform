@@ -1,0 +1,6 @@
+@MentorshipPlatform_HostAddress = http://localhost:5072
+
+GET {{MentorshipPlatform_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

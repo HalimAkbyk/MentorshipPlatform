@@ -1,0 +1,6 @@
+﻿services:
+  mentorshipplatform:
+    image: mentorshipplatform
+    build:
+      context: .
+      dockerfile: MentorshipPlatform/Dockerfile

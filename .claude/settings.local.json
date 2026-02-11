@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(dotnet build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(dotnet ef migrations add:*)",
+      "Bash(dotnet ef database update:*)",
+      "Bash(gh auth status:*)",
+      "Bash(/usr/local/bin/brew install:*)",
+      "Bash(git -C /Users/halimakbiyik/Desktop/MentorApp/MentorshipPlatform init:*)",
+      "Bash(git -C /Users/halimakbiyik/Desktop/MentorApp/MentorshipPlatform branch -m main)",
+      "Bash(git -C /Users/halimakbiyik/Desktop/MentorApp/MentorshipPlatform add -A)"
+    ]
+  }
+}

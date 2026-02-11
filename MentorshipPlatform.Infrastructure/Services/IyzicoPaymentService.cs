@@ -1,0 +1,219 @@
+using System.Globalization;
+using Iyzipay.Model;
+using Iyzipay.Request;
+using MentorshipPlatform.Application.Common.Interfaces;
+using MentorshipPlatform.Domain.Events;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Options = Iyzipay.Options;
+
+namespace MentorshipPlatform.Infrastructure.Services;
+
+public class IyzicoPaymentService : IPaymentService
+{
+    private readonly IyzicoOptions _options;
+    private readonly ILogger<IyzicoPaymentService> _logger;
+    private readonly Options _iyzicoOptions;
+
+    public IyzicoPaymentService(
+        IOptions<IyzicoOptions> options,
+        ILogger<IyzicoPaymentService> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+        
+        _iyzicoOptions = new Options
+        {
+            ApiKey = _options.ApiKey,
+            SecretKey = _options.SecretKey,
+            BaseUrl = _options.BaseUrl
+        };
+    }
+
+    public async Task<CheckoutFormInitResult> InitializeCheckoutFormAsync(
+        Guid orderId,
+        decimal amount,
+        string currency,
+        string buyerEmail,
+        string buyerName,
+        string buyerSurname,
+        string buyerPhone,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var request = new CreateCheckoutFormInitializeRequest
+            {
+                Locale = Locale.TR.ToString(),
+                ConversationId = orderId.ToString(),
+                Price = amount.ToString("F2", CultureInfo.InvariantCulture),
+                PaidPrice = amount.ToString("F2", CultureInfo.InvariantCulture),
+                Currency = Currency.TRY.ToString(),
+                BasketId = orderId.ToString(),
+                PaymentGroup = PaymentGroup.PRODUCT.ToString(),
+                CallbackUrl = _options.CallbackUrl,
+                EnabledInstallments = new List<int> { 1, 2, 3, 6, 9 }
+            };
+
+            // Buyer info
+            request.Buyer = new Buyer
+            {
+                Id = "BY" + orderId.ToString("N")[..11],
+                Name = buyerName,
+                Surname = buyerSurname,
+                Email = buyerEmail,
+                GsmNumber = buyerPhone,
+                IdentityNumber = "11111111111",
+                RegistrationAddress = "Adres Bilgisi",
+                City = "Istanbul",
+                Country = "Turkey",
+                Ip = "85.34.78.112"
+            };
+
+            // Billing Address
+            request.BillingAddress = new Address
+            {
+                ContactName = $"{buyerName} {buyerSurname}",
+                City = "Istanbul",
+                Country = "Turkey",
+                Description = "Fatura Adresi"
+            };
+
+            // Shipping Address
+            request.ShippingAddress = new Address
+            {
+                ContactName = $"{buyerName} {buyerSurname}",
+                City = "Istanbul",
+                Country = "Turkey",
+                Description = "Teslimat Adresi"
+            };
+
+            // Basket items
+            var basketItems = new List<BasketItem>
+            {
+                new BasketItem
+                {
+                    Id = "BI" + orderId.ToString("N")[..11],
+                    Name = "Mentorluk Hizmeti",
+                    Category1 = "Eğitim",
+                    ItemType = BasketItemType.VIRTUAL.ToString(),
+                    Price = amount.ToString("F2", CultureInfo.InvariantCulture)
+                }
+            };
+            request.BasketItems = basketItems;
+
+            var checkoutForm = await Task.Run(() => 
+                CheckoutFormInitialize.Create(request, _iyzicoOptions), 
+                cancellationToken);
+
+            if (checkoutForm.Status == "success")
+            {
+                _logger.LogInformation(
+                    "✅ Checkout form initialized - Token: {Token}", 
+                    checkoutForm.Token);
+
+                return new CheckoutFormInitResult(
+                    true,
+                    checkoutForm.CheckoutFormContent,
+                    checkoutForm.PaymentPageUrl,
+                    checkoutForm.Token,
+                    checkoutForm.TokenExpireTime,
+                    null);
+            }
+
+            _logger.LogError(
+                "❌ Iyzico checkout form init failed: {ErrorMessage}", 
+                checkoutForm.ErrorMessage);
+
+            return new CheckoutFormInitResult(
+                false, 
+                null, 
+                null, 
+                null, 
+                null, 
+                checkoutForm.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Exception in InitializeCheckoutFormAsync");
+            return new CheckoutFormInitResult(
+                false, 
+                null, 
+                null, 
+                null, 
+                null, 
+                ex.Message);
+        }
+    }
+
+    public async Task<PaymentVerifyResult> VerifyPaymentAsync(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new RetrieveCheckoutFormRequest { Token = token};
+        var checkoutForm = CheckoutForm.Retrieve(request, _iyzicoOptions);
+
+        if (checkoutForm.Status == "success" && 
+            checkoutForm.PaymentStatus == "SUCCESS")
+        {
+            return new PaymentVerifyResult(
+                true,
+                checkoutForm.BasketId,      // ✅ Order.Id
+                checkoutForm.PaymentId?.ToString(),
+                checkoutForm.Price,
+                checkoutForm.PaidPrice,
+                null);
+        }
+
+        return new PaymentVerifyResult(
+            false,
+            checkoutForm.ConversationId,
+            null,
+            null,
+            null,
+            checkoutForm.ErrorMessage);
+    }
+
+    public async Task<RefundResult> RefundPaymentAsync(
+        string providerPaymentId,
+        decimal amount,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var request = new CreateRefundRequest
+            {
+                PaymentTransactionId = providerPaymentId,
+                Price = amount.ToString("F2", CultureInfo.InvariantCulture),
+                Currency = Currency.TRY.ToString()
+            };
+
+            var refund = await Task.Run(() => 
+                Refund.Create(request, _iyzicoOptions), 
+                cancellationToken);
+
+            if (refund.Status == "success")
+            {
+                return new RefundResult(
+                    true,
+                    refund.PaymentId.ToString(),
+                    null);
+            }
+
+            return new RefundResult(false, null, refund.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Exception in RefundPaymentAsync");
+            return new RefundResult(false, null, ex.Message);
+        }
+    }
+}
+
+public class IyzicoOptions
+{
+    public string ApiKey { get; set; } = string.Empty;
+    public string SecretKey { get; set; } = string.Empty;
+    public string BaseUrl { get; set; } = string.Empty;
+    public string CallbackUrl { get; set; } = string.Empty;
+}
