@@ -1,6 +1,5 @@
 using FluentValidation;
 using MediatR;
-using ValidationException = System.ComponentModel.DataAnnotations.ValidationException;
 
 namespace MentorshipPlatform.Application.Common.Behaviours;
 
@@ -31,7 +30,7 @@ public class ValidationBehaviour<TRequest, TResponse> : IPipelineBehavior<TReque
             .ToList();
 
         if (failures.Any())
-            throw new ValidationException(failures.FirstOrDefault().ErrorMessage);
+            throw new ValidationException(failures);
 
         return await next();
     }
