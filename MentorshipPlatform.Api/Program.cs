@@ -13,6 +13,7 @@ using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using MentorshipPlatform.Identity.Services;
 using MentorshipPlatform.Infrastructure.Services;
+using MentorshipPlatform.Api.Middleware;
 using MentorshipPlatform.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -250,6 +251,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.UseSerilogRequestLogging();
 app.UseCors("DevCors");
+app.UseExceptionHandling(); // ✅ CORS'tan sonra, auth'dan önce - hata durumunda da CORS header'ları korunur
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHangfireDashboard("/hangfire", new DashboardOptions

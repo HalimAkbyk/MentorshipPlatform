@@ -82,6 +82,16 @@ public class AdminController : ControllerBase
         if (verification == null) return NotFound();
 
         verification.Approve(req.Notes);
+
+        // ✅ Belge onaylandığında mentor'ü otomatik yayınla (IsListed = true)
+        var mentorProfile = await _db.MentorProfiles
+            .FirstOrDefaultAsync(m => m.UserId == verification.MentorUserId);
+
+        if (mentorProfile != null && !mentorProfile.IsListed)
+        {
+            mentorProfile.Publish();
+        }
+
         await _db.SaveChangesAsync();
 
         return Ok();
@@ -242,6 +252,21 @@ public class AdminController : ControllerBase
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    [HttpPost("mentors/{userId:guid}/unpublish")]
+    public async Task<IActionResult> UnpublishMentor([FromRoute] Guid userId)
+    {
+        var mentorProfile = await _db.MentorProfiles
+            .FirstOrDefaultAsync(m => m.UserId == userId);
+
+        if (mentorProfile == null)
+            return NotFound(new { errors = new[] { "Mentor profile not found" } });
+
+        mentorProfile.Unpublish();
+        await _db.SaveChangesAsync();
 
         return Ok(new { success = true });
     }
