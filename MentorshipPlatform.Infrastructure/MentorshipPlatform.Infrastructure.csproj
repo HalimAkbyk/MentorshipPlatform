@@ -18,6 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="AWSSDK.S3" Version="3.7.305" />
       <PackageReference Include="Iyzipay" Version="2.1.47" />
       <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.23" />
       <PackageReference Include="Minio" Version="6.0.2" />

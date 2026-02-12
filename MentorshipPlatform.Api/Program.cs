@@ -20,6 +20,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Minio;
+using Amazon.S3;
+using Amazon.Runtime;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -169,10 +171,32 @@ builder.Services.AddScoped<IPaymentService, IyzicoPaymentService>();
 builder.Services.Configure<TwilioOptions>(builder.Configuration.GetSection("Twilio"));
 builder.Services.AddScoped<IVideoService, TwilioVideoService>();
 
+// Storage Service: R2 > MinIO > NoOp (fallback)
+var r2Options = builder.Configuration.GetSection("R2").Get<R2Options>();
 builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection("Minio"));
 var minioOptions = builder.Configuration.GetSection("Minio").Get<MinioOptions>();
-if (minioOptions != null && !string.IsNullOrEmpty(minioOptions.Endpoint) && !string.IsNullOrEmpty(minioOptions.AccessKey))
+
+if (r2Options != null && !string.IsNullOrEmpty(r2Options.AccountId) && !string.IsNullOrEmpty(r2Options.AccessKey))
 {
+    // Cloudflare R2 (S3-compatible)
+    builder.Services.Configure<R2Options>(builder.Configuration.GetSection("R2"));
+    builder.Services.AddSingleton<IAmazonS3>(_ =>
+    {
+        var credentials = new BasicAWSCredentials(r2Options.AccessKey, r2Options.SecretKey);
+        var config = new AmazonS3Config
+        {
+            ServiceURL = $"https://{r2Options.AccountId}.r2.cloudflarestorage.com",
+            ForcePathStyle = true,
+        };
+        return new AmazonS3Client(credentials, config);
+    });
+    builder.Services.AddScoped<IStorageService, R2StorageService>();
+    Log.Information("✅ Cloudflare R2 storage configured - AccountId: {AccountId}, Bucket: {Bucket}",
+        r2Options.AccountId, r2Options.BucketName);
+}
+else if (minioOptions != null && !string.IsNullOrEmpty(minioOptions.Endpoint) && !string.IsNullOrEmpty(minioOptions.AccessKey))
+{
+    // MinIO (local/self-hosted)
     builder.Services.AddMinio(configureClient => configureClient
         .WithEndpoint(minioOptions.Endpoint)
         .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
@@ -183,7 +207,7 @@ if (minioOptions != null && !string.IsNullOrEmpty(minioOptions.Endpoint) && !str
 else
 {
     builder.Services.AddScoped<IStorageService, NoOpStorageService>();
-    Log.Warning("⚠️ MinIO not configured. File upload will be disabled. Set Minio:Endpoint and Minio:AccessKey to enable.");
+    Log.Warning("⚠️ No storage configured. File upload disabled. Set R2 or Minio config to enable.");
 }
 
 // Process History (Audit Log)
