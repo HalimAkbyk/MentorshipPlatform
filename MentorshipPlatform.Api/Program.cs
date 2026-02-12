@@ -177,8 +177,14 @@ if (minioOptions != null && !string.IsNullOrEmpty(minioOptions.Endpoint) && !str
         .WithEndpoint(minioOptions.Endpoint)
         .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
         .WithSSL(minioOptions.UseSSL));
+    builder.Services.AddScoped<IStorageService, MinioStorageService>();
+    Log.Information("✅ MinIO storage service configured - Endpoint: {Endpoint}", minioOptions.Endpoint);
 }
-builder.Services.AddScoped<IStorageService, MinioStorageService>();
+else
+{
+    builder.Services.AddScoped<IStorageService, NoOpStorageService>();
+    Log.Warning("⚠️ MinIO not configured. File upload will be disabled. Set Minio:Endpoint and Minio:AccessKey to enable.");
+}
 
 // Process History (Audit Log)
 builder.Services.AddScoped<IProcessHistoryService, ProcessHistoryService>();
