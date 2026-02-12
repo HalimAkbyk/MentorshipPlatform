@@ -94,7 +94,20 @@ public class CreateOrderCommandHandler
                     return Result<CreateOrderResponse>.Failure("Offering not found");
                 }
 
-                amount = booking.Offering.PriceAmount;
+                // Fiyatı booking süresine göre oranla
+                // Offering: 60dk = 300₺ ise, 70dk booking = (300/60)*70 = 350₺
+                var offeringDuration = booking.Offering.DurationMinDefault;
+                var bookingDuration = booking.DurationMin;
+
+                if (offeringDuration > 0 && bookingDuration > 0 && bookingDuration != offeringDuration)
+                {
+                    amount = (booking.Offering.PriceAmount / offeringDuration) * bookingDuration;
+                }
+                else
+                {
+                    amount = booking.Offering.PriceAmount;
+                }
+
                 currency = booking.Offering.Currency;
             }
             else if (orderType == OrderType.GroupClass)
