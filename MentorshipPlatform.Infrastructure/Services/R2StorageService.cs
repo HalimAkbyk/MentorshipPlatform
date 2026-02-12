@@ -167,9 +167,13 @@ public class R2StorageService : IStorageService
             Key = fileKey,
             Expires = DateTime.UtcNow.Add(expiration),
             Verb = HttpVerb.GET,
+            Protocol = Protocol.HTTPS,
         };
 
-        return _s3Client.GetPreSignedURL(request);
+        var url = _s3Client.GetPreSignedURL(request);
+        _logger.LogInformation("🔗 Generated presigned URL params: {Params}",
+            url.Contains("X-Amz-Algorithm") ? "SigV4 ✅" : "SigV2 ⚠️");
+        return url;
     }
 
     private static string SanitizeFileName(string fileName)
