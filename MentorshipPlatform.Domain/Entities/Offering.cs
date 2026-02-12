@@ -40,6 +40,15 @@ public class Offering : BaseEntity
         PriceAmount = newPrice;
         UpdatedAt = DateTime.UtcNow;
     }
+
+    public void UpdateDuration(int durationMin)
+    {
+        if (durationMin > 0)
+        {
+            DurationMinDefault = durationMin;
+            UpdatedAt = DateTime.UtcNow;
+        }
+    }
     public void UpdateCurrency(string currency)
     {
         Currency = string.IsNullOrWhiteSpace(currency) ? "TRY" : currency;

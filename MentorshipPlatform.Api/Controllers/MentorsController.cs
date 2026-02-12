@@ -234,6 +234,7 @@ public class MentorsController : ControllerBase
         else
         {
             offering.UpdatePrice(req.HourlyRate);
+            offering.UpdateDuration(req.DurationMinDefault > 0 ? req.DurationMinDefault : 60);
             offering.UpdateCurrency("TRY");
             offering.Activate();
         }
