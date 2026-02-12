@@ -187,6 +187,7 @@ if (r2Options != null && !string.IsNullOrEmpty(r2Options.AccountId) && !string.I
         {
             ServiceURL = $"https://{r2Options.AccountId}.r2.cloudflarestorage.com",
             ForcePathStyle = true,
+            SignatureVersion = "4",
         };
         return new AmazonS3Client(credentials, config);
     });
