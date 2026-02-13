@@ -37,6 +37,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<AvailabilityTemplate> AvailabilityTemplates => Set<AvailabilityTemplate>();
     public DbSet<AvailabilityRule> AvailabilityRules => Set<AvailabilityRule>();
     public DbSet<AvailabilityOverride> AvailabilityOverrides => Set<AvailabilityOverride>();
+    public DbSet<BookingQuestion> BookingQuestions => Set<BookingQuestion>();
+    public DbSet<BookingQuestionResponse> BookingQuestionResponses => Set<BookingQuestionResponse>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

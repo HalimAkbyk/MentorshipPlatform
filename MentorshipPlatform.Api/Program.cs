@@ -227,13 +227,32 @@ builder.Services.AddHangfire(configuration => configuration
 builder.Services.AddHangfireServer();
 
 // CORS
-var frontendUrl = builder.Configuration["FrontendUrl"] ?? "http://localhost:3000";
-var allowedOrigins = new List<string> { "http://localhost:3000", frontendUrl };
+var allowedOrigins = new List<string> { "http://localhost:3000" };
+
+// Frontend__BaseUrl env var
+var frontendUrl = builder.Configuration["Frontend:BaseUrl"];
+if (!string.IsNullOrEmpty(frontendUrl))
+    allowedOrigins.Add(frontendUrl);
+
+// CORS__AllowedOrigins__0, CORS__AllowedOrigins__1, ... env vars
+var corsSection = builder.Configuration.GetSection("CORS:AllowedOrigins");
+if (corsSection.Exists())
+{
+    foreach (var child in corsSection.GetChildren())
+    {
+        if (!string.IsNullOrEmpty(child.Value))
+            allowedOrigins.Add(child.Value);
+    }
+}
+
+var distinctOrigins = allowedOrigins.Distinct().ToArray();
+Log.Information("CORS allowed origins: {Origins}", string.Join(", ", distinctOrigins));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
     {
-        policy.WithOrigins(allowedOrigins.Distinct().ToArray())
+        policy.WithOrigins(distinctOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

@@ -15,6 +15,20 @@ public class Offering : BaseEntity
     public bool IsActive { get; private set; }
     public string? MetadataJson { get; private set; }
 
+    // Yeni alanlar - Paket zenginleştirme
+    public string? Category { get; private set; }
+    public string? Subtitle { get; private set; }
+    public string? DetailedDescription { get; private set; }
+    public string? SessionType { get; private set; }
+    public int MaxBookingDaysAhead { get; private set; } = 60;
+    public int MinNoticeHours { get; private set; } = 2;
+    public int SortOrder { get; private set; }
+    public string? CoverImageUrl { get; private set; }
+
+    // Navigation properties
+    private readonly List<BookingQuestion> _questions = new();
+    public IReadOnlyCollection<BookingQuestion> Questions => _questions.AsReadOnly();
+
     private Offering() { }
 
     public static Offering Create(
@@ -22,7 +36,12 @@ public class Offering : BaseEntity
         OfferingType type,
         string title,
         int durationMin,
-        decimal price)
+        decimal price,
+        string? description = null,
+        string? category = null,
+        string? subtitle = null,
+        string? detailedDescription = null,
+        string? sessionType = null)
     {
         return new Offering
         {
@@ -31,8 +50,40 @@ public class Offering : BaseEntity
             Title = title,
             DurationMinDefault = durationMin,
             PriceAmount = price,
+            Description = description,
+            Category = category,
+            Subtitle = subtitle,
+            DetailedDescription = detailedDescription,
+            SessionType = sessionType,
             IsActive = true
         };
+    }
+
+    public void Update(
+        string title,
+        string? description,
+        int durationMin,
+        decimal price,
+        string? category,
+        string? subtitle,
+        string? detailedDescription,
+        string? sessionType,
+        int maxBookingDaysAhead,
+        int minNoticeHours,
+        string? coverImageUrl)
+    {
+        Title = title;
+        Description = description;
+        if (durationMin > 0) DurationMinDefault = durationMin;
+        if (price >= 0) PriceAmount = price;
+        Category = category;
+        Subtitle = subtitle;
+        DetailedDescription = detailedDescription;
+        SessionType = sessionType;
+        MaxBookingDaysAhead = maxBookingDaysAhead > 0 ? maxBookingDaysAhead : 60;
+        MinNoticeHours = minNoticeHours >= 0 ? minNoticeHours : 2;
+        CoverImageUrl = coverImageUrl;
+        UpdatedAt = DateTime.UtcNow;
     }
 
     public void UpdatePrice(decimal newPrice)
@@ -49,9 +100,16 @@ public class Offering : BaseEntity
             UpdatedAt = DateTime.UtcNow;
         }
     }
+
     public void UpdateCurrency(string currency)
     {
         Currency = string.IsNullOrWhiteSpace(currency) ? "TRY" : currency;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetSortOrder(int order)
+    {
+        SortOrder = order;
         UpdatedAt = DateTime.UtcNow;
     }
 

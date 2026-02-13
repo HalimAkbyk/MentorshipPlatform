@@ -8,6 +8,12 @@ namespace MentorshipPlatform.Application.Bookings.Queries.GetBookingById;
 
 public record GetBookingByIdQuery(Guid BookingId) : IRequest<Result<BookingDetailDto>>;
 
+public record BookingQuestionResponseDto(
+    Guid QuestionId,
+    string QuestionText,
+    string AnswerText,
+    bool IsRequired);
+
 public record BookingDetailDto(
     Guid Id,
     Guid StudentUserId,
@@ -23,7 +29,8 @@ public record BookingDetailDto(
     decimal Price,
     string Currency,
     string? CancellationReason,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    List<BookingQuestionResponseDto>? QuestionResponses);
 
 public class GetBookingByIdQueryHandler 
     : IRequestHandler<GetBookingByIdQuery, Result<BookingDetailDto>>
@@ -52,6 +59,18 @@ public class GetBookingByIdQueryHandler
             .Include(b => b.Offering)
             .FirstOrDefaultAsync(b => b.Id == request.BookingId, cancellationToken);
 
+        // Load question responses
+        var questionResponses = await _context.BookingQuestionResponses
+            .Include(r => r.Question)
+            .Where(r => r.BookingId == request.BookingId)
+            .OrderBy(r => r.Question.SortOrder)
+            .Select(r => new BookingQuestionResponseDto(
+                r.QuestionId,
+                r.Question.QuestionText,
+                r.AnswerText,
+                r.Question.IsRequired))
+            .ToListAsync(cancellationToken);
+
         if (booking == null)
             return Result<BookingDetailDto>.Failure("Booking not found");
 
@@ -74,7 +93,8 @@ public class GetBookingByIdQueryHandler
             booking.Offering.PriceAmount,
             booking.Offering.Currency,
             booking.CancellationReason,
-            booking.CreatedAt);
+            booking.CreatedAt,
+            questionResponses.Count > 0 ? questionResponses : null);
 
         return Result<BookingDetailDto>.Success(dto);
     }

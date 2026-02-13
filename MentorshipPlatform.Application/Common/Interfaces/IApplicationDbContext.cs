@@ -22,6 +22,8 @@ public interface IApplicationDbContext
     DbSet<AvailabilityTemplate> AvailabilityTemplates { get; }
     DbSet<AvailabilityRule> AvailabilityRules { get; }
     DbSet<AvailabilityOverride> AvailabilityOverrides { get; }
+    DbSet<BookingQuestion> BookingQuestions { get; }
+    DbSet<BookingQuestionResponse> BookingQuestionResponses { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
