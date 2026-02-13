@@ -91,6 +91,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         var bookingEnd = bookingStart.AddMinutes(request.DurationMin);
 
         // 1) Mentor'un bu zaman dilimini kapsayan müsait slot(lar) var mı?
+        //    Slot büyük bir blok olabilir (örn 9:00-17:00), booking onun içinde yer alabilir
         var hasAvailableSlot = await _context.AvailabilitySlots
             .AnyAsync(s =>
                 s.MentorUserId == request.MentorUserId &&
@@ -102,20 +103,28 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         if (!hasAvailableSlot)
             return Result<Guid>.Failure("Seçilen zaman dilimi müsait değil");
 
-        // 2) Aynı zaman diliminde başka bir AKTİF booking var mı?
-        //    Farklı paketlerden gelen çakışmaları da engeller!
-        //    Örn: Paket A (60dk) cuma 11:00-12:00 alındıysa,
-        //    Paket B (45dk) cuma 11:30-12:15 engellenecek.
+        // 2) Buffer süresi al
+        var bufferMin = 15; // default
+        var template = await _context.AvailabilityTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.MentorUserId == request.MentorUserId && t.IsDefault, cancellationToken);
+        if (template != null)
+            bufferMin = template.BufferAfterMin;
+
+        // 3) Aynı zaman diliminde başka bir AKTİF booking var mı? (buffer dahil)
+        //    Buffer ders sonrası uygulanır:
+        //    - Yeni ders, mevcut dersten SONRA başlıyorsa: bookingStart >= existingEnd + buffer
+        //    - Yeni ders, mevcut dersten ÖNCE bitiyorsa: bookingEnd + buffer <= existingStart
         var hasConflictingBooking = await _context.Bookings
             .AnyAsync(b =>
                 b.MentorUserId == request.MentorUserId &&
                 (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.PendingPayment) &&
-                b.StartAt < bookingEnd &&
-                b.EndAt > bookingStart,
+                bookingStart < b.EndAt.AddMinutes(bufferMin) &&
+                bookingEnd.AddMinutes(bufferMin) > b.StartAt,
                 cancellationToken);
 
         if (hasConflictingBooking)
-            return Result<Guid>.Failure("Bu zaman diliminde zaten bir randevu mevcut");
+            return Result<Guid>.Failure("Bu zaman diliminde zaten bir randevu mevcut (tampon süre dahil)");
 
         // Create booking
         var booking = Booking.Create(

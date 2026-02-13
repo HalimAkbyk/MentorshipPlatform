@@ -6,6 +6,7 @@ using MentorshipPlatform.Application.Availability.Commands.AddAvailabilityOverri
 using MentorshipPlatform.Application.Availability.Commands.DeleteAvailabilitySlot;
 using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
 using MentorshipPlatform.Application.Availability.Queries.GetAvailabilityTemplate;
+using MentorshipPlatform.Application.Availability.Queries.GetAvailableTimeSlots;
 using MentorshipPlatform.Application.Availability.Queries.GetMentorAvailability;
 using MentorshipPlatform.Application.Availability.Queries.GetMyAvailability;
 using MentorshipPlatform.Application.Mentors.Commands.CreateMentorProfile;
@@ -305,10 +306,12 @@ public class MentorsController : ControllerBase
 
         if (template == null) return NotFound(new { errors = new[] { "Template not found" } });
 
-        var @override = template.Overrides.FirstOrDefault(o => o.Id == overrideId);
+        // Override'ı DB'den doğrudan bul ve sil (navigation property tracking sorunlarını önlemek için)
+        var @override = await _db.AvailabilityOverrides
+            .FirstOrDefaultAsync(o => o.Id == overrideId && o.TemplateId == template.Id, ct);
         if (@override == null) return NotFound(new { errors = new[] { "Override not found" } });
 
-        template.RemoveOverride(overrideId);
+        _db.AvailabilityOverrides.Remove(@override);
         await _db.SaveChangesAsync(ct);
         return Ok(new { ok = true });
     }
@@ -351,6 +354,33 @@ public class MentorsController : ControllerBase
         return Ok(result.Data);
     }
 
+
+    /// <summary>
+    /// Public: mentor'un belirli bir gün ve offering için uygun saat dilimlerini hesaplar.
+    /// Buffer süresi ve mevcut booking'ler dikkate alınır.
+    /// </summary>
+    [HttpGet("{id}/available-time-slots")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailableTimeSlots(
+        Guid id,
+        [FromQuery] Guid offeringId,
+        [FromQuery] DateTime date,
+        CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetAvailableTimeSlotsQuery(
+            MentorUserId: id,
+            OfferingId: offeringId,
+            Date: date), ct);
+
+        if (!result.IsSuccess)
+        {
+            if (result.Errors.Any(e => e.ToLower().Contains("not found")))
+                return NotFound(new { errors = result.Errors });
+            return BadRequest(new { errors = result.Errors });
+        }
+
+        return Ok(result.Data);
+    }
 
     /// <summary>
     /// Mentor: kendi uygunluklarını getirir.
