@@ -61,11 +61,16 @@ public class AddAvailabilityOverrideCommandHandler
 
         var date = DateOnly.Parse(request.Date);
 
-        // Aynı tarihte mevcut override varsa sil
-        var existing = template.Overrides.FirstOrDefault(o => o.Date == date);
-        if (existing != null)
+        // Aynı tarihte mevcut override varsa DB'den doğrudan sil
+        // (navigation property üzerinden silmek EF Core tracking sorununa yol açar)
+        var existingOverrides = await _context.AvailabilityOverrides
+            .Where(o => o.TemplateId == template.Id && o.Date == date)
+            .ToListAsync(ct);
+
+        if (existingOverrides.Any())
         {
-            template.RemoveOverride(existing.Id);
+            _context.AvailabilityOverrides.RemoveRange(existingOverrides);
+            await _context.SaveChangesAsync(ct);
         }
 
         var @override = AvailabilityOverride.Create(
@@ -75,7 +80,9 @@ public class AddAvailabilityOverrideCommandHandler
             !request.IsBlocked && request.EndTime != null ? TimeSpan.Parse(request.EndTime) : null,
             request.Reason);
 
-        template.AddOverride(@override);
+        // Doğrudan DbSet'e ekle (navigation property tracking sorunlarını önlemek için)
+        @override.SetTemplateId(template.Id);
+        _context.AvailabilityOverrides.Add(@override);
         await _context.SaveChangesAsync(ct);
 
         return Result<Guid>.Success(@override.Id);

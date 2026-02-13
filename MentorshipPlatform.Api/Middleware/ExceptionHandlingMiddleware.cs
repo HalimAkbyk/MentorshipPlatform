@@ -84,13 +84,13 @@ public class ExceptionHandlingMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
+        // Her ortamda hata tipini ve mesajını göster (debug kolaylığı için)
+        // Stack trace sadece Development'ta gösterilir
         var response = new
         {
             title = "An error occurred",
             status = 500,
-            detail = _env.IsDevelopment() || _env.IsEnvironment("Staging")
-                ? $"{exception.GetType().Name}: {exception.Message}"
-                : "An unexpected error occurred. Please try again later.",
+            detail = $"{exception.GetType().Name}: {exception.Message}",
             stackTrace = _env.IsDevelopment() ? exception.StackTrace : null
         };
 

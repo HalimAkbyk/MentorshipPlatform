@@ -160,20 +160,10 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
         _context.Bookings.Add(booking);
 
-        // Slot'ları IsBooked olarak işaretle
-        // Booking zaman aralığıyla çakışan TÜM slotları bul ve kilitle
-        var overlappingSlots = await _context.AvailabilitySlots
-            .Where(s =>
-                s.MentorUserId == request.MentorUserId &&
-                !s.IsBooked &&
-                s.StartAt < bookingEnd &&
-                s.EndAt > bookingStart)
-            .ToListAsync(cancellationToken);
-
-        foreach (var slot in overlappingSlots)
-        {
-            slot.MarkAsBooked();
-        }
+        // NOT: Slot'ları burada IsBooked olarak İŞARETLEMİYORUZ!
+        // Slot kilitleme, ödeme başarılı olduktan sonra ProcessPaymentWebhookCommand'da yapılır.
+        // Böylece ödeme başarısız olursa slot müsait kalır.
+        // Çakışma kontrolü zaten yukarıda Bookings tablosu üzerinden yapılıyor (PendingPayment dahil).
 
         // Booking sorularının cevaplarını kaydet
         if (request.QuestionResponses != null)
