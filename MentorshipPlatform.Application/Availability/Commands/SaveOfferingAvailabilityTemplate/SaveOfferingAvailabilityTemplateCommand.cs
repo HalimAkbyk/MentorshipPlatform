@@ -1,60 +1,47 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
+namespace MentorshipPlatform.Application.Availability.Commands.SaveOfferingAvailabilityTemplate;
 
-// ---- DTOs ----
-public record AvailabilityRuleDto(int DayOfWeek, bool IsActive, string? StartTime, string? EndTime, int SlotIndex = 0);
-public record AvailabilitySettingsDto(
-    int? MinNoticeHours,
-    int? MaxBookingDaysAhead,
-    int? BufferAfterMin,
-    int? SlotGranularityMin,
-    int? MaxBookingsPerDay);
-
-// ---- Command ----
-public record SaveAvailabilityTemplateCommand(
+public record SaveOfferingAvailabilityTemplateCommand(
+    Guid OfferingId,
     string? Name,
     string? Timezone,
     List<AvailabilityRuleDto> Rules,
     AvailabilitySettingsDto? Settings) : IRequest<Result<Guid>>;
 
-// ---- Validator ----
-public class SaveAvailabilityTemplateCommandValidator : AbstractValidator<SaveAvailabilityTemplateCommand>
+public class SaveOfferingAvailabilityTemplateCommandValidator
+    : AbstractValidator<SaveOfferingAvailabilityTemplateCommand>
 {
-    public SaveAvailabilityTemplateCommandValidator()
+    public SaveOfferingAvailabilityTemplateCommandValidator()
     {
-        RuleFor(x => x.Rules)
-            .NotEmpty().WithMessage("At least one rule is required");
+        RuleFor(x => x.OfferingId).NotEmpty();
+        RuleFor(x => x.Rules).NotEmpty().WithMessage("At least one rule is required");
 
         RuleForEach(x => x.Rules).ChildRules(rule =>
         {
-            rule.RuleFor(r => r.DayOfWeek)
-                .InclusiveBetween(0, 6).WithMessage("DayOfWeek must be 0-6");
-
+            rule.RuleFor(r => r.DayOfWeek).InclusiveBetween(0, 6);
             rule.When(r => r.IsActive, () =>
             {
-                rule.RuleFor(r => r.StartTime)
-                    .NotEmpty().WithMessage("Active rules must have a start time");
-                rule.RuleFor(r => r.EndTime)
-                    .NotEmpty().WithMessage("Active rules must have an end time");
+                rule.RuleFor(r => r.StartTime).NotEmpty();
+                rule.RuleFor(r => r.EndTime).NotEmpty();
             });
         });
     }
 }
 
-// ---- Handler ----
-public class SaveAvailabilityTemplateCommandHandler
-    : IRequestHandler<SaveAvailabilityTemplateCommand, Result<Guid>>
+public class SaveOfferingAvailabilityTemplateCommandHandler
+    : IRequestHandler<SaveOfferingAvailabilityTemplateCommand, Result<Guid>>
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
 
-    public SaveAvailabilityTemplateCommandHandler(
+    public SaveOfferingAvailabilityTemplateCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser)
     {
@@ -63,24 +50,43 @@ public class SaveAvailabilityTemplateCommandHandler
     }
 
     public async Task<Result<Guid>> Handle(
-        SaveAvailabilityTemplateCommand request,
-        CancellationToken cancellationToken)
+        SaveOfferingAvailabilityTemplateCommand request,
+        CancellationToken ct)
     {
         if (!_currentUser.UserId.HasValue)
             return Result<Guid>.Failure("User not authenticated");
 
         var mentorUserId = _currentUser.UserId.Value;
 
-        // Mevcut template'i bul veya yeni oluştur
-        var template = await _context.AvailabilityTemplates
-            .Include(t => t.Rules)
-            .Include(t => t.Overrides)
-            .FirstOrDefaultAsync(t => t.MentorUserId == mentorUserId && t.IsDefault, cancellationToken);
+        // Offering'i doğrula
+        var offering = await _context.Offerings
+            .FirstOrDefaultAsync(o => o.Id == request.OfferingId && o.MentorUserId == mentorUserId, ct);
+
+        if (offering == null)
+            return Result<Guid>.Failure("Offering not found");
+
+        // Offering'e bağlı mevcut template var mı?
+        AvailabilityTemplate? template = null;
+        if (offering.AvailabilityTemplateId.HasValue)
+        {
+            template = await _context.AvailabilityTemplates
+                .Include(t => t.Rules)
+                .Include(t => t.Overrides)
+                .FirstOrDefaultAsync(t => t.Id == offering.AvailabilityTemplateId.Value, ct);
+        }
 
         if (template == null)
         {
-            template = AvailabilityTemplate.Create(mentorUserId, request.Name, request.Timezone);
+            // Yeni non-default template oluştur
+            template = AvailabilityTemplate.Create(
+                mentorUserId,
+                request.Name ?? $"{offering.Title} Programı",
+                request.Timezone,
+                isDefault: false);
             _context.AvailabilityTemplates.Add(template);
+
+            // Offering'e bağla
+            offering.SetAvailabilityTemplate(template.Id);
         }
         else
         {
@@ -99,27 +105,20 @@ public class SaveAvailabilityTemplateCommandHandler
                 request.Settings.MaxBookingsPerDay);
         }
 
-        // Rules güncelle
-        // Not: template Include ile yüklendiğinde, Rules collection'ı EF Core
-        // tarafından track ediliyor. Doğrudan RemoveRange + SetRules karışıklık
-        // yaratıyor. Bunun yerine, önce mevcut template + rules kaydedip,
-        // sonra rules'ları ayrıca temizleyip ekliyoruz.
+        await _context.SaveChangesAsync(ct);
 
-        // Önce template'i ve settings'i kaydet
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // Şimdi mevcut rules'ları DB'den sil (ayrı sorgu ile)
-        var existingRuleIds = await _context.AvailabilityRules
+        // Mevcut rules'ları sil
+        var existingRules = await _context.AvailabilityRules
             .Where(r => r.TemplateId == template.Id)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(ct);
 
-        if (existingRuleIds.Any())
+        if (existingRules.Any())
         {
-            _context.AvailabilityRules.RemoveRange(existingRuleIds);
-            await _context.SaveChangesAsync(cancellationToken);
+            _context.AvailabilityRules.RemoveRange(existingRules);
+            await _context.SaveChangesAsync(ct);
         }
 
-        // Yeni rules oluştur ve doğrudan DbSet'e ekle
+        // Yeni rules oluştur
         var newRules = request.Rules.Select(r =>
             AvailabilityRule.Create(
                 r.DayOfWeek,
@@ -134,11 +133,10 @@ public class SaveAvailabilityTemplateCommandHandler
             rule.SetTemplateId(template.Id);
         }
         _context.AvailabilityRules.AddRange(newRules);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync(ct);
 
-        // Template kaydedildikten sonra slotları otomatik oluştur
-        // Rules'ları direkt parametre olarak geçir (navigation property güncellenmemiş olabilir)
-        await GenerateSlotsFromTemplate(template, newRules, cancellationToken);
+        // Slot'ları oluştur (sadece bu template için)
+        await GenerateSlotsFromTemplate(template, newRules, ct);
 
         return Result<Guid>.Success(template.Id);
     }
@@ -151,7 +149,6 @@ public class SaveAvailabilityTemplateCommandHandler
         }
         catch (TimeZoneNotFoundException)
         {
-            // Docker Alpine may not have all timezone data, try common mappings
             var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Europe/Istanbul"] = "Turkey Standard Time",
@@ -162,14 +159,12 @@ public class SaveAvailabilityTemplateCommandHandler
                 try { return TimeZoneInfo.FindSystemTimeZoneById(alt); }
                 catch { /* fall through */ }
             }
-            // Fallback: UTC+3 for Turkey
             return TimeZoneInfo.CreateCustomTimeZone("TR", TimeSpan.FromHours(3), "Turkey", "Turkey Standard Time");
         }
     }
 
     private static DateTime ConvertToUtcSafe(DateTime dateTime, TimeZoneInfo tz)
     {
-        // Ensure DateTimeKind is Unspecified for ConvertTimeToUtc
         var dt = DateTime.SpecifyKind(dateTime, DateTimeKind.Unspecified);
         return TimeZoneInfo.ConvertTimeToUtc(dt, tz);
     }
@@ -182,21 +177,18 @@ public class SaveAvailabilityTemplateCommandHandler
         var startDate = DateOnly.FromDateTime(now.Date);
         var endDate = startDate.AddDays(template.MaxBookingDaysAhead);
 
-        // Booked olan mevcut slotları koru, booked olmayanları sil ve yeniden oluştur
-        // Sadece BU template'e ait slot'ları filtrele (per-offering availability desteği)
+        // Sadece BU template'e ait slot'ları filtrele
         var existingSlots = await _context.AvailabilitySlots
             .Where(s => s.MentorUserId == mentorUserId
                      && s.StartAt >= DateTime.UtcNow
-                     && (s.TemplateId == template.Id || (template.IsDefault && s.TemplateId == null)))
+                     && s.TemplateId == template.Id)
             .ToListAsync(ct);
 
         var bookedSlots = existingSlots.Where(s => s.IsBooked).ToList();
         var unbookedSlots = existingSlots.Where(s => !s.IsBooked).ToList();
 
-        // Booked olmayan gelecek slotları sil (sadece bu template'e ait)
         _context.AvailabilitySlots.RemoveRange(unbookedSlots);
 
-        // Overrides'ı DB'den doğrudan oku (navigation property güvenilmez olabilir)
         var overridesList = await _context.AvailabilityOverrides
             .AsNoTracking()
             .Where(o => o.TemplateId == template.Id)
@@ -205,7 +197,6 @@ public class SaveAvailabilityTemplateCommandHandler
             .GroupBy(o => o.Date)
             .ToDictionary(g => g.Key, g => g.First());
 
-        // Rules parametre olarak geliyor, tekrar sorgulamaya gerek yok
         var rulesByDay = activeRules
             .Where(r => r.IsActive)
             .GroupBy(r => r.DayOfWeek)
@@ -215,12 +206,10 @@ public class SaveAvailabilityTemplateCommandHandler
 
         for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            // Override kontrolü
             if (overrides.TryGetValue(date, out var @override))
             {
-                if (@override.IsBlocked) continue; // Gün tamamen kapalı
+                if (@override.IsBlocked) continue;
 
-                // Özel saat: override saatlerini kullan
                 if (@override.StartTime.HasValue && @override.EndTime.HasValue)
                 {
                     var overrideStart = date.ToDateTime(TimeOnly.FromTimeSpan(@override.StartTime.Value));
@@ -238,7 +227,6 @@ public class SaveAvailabilityTemplateCommandHandler
                 continue;
             }
 
-            // Normal haftalık kural
             var dayOfWeek = (int)date.DayOfWeek;
             if (!rulesByDay.TryGetValue(dayOfWeek, out var rules)) continue;
 
@@ -252,11 +240,9 @@ public class SaveAvailabilityTemplateCommandHandler
                 var utcStart = ConvertToUtcSafe(localStart, tz);
                 var utcEnd = ConvertToUtcSafe(localEnd, tz);
 
-                // Geçmiş slotları atla
                 if (utcEnd <= DateTime.UtcNow) continue;
                 if (utcStart < DateTime.UtcNow) utcStart = DateTime.UtcNow;
 
-                // Booked slotlarla çakışma kontrolü
                 if (bookedSlots.Any(b => b.StartAt < utcEnd && b.EndAt > utcStart)) continue;
 
                 newSlots.Add(AvailabilitySlot.Create(mentorUserId, utcStart, utcEnd, template.Id));

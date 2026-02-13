@@ -11,7 +11,8 @@ public record GetMentorAvailabilityQuery(
     Guid MentorUserId,
     DateTime? From,
     DateTime? To,
-    bool IncludeBooked = false) : IRequest<Result<List<AvailabilitySlotDto>>>;
+    bool IncludeBooked = false,
+    Guid? OfferingId = null) : IRequest<Result<List<AvailabilitySlotDto>>>;
 
 public class GetMentorAvailabilityQueryHandler
     : IRequestHandler<GetMentorAvailabilityQuery, Result<List<AvailabilitySlotDto>>>
@@ -50,6 +51,32 @@ public class GetMentorAvailabilityQueryHandler
             .AsNoTracking()
             .Where(s => s.MentorUserId == request.MentorUserId)
             .Where(s => s.StartAt >= from && s.StartAt <= to);
+
+        // Offering bazlı template filtresi
+        if (request.OfferingId.HasValue)
+        {
+            var offering = await _context.Offerings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == request.OfferingId.Value, cancellationToken);
+
+            if (offering?.AvailabilityTemplateId != null)
+            {
+                // Offering'e özel template varsa sadece o template'in slot'larını döndür
+                var offeringTemplateId = offering.AvailabilityTemplateId.Value;
+                q = q.Where(s => s.TemplateId == offeringTemplateId);
+            }
+            else
+            {
+                // Default template kullanılıyor — default template ID'sini bul
+                var defaultTemplate = await _context.AvailabilityTemplates
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.MentorUserId == request.MentorUserId && t.IsDefault, cancellationToken);
+                if (defaultTemplate != null)
+                {
+                    q = q.Where(s => s.TemplateId == defaultTemplate.Id || s.TemplateId == null);
+                }
+            }
+        }
 
         if (!request.IncludeBooked)
             q = q.Where(s => !s.IsBooked);

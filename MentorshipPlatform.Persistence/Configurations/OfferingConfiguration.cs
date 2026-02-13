@@ -30,6 +30,13 @@ public class OfferingConfiguration : IEntityTypeConfiguration<Offering>
         builder.Property(x => x.SortOrder).HasDefaultValue(0);
         builder.Property(x => x.CoverImageUrl).HasMaxLength(500);
 
+        // AvailabilityTemplateId FK - offering bazlı müsaitlik programı
+        builder.Property(x => x.AvailabilityTemplateId).IsRequired(false);
+        builder.HasOne<AvailabilityTemplate>()
+            .WithMany()
+            .HasForeignKey(x => x.AvailabilityTemplateId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Navigation: Offering -> BookingQuestions
         builder.HasMany(x => x.Questions)
             .WithOne()
@@ -39,5 +46,7 @@ public class OfferingConfiguration : IEntityTypeConfiguration<Offering>
         builder.HasIndex(x => x.MentorUserId);
         builder.HasIndex(x => x.IsActive);
         builder.HasIndex(x => new { x.MentorUserId, x.SortOrder });
+        builder.HasIndex(x => x.AvailabilityTemplateId)
+            .HasDatabaseName("IX_Offerings_AvailabilityTemplateId");
     }
 }

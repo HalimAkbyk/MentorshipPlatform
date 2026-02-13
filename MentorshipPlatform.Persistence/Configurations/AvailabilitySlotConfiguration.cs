@@ -16,6 +16,9 @@ public class AvailabilitySlotConfiguration : IEntityTypeConfiguration<Availabili
         builder.HasIndex(x => new { x.MentorUserId, x.StartAt })
             .HasDatabaseName("IX_AvailabilitySlots_MentorUserId_StartAt");
 
-    
+        // TemplateId - hangi template'den oluşturulduğu
+        builder.Property(x => x.TemplateId).IsRequired(false);
+        builder.HasIndex(x => x.TemplateId)
+            .HasDatabaseName("IX_AvailabilitySlots_TemplateId");
     }
 }

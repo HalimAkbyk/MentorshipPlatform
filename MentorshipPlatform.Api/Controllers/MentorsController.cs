@@ -329,6 +329,7 @@ public class MentorsController : ControllerBase
         Guid id,
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
+        [FromQuery] Guid? offeringId,
         CancellationToken ct)
 
     {
@@ -336,7 +337,8 @@ public class MentorsController : ControllerBase
             MentorUserId: id,
             From: from?.UtcDateTime,
             To: to?.UtcDateTime,
-            IncludeBooked: false), ct);
+            IncludeBooked: false,
+            OfferingId: offeringId), ct);
 
 
         if (!result.IsSuccess)

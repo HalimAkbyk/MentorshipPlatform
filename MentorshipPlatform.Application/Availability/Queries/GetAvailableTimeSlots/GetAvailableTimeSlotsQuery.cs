@@ -37,10 +37,27 @@ public class GetAvailableTimeSlotsQueryHandler
 
         var durationMin = offering.DurationMinDefault;
 
-        // 2) Mentor template'inden buffer süresini al
-        var template = await _context.AvailabilityTemplates
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.MentorUserId == request.MentorUserId && t.IsDefault, cancellationToken);
+        // 2) Offering'e bağlı template varsa onu, yoksa mentor'un default template'ini al
+        Domain.Entities.AvailabilityTemplate? template = null;
+        Guid? resolvedTemplateId = null;
+        bool isDefaultTemplate = false;
+
+        if (offering.AvailabilityTemplateId.HasValue)
+        {
+            template = await _context.AvailabilityTemplates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == offering.AvailabilityTemplateId.Value, cancellationToken);
+            resolvedTemplateId = template?.Id;
+        }
+
+        if (template == null)
+        {
+            template = await _context.AvailabilityTemplates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.MentorUserId == request.MentorUserId && t.IsDefault, cancellationToken);
+            resolvedTemplateId = template?.Id;
+            isDefaultTemplate = true;
+        }
 
         var bufferMin = template?.BufferAfterMin ?? 15;
         var granularityMin = template?.SlotGranularityMin ?? 15;
@@ -55,13 +72,14 @@ public class GetAvailableTimeSlotsQueryHandler
         var utcDayStart = TimeZoneInfo.ConvertTimeToUtc(localDayStart, tz);
         var utcDayEnd = TimeZoneInfo.ConvertTimeToUtc(localDayEnd, tz);
 
-        // 4) Mentor'un bu gün için müsaitlik bloklarını al
+        // 4) Mentor'un bu gün için müsaitlik bloklarını al (offering'in template'ine göre filtrele)
         var availabilitySlots = await _context.AvailabilitySlots
             .AsNoTracking()
             .Where(s => s.MentorUserId == request.MentorUserId
                      && !s.IsBooked
                      && s.StartAt < utcDayEnd
-                     && s.EndAt > utcDayStart)
+                     && s.EndAt > utcDayStart
+                     && (s.TemplateId == resolvedTemplateId || (isDefaultTemplate && s.TemplateId == null)))
             .OrderBy(s => s.StartAt)
             .ToListAsync(cancellationToken);
 

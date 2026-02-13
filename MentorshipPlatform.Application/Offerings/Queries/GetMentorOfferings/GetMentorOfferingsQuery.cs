@@ -20,6 +20,7 @@ public record MentorOfferingDto(
     int MaxBookingDaysAhead,
     int MinNoticeHours,
     string? CoverImageUrl,
+    Guid? AvailabilityTemplateId,
     List<MentorOfferingQuestionDto> Questions);
 
 public record MentorOfferingQuestionDto(Guid Id, string QuestionText, bool IsRequired, int SortOrder);
@@ -65,6 +66,7 @@ public class GetMentorOfferingsQueryHandler : IRequestHandler<GetMentorOfferings
                 o.MaxBookingDaysAhead,
                 o.MinNoticeHours,
                 o.CoverImageUrl,
+                o.AvailabilityTemplateId,
                 o.Questions.OrderBy(q => q.SortOrder).Select(q =>
                     new MentorOfferingQuestionDto(q.Id, q.QuestionText, q.IsRequired, q.SortOrder)
                 ).ToList()))

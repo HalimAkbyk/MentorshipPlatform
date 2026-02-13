@@ -24,6 +24,7 @@ public class Offering : BaseEntity
     public int MinNoticeHours { get; private set; } = 2;
     public int SortOrder { get; private set; }
     public string? CoverImageUrl { get; private set; }
+    public Guid? AvailabilityTemplateId { get; private set; }
 
     // Navigation properties
     private readonly List<BookingQuestion> _questions = new();
@@ -115,4 +116,10 @@ public class Offering : BaseEntity
 
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
+
+    public void SetAvailabilityTemplate(Guid? templateId)
+    {
+        AvailabilityTemplateId = templateId;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }

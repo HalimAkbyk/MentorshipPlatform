@@ -8,6 +8,10 @@ using MentorshipPlatform.Application.Offerings.Commands.UpsertBookingQuestions;
 using MentorshipPlatform.Application.Offerings.Queries.GetMentorOfferings;
 using MentorshipPlatform.Application.Offerings.Queries.GetMyOfferings;
 using MentorshipPlatform.Application.Offerings.Queries.GetOfferingById;
+using MentorshipPlatform.Application.Availability.Commands.SaveOfferingAvailabilityTemplate;
+using MentorshipPlatform.Application.Availability.Commands.DeleteOfferingAvailabilityTemplate;
+using MentorshipPlatform.Application.Availability.Queries.GetOfferingAvailabilityTemplate;
+using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -120,9 +124,79 @@ public class OfferingsController : ControllerBase
         var result = await _mediator.Send(new UpsertBookingQuestionsCommand(id, questions), ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
     }
+    // ---- Offering-level Availability Template ----
+
+    /// <summary>Paketin müsaitlik programını getir (özel veya varsayılan)</summary>
+    [HttpGet("{id:guid}/availability-template")]
+    [Authorize(Roles = "Mentor")]
+    public async Task<IActionResult> GetOfferingAvailabilityTemplate(Guid id, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetOfferingAvailabilityTemplateQuery(id), ct);
+        if (!result.IsSuccess)
+        {
+            if (result.Errors.Any(e => e.ToLower().Contains("not found")))
+                return NotFound(new { errors = result.Errors });
+            return BadRequest(new { errors = result.Errors });
+        }
+        return Ok(result.Data);
+    }
+
+    /// <summary>Paket için özel müsaitlik programı kaydet (oluştur veya güncelle)</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpPut("{id:guid}/availability-template")]
+    public async Task<IActionResult> SaveOfferingAvailabilityTemplate(
+        Guid id,
+        [FromBody] SaveOfferingTemplateRequest body,
+        CancellationToken ct)
+    {
+        var command = new SaveOfferingAvailabilityTemplateCommand(
+            id,
+            body.Name,
+            body.Timezone,
+            body.Rules.Select(r => new AvailabilityRuleDto(
+                r.DayOfWeek, r.IsActive, r.StartTime, r.EndTime, r.SlotIndex ?? 0)).ToList(),
+            body.Settings != null ? new AvailabilitySettingsDto(
+                body.Settings.MinNoticeHours,
+                body.Settings.MaxBookingDaysAhead,
+                body.Settings.BufferAfterMin,
+                body.Settings.SlotGranularityMin,
+                body.Settings.MaxBookingsPerDay) : null);
+
+        var result = await _mediator.Send(command, ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(new { templateId = result.Data });
+    }
+
+    /// <summary>Paketin özel müsaitlik programını sil (varsayılana dön)</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpDelete("{id:guid}/availability-template")]
+    public async Task<IActionResult> DeleteOfferingAvailabilityTemplate(Guid id, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new DeleteOfferingAvailabilityTemplateCommand(id), ct);
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
 }
 
 // Request DTOs
+public record SaveOfferingTemplateRuleRequest(
+    int DayOfWeek,
+    bool IsActive,
+    string? StartTime,
+    string? EndTime,
+    int? SlotIndex);
+
+public record SaveOfferingTemplateSettingsRequest(
+    int? MinNoticeHours,
+    int? MaxBookingDaysAhead,
+    int? BufferAfterMin,
+    int? SlotGranularityMin,
+    int? MaxBookingsPerDay);
+
+public record SaveOfferingTemplateRequest(
+    string? Name,
+    string? Timezone,
+    List<SaveOfferingTemplateRuleRequest> Rules,
+    SaveOfferingTemplateSettingsRequest? Settings);
 public record UpdateOfferingRequest(
     string Title,
     string? Description,

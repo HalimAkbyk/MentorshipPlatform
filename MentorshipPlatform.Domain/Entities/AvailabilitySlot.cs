@@ -10,10 +10,11 @@ public class AvailabilitySlot : BaseEntity
     public DateTime EndAt { get; private set; }
     public bool IsBooked { get; private set; }
     public Guid? RecurrenceId { get; private set; }
+    public Guid? TemplateId { get; private set; }
 
     private AvailabilitySlot() { }
 
-    public static AvailabilitySlot Create(Guid mentorUserId, DateTime startAt, DateTime endAt)
+    public static AvailabilitySlot Create(Guid mentorUserId, DateTime startAt, DateTime endAt, Guid? templateId = null)
     {
         if (startAt >= endAt)
             throw new DomainException("Start time must be before end time");
@@ -25,7 +26,8 @@ public class AvailabilitySlot : BaseEntity
             MentorUserId = mentorUserId,
             StartAt = startAt,
             EndAt = endAt,
-            IsBooked = false
+            IsBooked = false,
+            TemplateId = templateId
         };
     }
 

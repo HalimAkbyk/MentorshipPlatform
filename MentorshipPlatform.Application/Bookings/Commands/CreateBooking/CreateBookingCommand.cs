@@ -90,28 +90,52 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         var bookingStart = DateTime.SpecifyKind(request.StartAt, DateTimeKind.Utc);
         var bookingEnd = bookingStart.AddMinutes(request.DurationMin);
 
-        // 1) Mentor'un bu zaman dilimini kapsayan müsait slot(lar) var mı?
-        //    Slot büyük bir blok olabilir (örn 9:00-17:00), booking onun içinde yer alabilir
+        // 1) Offering'e bağlı template'i resolve et
+        Guid? resolvedTemplateId = offering.AvailabilityTemplateId;
+        bool isDefaultTemplate = false;
+
+        if (resolvedTemplateId.HasValue)
+        {
+            // Offering'e özel template var mı kontrol et
+            var exists = await _context.AvailabilityTemplates
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == resolvedTemplateId.Value, cancellationToken);
+            if (!exists) resolvedTemplateId = null;
+        }
+
+        Domain.Entities.AvailabilityTemplate? template = null;
+        if (!resolvedTemplateId.HasValue)
+        {
+            template = await _context.AvailabilityTemplates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.MentorUserId == request.MentorUserId && t.IsDefault, cancellationToken);
+            resolvedTemplateId = template?.Id;
+            isDefaultTemplate = true;
+        }
+        else
+        {
+            template = await _context.AvailabilityTemplates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == resolvedTemplateId.Value, cancellationToken);
+        }
+
+        // 2) Mentor'un bu zaman dilimini kapsayan müsait slot(lar) var mı? (template bazlı)
         var hasAvailableSlot = await _context.AvailabilitySlots
             .AnyAsync(s =>
                 s.MentorUserId == request.MentorUserId &&
                 !s.IsBooked &&
                 s.StartAt <= bookingStart &&
-                s.EndAt >= bookingEnd,
+                s.EndAt >= bookingEnd &&
+                (s.TemplateId == resolvedTemplateId || (isDefaultTemplate && s.TemplateId == null)),
                 cancellationToken);
 
         if (!hasAvailableSlot)
             return Result<Guid>.Failure("Seçilen zaman dilimi müsait değil");
 
-        // 2) Buffer süresi al
-        var bufferMin = 15; // default
-        var template = await _context.AvailabilityTemplates
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.MentorUserId == request.MentorUserId && t.IsDefault, cancellationToken);
-        if (template != null)
-            bufferMin = template.BufferAfterMin;
+        // 3) Buffer süresi al (resolved template'ten)
+        var bufferMin = template?.BufferAfterMin ?? 15;
 
-        // 3) Aynı zaman diliminde başka bir AKTİF booking var mı? (buffer dahil)
+        // 4) Aynı zaman diliminde başka bir AKTİF booking var mı? (buffer dahil — TÜM offering'ler arası çapraz kontrol)
         //    Buffer ders sonrası uygulanır:
         //    - Yeni ders, mevcut dersten SONRA başlıyorsa: bookingStart >= existingEnd + buffer
         //    - Yeni ders, mevcut dersten ÖNCE bitiyorsa: bookingEnd + buffer <= existingStart

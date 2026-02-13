@@ -22,6 +22,7 @@ public record MyOfferingDto(
     int MinNoticeHours,
     int SortOrder,
     string? CoverImageUrl,
+    Guid? AvailabilityTemplateId,
     int QuestionCount,
     List<MyOfferingQuestionDto> Questions);
 
@@ -67,6 +68,7 @@ public class GetMyOfferingsQueryHandler : IRequestHandler<GetMyOfferingsQuery, R
                 o.MinNoticeHours,
                 o.SortOrder,
                 o.CoverImageUrl,
+                o.AvailabilityTemplateId,
                 o.Questions.Count,
                 o.Questions.OrderBy(q => q.SortOrder).Select(q =>
                     new MyOfferingQuestionDto(q.Id, q.QuestionText, q.IsRequired, q.SortOrder)

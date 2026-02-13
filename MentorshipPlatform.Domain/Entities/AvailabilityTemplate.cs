@@ -25,14 +25,14 @@ public class AvailabilityTemplate : BaseEntity
 
     private AvailabilityTemplate() { }
 
-    public static AvailabilityTemplate Create(Guid mentorUserId, string? name = null, string? timezone = null)
+    public static AvailabilityTemplate Create(Guid mentorUserId, string? name = null, string? timezone = null, bool isDefault = true)
     {
         return new AvailabilityTemplate
         {
             MentorUserId = mentorUserId,
-            Name = name ?? "Varsayılan Program",
+            Name = name ?? (isDefault ? "Varsayılan Program" : "Özel Program"),
             Timezone = timezone ?? "Europe/Istanbul",
-            IsDefault = true
+            IsDefault = isDefault
         };
     }
 
