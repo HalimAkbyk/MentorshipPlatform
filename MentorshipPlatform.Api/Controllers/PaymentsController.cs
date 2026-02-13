@@ -90,6 +90,40 @@ public class PaymentsController : ControllerBase
             return Redirect($"{frontendUrl}/api/payment/failed");
         }
     }
+    /// <summary>
+    /// Frontend proxy üzerinden gelen ödeme doğrulama isteği.
+    /// Iyzico callback → Vercel (frontend route.ts) → bu endpoint
+    /// </summary>
+    [HttpPost("verify-callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyCallback([FromBody] VerifyCallbackRequest request)
+    {
+        _logger.LogInformation("📥 Verify callback from frontend - Token: {Token}", request.Token);
+
+        if (string.IsNullOrEmpty(request.Token))
+            return BadRequest(new { isSuccess = false, error = "Token is required" });
+
+        try
+        {
+            var command = new ProcessPaymentWebhookCommand(request.Token);
+            var result = await _mediator.Send(command);
+
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("❌ Payment verification failed for token: {Token}", request.Token);
+                return Ok(new { isSuccess = false, error = "Payment verification failed" });
+            }
+
+            _logger.LogInformation("✅ Payment verified successfully via frontend proxy");
+            return Ok(new { isSuccess = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Verify callback error");
+            return Ok(new { isSuccess = false, error = ex.Message });
+        }
+    }
+
     [HttpPost("webhook/iyzico")]
     [AllowAnonymous]
     public async Task<IActionResult> IyzicoWebhook([FromForm] IyzicoWebhookDto webhook)
@@ -106,3 +140,4 @@ public class PaymentsController : ControllerBase
     }
 }
 public record IyzicoWebhookDto(string Token);
+public record VerifyCallbackRequest(string Token);
