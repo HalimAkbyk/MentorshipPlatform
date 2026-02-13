@@ -36,20 +36,37 @@ public class PaymentsController : ControllerBase
 
         return Ok(result.Data);
     }
+    // Iyzico callback - POST (checkout form completion) ve GET (3D Secure redirect) destekler
     [HttpPost("callback/iyzico")]
     [AllowAnonymous]
-    public async Task<IActionResult> IyzicoCallback([FromForm] string token)
+    public async Task<IActionResult> IyzicoCallbackPost([FromForm] string token)
     {
-        _logger.LogInformation("📥 Iyzico callback - Token: {Token}", token);
+        return await ProcessIyzicoCallback(token);
+    }
+
+    [HttpGet("callback/iyzico")]
+    [AllowAnonymous]
+    public async Task<IActionResult> IyzicoCallbackGet([FromQuery] string? token)
+    {
+        return await ProcessIyzicoCallback(token);
+    }
+
+    private async Task<IActionResult> ProcessIyzicoCallback(string? token)
+    {
+        _logger.LogInformation("📥 Iyzico callback - Token: {Token}, Method: {Method}", token, Request.Method);
 
         if (string.IsNullOrEmpty(token))
-            return BadRequest("Token is required");
+        {
+            // Token yoksa frontend'e yönlendir (kullanıcı doğrudan URL'e girmiş olabilir)
+            var url = _configuration["FrontendUrl"];
+            return Redirect($"{url}/api/payment/failed");
+        }
 
         try
         {
             var command = new ProcessPaymentWebhookCommand(token);
             var result = await _mediator.Send(command);
-        
+
             if (!result.IsSuccess)
             {
                 var frontendUrl = _configuration["FrontendUrl"];
