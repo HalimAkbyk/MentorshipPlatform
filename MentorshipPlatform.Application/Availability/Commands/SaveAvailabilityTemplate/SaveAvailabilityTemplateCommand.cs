@@ -99,12 +99,27 @@ public class SaveAvailabilityTemplateCommandHandler
                 request.Settings.MaxBookingsPerDay);
         }
 
-        // Rules güncelle - eski rules'ları sil, yenilerini ekle
-        var existingRules = await _context.AvailabilityRules
+        // Rules güncelle
+        // Not: template Include ile yüklendiğinde, Rules collection'ı EF Core
+        // tarafından track ediliyor. Doğrudan RemoveRange + SetRules karışıklık
+        // yaratıyor. Bunun yerine, önce mevcut template + rules kaydedip,
+        // sonra rules'ları ayrıca temizleyip ekliyoruz.
+
+        // Önce template'i ve settings'i kaydet
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Şimdi mevcut rules'ları DB'den sil (ayrı sorgu ile)
+        var existingRuleIds = await _context.AvailabilityRules
             .Where(r => r.TemplateId == template.Id)
             .ToListAsync(cancellationToken);
-        _context.AvailabilityRules.RemoveRange(existingRules);
 
+        if (existingRuleIds.Any())
+        {
+            _context.AvailabilityRules.RemoveRange(existingRuleIds);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // Yeni rules oluştur ve doğrudan DbSet'e ekle
         var newRules = request.Rules.Select(r =>
             AvailabilityRule.Create(
                 r.DayOfWeek,
@@ -114,12 +129,16 @@ public class SaveAvailabilityTemplateCommandHandler
                 r.SlotIndex)
         ).ToList();
 
-        template.SetRules(newRules);
-
+        foreach (var rule in newRules)
+        {
+            rule.SetTemplateId(template.Id);
+        }
+        _context.AvailabilityRules.AddRange(newRules);
         await _context.SaveChangesAsync(cancellationToken);
 
         // Template kaydedildikten sonra slotları otomatik oluştur
-        await GenerateSlotsFromTemplate(template, cancellationToken);
+        // Rules'ları direkt parametre olarak geçir (navigation property güncellenmemiş olabilir)
+        await GenerateSlotsFromTemplate(template, newRules, cancellationToken);
 
         return Result<Guid>.Success(template.Id);
     }
@@ -155,7 +174,7 @@ public class SaveAvailabilityTemplateCommandHandler
         return TimeZoneInfo.ConvertTimeToUtc(dt, tz);
     }
 
-    private async Task GenerateSlotsFromTemplate(AvailabilityTemplate template, CancellationToken ct)
+    private async Task GenerateSlotsFromTemplate(AvailabilityTemplate template, List<AvailabilityRule> activeRules, CancellationToken ct)
     {
         var mentorUserId = template.MentorUserId;
         var tz = FindTimezone(template.Timezone);
@@ -174,24 +193,17 @@ public class SaveAvailabilityTemplateCommandHandler
         // Booked olmayan gelecek slotları sil
         _context.AvailabilitySlots.RemoveRange(unbookedSlots);
 
-        // Overrides'ı dateonly bazında dictionary'e çevir — template.Overrides
-        // may have been detached after SaveChanges, so reload if needed
-        var overridesList = template.Overrides?.ToList() ?? new List<AvailabilityOverride>();
+        // Overrides'ı DB'den doğrudan oku (navigation property güvenilmez olabilir)
+        var overridesList = await _context.AvailabilityOverrides
+            .AsNoTracking()
+            .Where(o => o.TemplateId == template.Id)
+            .ToListAsync(ct);
         var overrides = overridesList
             .GroupBy(o => o.Date)
             .ToDictionary(g => g.Key, g => g.First());
 
-        // Rules'ları dayOfWeek bazında grupla — reload from DB if collection empty
-        var rulesList = template.Rules?.ToList();
-        if (rulesList == null || !rulesList.Any())
-        {
-            rulesList = await _context.AvailabilityRules
-                .AsNoTracking()
-                .Where(r => r.TemplateId == template.Id)
-                .ToListAsync(ct);
-        }
-
-        var rulesByDay = rulesList
+        // Rules parametre olarak geliyor, tekrar sorgulamaya gerek yok
+        var rulesByDay = activeRules
             .Where(r => r.IsActive)
             .GroupBy(r => r.DayOfWeek)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.StartTime).ToList());

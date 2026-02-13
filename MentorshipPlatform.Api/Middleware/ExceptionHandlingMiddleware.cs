@@ -8,13 +8,16 @@ public class ExceptionHandlingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+    private readonly IHostEnvironment _env;
 
     public ExceptionHandlingMiddleware(
         RequestDelegate next,
-        ILogger<ExceptionHandlingMiddleware> logger)
+        ILogger<ExceptionHandlingMiddleware> logger,
+        IHostEnvironment env)
     {
         _next = next;
         _logger = logger;
+        _env = env;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -76,7 +79,7 @@ public class ExceptionHandlingMiddleware
         return context.Response.WriteAsJsonAsync(response);
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
@@ -85,7 +88,10 @@ public class ExceptionHandlingMiddleware
         {
             title = "An error occurred",
             status = 500,
-            detail = "An unexpected error occurred. Please try again later."
+            detail = _env.IsDevelopment() || _env.IsEnvironment("Staging")
+                ? $"{exception.GetType().Name}: {exception.Message}"
+                : "An unexpected error occurred. Please try again later.",
+            stackTrace = _env.IsDevelopment() ? exception.StackTrace : null
         };
 
         return context.Response.WriteAsJsonAsync(response);
