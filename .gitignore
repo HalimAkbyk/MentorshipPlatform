@@ -59,3 +59,12 @@ logs/
 *.db
 *.db-shm
 *.db-wal
+
+# Claude local settings
+.claude/settings.local.json
+
+# Wrangler
+.wrangler/
+
+# Node
+node_modules/

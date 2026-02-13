@@ -27,8 +27,13 @@ public class GetMentorAvailabilityQueryHandler
         GetMentorAvailabilityQuery request,
         CancellationToken cancellationToken)
     {
-        var from = request.From ?? DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        var from = request.From ?? now;
         var to = request.To ?? from.AddDays(30);
+
+        // Geçmiş slotları asla döndürme: from en az "şu an" olmalı
+        if (from < now)
+            from = now;
 
         if (to < from)
             return Result<List<AvailabilitySlotDto>>.Failure("Invalid date range");
