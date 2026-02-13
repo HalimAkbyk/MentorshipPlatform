@@ -85,7 +85,19 @@ public class GetOfferingAvailabilityTemplateQueryHandler
         }
 
         if (template == null)
-            return Result<OfferingAvailabilityTemplateDto>.Failure("No availability template found");
+        {
+            // Mentor henüz varsayılan template oluşturmamış – boş bir default DTO dön
+            return Result<OfferingAvailabilityTemplateDto>.Success(
+                new OfferingAvailabilityTemplateDto(
+                    Guid.Empty,
+                    "Varsayılan Program",
+                    "Europe/Istanbul",
+                    true,
+                    false,
+                    new OfferingTemplateSettingsDto(2, 60, 15, 30, 5),
+                    new List<OfferingTemplateRuleDto>(),
+                    new List<OfferingTemplateOverrideDto>()));
+        }
 
         var dto = new OfferingAvailabilityTemplateDto(
             template.Id,
