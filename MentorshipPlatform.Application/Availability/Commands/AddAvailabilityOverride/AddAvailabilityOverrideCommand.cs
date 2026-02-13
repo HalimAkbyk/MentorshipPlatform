@@ -51,8 +51,13 @@ public class AddAvailabilityOverrideCommandHandler
             .Include(t => t.Overrides)
             .FirstOrDefaultAsync(t => t.MentorUserId == mentorUserId && t.IsDefault, ct);
 
+        // Template yoksa otomatik oluştur (mentor takvimden override ekleyebilsin)
         if (template == null)
-            return Result<Guid>.Failure("No availability template found. Please create one first.");
+        {
+            template = AvailabilityTemplate.Create(mentorUserId);
+            _context.AvailabilityTemplates.Add(template);
+            await _context.SaveChangesAsync(ct);
+        }
 
         var date = DateOnly.Parse(request.Date);
 

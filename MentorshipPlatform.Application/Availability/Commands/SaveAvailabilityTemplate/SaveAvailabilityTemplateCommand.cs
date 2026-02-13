@@ -124,10 +124,41 @@ public class SaveAvailabilityTemplateCommandHandler
         return Result<Guid>.Success(template.Id);
     }
 
+    private static TimeZoneInfo FindTimezone(string timezone)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timezone);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            // Docker Alpine may not have all timezone data, try common mappings
+            var mapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Europe/Istanbul"] = "Turkey Standard Time",
+                ["Turkey Standard Time"] = "Europe/Istanbul",
+            };
+            if (mapping.TryGetValue(timezone, out var alt))
+            {
+                try { return TimeZoneInfo.FindSystemTimeZoneById(alt); }
+                catch { /* fall through */ }
+            }
+            // Fallback: UTC+3 for Turkey
+            return TimeZoneInfo.CreateCustomTimeZone("TR", TimeSpan.FromHours(3), "Turkey", "Turkey Standard Time");
+        }
+    }
+
+    private static DateTime ConvertToUtcSafe(DateTime dateTime, TimeZoneInfo tz)
+    {
+        // Ensure DateTimeKind is Unspecified for ConvertTimeToUtc
+        var dt = DateTime.SpecifyKind(dateTime, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(dt, tz);
+    }
+
     private async Task GenerateSlotsFromTemplate(AvailabilityTemplate template, CancellationToken ct)
     {
         var mentorUserId = template.MentorUserId;
-        var tz = TimeZoneInfo.FindSystemTimeZoneById(template.Timezone);
+        var tz = FindTimezone(template.Timezone);
         var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
         var startDate = DateOnly.FromDateTime(now.Date);
         var endDate = startDate.AddDays(template.MaxBookingDaysAhead);
@@ -143,11 +174,24 @@ public class SaveAvailabilityTemplateCommandHandler
         // Booked olmayan gelecek slotları sil
         _context.AvailabilitySlots.RemoveRange(unbookedSlots);
 
-        // Overrides'ı dateonly bazında dictionary'e çevir
-        var overrides = template.Overrides.ToDictionary(o => o.Date);
+        // Overrides'ı dateonly bazında dictionary'e çevir — template.Overrides
+        // may have been detached after SaveChanges, so reload if needed
+        var overridesList = template.Overrides?.ToList() ?? new List<AvailabilityOverride>();
+        var overrides = overridesList
+            .GroupBy(o => o.Date)
+            .ToDictionary(g => g.Key, g => g.First());
 
-        // Rules'ları dayOfWeek bazında grupla
-        var rulesByDay = template.Rules
+        // Rules'ları dayOfWeek bazında grupla — reload from DB if collection empty
+        var rulesList = template.Rules?.ToList();
+        if (rulesList == null || !rulesList.Any())
+        {
+            rulesList = await _context.AvailabilityRules
+                .AsNoTracking()
+                .Where(r => r.TemplateId == template.Id)
+                .ToListAsync(ct);
+        }
+
+        var rulesByDay = rulesList
             .Where(r => r.IsActive)
             .GroupBy(r => r.DayOfWeek)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.StartTime).ToList());
@@ -162,16 +206,19 @@ public class SaveAvailabilityTemplateCommandHandler
                 if (@override.IsBlocked) continue; // Gün tamamen kapalı
 
                 // Özel saat: override saatlerini kullan
-                var overrideStart = date.ToDateTime(TimeOnly.FromTimeSpan(@override.StartTime!.Value));
-                var overrideEnd = date.ToDateTime(TimeOnly.FromTimeSpan(@override.EndTime!.Value));
-
-                var overrideStartUtc = TimeZoneInfo.ConvertTimeToUtc(overrideStart, tz);
-                var overrideEndUtc = TimeZoneInfo.ConvertTimeToUtc(overrideEnd, tz);
-
-                if (overrideStartUtc > DateTime.UtcNow &&
-                    !bookedSlots.Any(b => b.StartAt < overrideEndUtc && b.EndAt > overrideStartUtc))
+                if (@override.StartTime.HasValue && @override.EndTime.HasValue)
                 {
-                    newSlots.Add(AvailabilitySlot.Create(mentorUserId, overrideStartUtc, overrideEndUtc));
+                    var overrideStart = date.ToDateTime(TimeOnly.FromTimeSpan(@override.StartTime.Value));
+                    var overrideEnd = date.ToDateTime(TimeOnly.FromTimeSpan(@override.EndTime.Value));
+
+                    var overrideStartUtc = ConvertToUtcSafe(overrideStart, tz);
+                    var overrideEndUtc = ConvertToUtcSafe(overrideEnd, tz);
+
+                    if (overrideStartUtc > DateTime.UtcNow &&
+                        !bookedSlots.Any(b => b.StartAt < overrideEndUtc && b.EndAt > overrideStartUtc))
+                    {
+                        newSlots.Add(AvailabilitySlot.Create(mentorUserId, overrideStartUtc, overrideEndUtc));
+                    }
                 }
                 continue;
             }
@@ -187,8 +234,8 @@ public class SaveAvailabilityTemplateCommandHandler
                 var localStart = date.ToDateTime(TimeOnly.FromTimeSpan(rule.StartTime.Value));
                 var localEnd = date.ToDateTime(TimeOnly.FromTimeSpan(rule.EndTime.Value));
 
-                var utcStart = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
-                var utcEnd = TimeZoneInfo.ConvertTimeToUtc(localEnd, tz);
+                var utcStart = ConvertToUtcSafe(localStart, tz);
+                var utcEnd = ConvertToUtcSafe(localEnd, tz);
 
                 // Geçmiş slotları atla
                 if (utcEnd <= DateTime.UtcNow) continue;
