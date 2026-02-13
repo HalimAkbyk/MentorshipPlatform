@@ -135,7 +135,38 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         // 3) Buffer süresi al (resolved template'ten)
         var bufferMin = template?.BufferAfterMin ?? 15;
 
-        // 4) Aynı zaman diliminde başka bir AKTİF booking var mı? (buffer dahil — TÜM offering'ler arası çapraz kontrol)
+        // 4) Aynı kullanıcının bu mentor için ÖDENMEMİŞ (PendingPayment) booking'lerini otomatik iptal et
+        //    Kullanıcı ödeme yapmadan geri dönüp tekrar booking oluşturursa, eski PendingPayment booking'ler
+        //    yeni booking'i engellememelidir.
+        var staleBookings = await _context.Bookings
+            .Where(b =>
+                b.StudentUserId == studentUserId &&
+                b.MentorUserId == request.MentorUserId &&
+                b.Status == BookingStatus.PendingPayment)
+            .ToListAsync(cancellationToken);
+
+        if (staleBookings.Any())
+        {
+            foreach (var stale in staleBookings)
+            {
+                stale.Cancel("Yeni booking oluşturuldu, eski ödenmemiş randevu otomatik iptal edildi");
+            }
+
+            // İlişkili Pending order'ları da iptal et
+            var staleBookingIds = staleBookings.Select(b => b.Id).ToList();
+            var staleOrders = await _context.Orders
+                .Where(o => staleBookingIds.Contains(o.ResourceId) && o.Status == OrderStatus.Pending)
+                .ToListAsync(cancellationToken);
+
+            foreach (var staleOrder in staleOrders)
+            {
+                staleOrder.MarkAsFailed();
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // 5) Aynı zaman diliminde başka bir AKTİF booking var mı? (buffer dahil — TÜM offering'ler arası çapraz kontrol)
         //    Buffer ders sonrası uygulanır:
         //    - Yeni ders, mevcut dersten SONRA başlıyorsa: bookingStart >= existingEnd + buffer
         //    - Yeni ders, mevcut dersten ÖNCE bitiyorsa: bookingEnd + buffer <= existingStart

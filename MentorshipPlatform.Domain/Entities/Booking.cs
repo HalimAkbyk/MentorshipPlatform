@@ -58,8 +58,8 @@ public class Booking : BaseEntity
 
     public void Cancel(string reason)
     {
-        if (Status != BookingStatus.Confirmed && Status != BookingStatus.Disputed)
-            throw new DomainException("Only confirmed or disputed bookings can be cancelled");
+        if (Status != BookingStatus.Confirmed && Status != BookingStatus.Disputed && Status != BookingStatus.PendingPayment)
+            throw new DomainException("Only confirmed, disputed or pending-payment bookings can be cancelled");
 
         Status = BookingStatus.Cancelled;
         CancellationReason = reason;
