@@ -2,7 +2,10 @@ using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Helpers;
 using MentorshipPlatform.Application.Availability.Commands.AddAvailabilitySlot;
+using MentorshipPlatform.Application.Availability.Commands.AddAvailabilityOverride;
 using MentorshipPlatform.Application.Availability.Commands.DeleteAvailabilitySlot;
+using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
+using MentorshipPlatform.Application.Availability.Queries.GetAvailabilityTemplate;
 using MentorshipPlatform.Application.Availability.Queries.GetMentorAvailability;
 using MentorshipPlatform.Application.Availability.Queries.GetMyAvailability;
 using MentorshipPlatform.Application.Mentors.Commands.CreateMentorProfile;
@@ -243,7 +246,74 @@ public class MentorsController : ControllerBase
 
         return Ok(new { ok = true, offeringId = offering.Id });
     }
-    // ---- Availability
+    // ---- Availability Template (Haftalık Şablon)
+
+    /// <summary>
+    /// Mentor: haftalık müsaitlik şablonunu getirir.
+    /// </summary>
+    [HttpGet("me/availability/template")]
+    [Authorize(Policy = "RequireMentorRole")]
+    public async Task<IActionResult> GetMyAvailabilityTemplate(CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetAvailabilityTemplateQuery(), ct);
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
+    }
+
+    /// <summary>
+    /// Mentor: haftalık müsaitlik şablonunu kaydeder (upsert). Otomatik slot üretimi yapar.
+    /// </summary>
+    [HttpPut("me/availability/template")]
+    [Authorize(Policy = "RequireMentorRole")]
+    public async Task<IActionResult> SaveMyAvailabilityTemplate(
+        [FromBody] SaveAvailabilityTemplateCommand command, CancellationToken ct)
+    {
+        var result = await _mediator.Send(command, ct);
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(new { templateId = result.Data });
+    }
+
+    /// <summary>
+    /// Mentor: tarih bazlı override ekler (tatil günü veya özel saat).
+    /// </summary>
+    [HttpPost("me/availability/override")]
+    [Authorize(Policy = "RequireMentorRole")]
+    public async Task<IActionResult> AddAvailabilityOverride(
+        [FromBody] AddAvailabilityOverrideCommand command, CancellationToken ct)
+    {
+        var result = await _mediator.Send(command, ct);
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(new { overrideId = result.Data });
+    }
+
+    /// <summary>
+    /// Mentor: tarih bazlı override siler.
+    /// </summary>
+    [HttpDelete("me/availability/override/{overrideId}")]
+    [Authorize(Policy = "RequireMentorRole")]
+    public async Task<IActionResult> DeleteAvailabilityOverride(Guid overrideId, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) return Unauthorized();
+        var mentorUserId = _currentUser.UserId.Value;
+
+        var template = await _db.AvailabilityTemplates
+            .Include(t => t.Overrides)
+            .FirstOrDefaultAsync(t => t.MentorUserId == mentorUserId && t.IsDefault, ct);
+
+        if (template == null) return NotFound(new { errors = new[] { "Template not found" } });
+
+        var @override = template.Overrides.FirstOrDefault(o => o.Id == overrideId);
+        if (@override == null) return NotFound(new { errors = new[] { "Override not found" } });
+
+        template.RemoveOverride(overrideId);
+        await _db.SaveChangesAsync(ct);
+        return Ok(new { ok = true });
+    }
+
+    // ---- Availability Slots
 
 
     /// <summary>

@@ -19,6 +19,9 @@ public interface IApplicationDbContext
     DbSet<VideoParticipant> VideoParticipants { get; }
     DbSet<Review> Reviews { get; }
     DbSet<ProcessHistory> ProcessHistories { get; }
+    DbSet<AvailabilityTemplate> AvailabilityTemplates { get; }
+    DbSet<AvailabilityRule> AvailabilityRules { get; }
+    DbSet<AvailabilityOverride> AvailabilityOverrides { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

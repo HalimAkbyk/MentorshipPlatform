@@ -272,6 +272,65 @@ public class AdminController : ControllerBase
     }
 
     // -----------------------------
+    // ALL BOOKINGS (Admin Calendar)
+    // -----------------------------
+    public record AdminBookingDto(
+        Guid Id,
+        Guid StudentUserId,
+        string? StudentName,
+        Guid MentorUserId,
+        string? MentorName,
+        DateTime StartAt,
+        DateTime EndAt,
+        int DurationMin,
+        string Status,
+        decimal Price,
+        string Currency,
+        string? OfferingTitle);
+
+    [HttpGet("bookings")]
+    public async Task<IActionResult> GetAllBookings(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] string? status,
+        [FromQuery] Guid? mentorUserId)
+    {
+        var query = _db.Bookings.AsNoTracking()
+            .Include(b => b.Student)
+            .Include(b => b.Mentor)
+            .Include(b => b.Offering)
+            .AsQueryable();
+
+        if (from.HasValue)
+            query = query.Where(b => b.StartAt >= from.Value);
+        if (to.HasValue)
+            query = query.Where(b => b.EndAt <= to.Value);
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<BookingStatus>(status, true, out var st))
+            query = query.Where(b => b.Status == st);
+        if (mentorUserId.HasValue)
+            query = query.Where(b => b.MentorUserId == mentorUserId.Value);
+
+        var items = await query
+            .OrderByDescending(b => b.StartAt)
+            .Select(b => new AdminBookingDto(
+                b.Id,
+                b.StudentUserId,
+                b.Student != null ? b.Student.DisplayName : null,
+                b.MentorUserId,
+                b.Mentor != null ? b.Mentor.DisplayName : null,
+                b.StartAt,
+                b.EndAt,
+                b.DurationMin,
+                b.Status.ToString(),
+                b.Offering != null ? b.Offering.PriceAmount : 0,
+                b.Offering != null ? b.Offering.Currency : "TRY",
+                b.Offering != null ? b.Offering.Title : null))
+            .ToListAsync();
+
+        return Ok(items);
+    }
+
+    // -----------------------------
     // PROCESS HISTORY (Audit Log)
     // -----------------------------
     [HttpGet("process-history")]

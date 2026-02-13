@@ -34,6 +34,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<VideoParticipant> VideoParticipants => Set<VideoParticipant>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<ProcessHistory> ProcessHistories => Set<ProcessHistory>();
+    public DbSet<AvailabilityTemplate> AvailabilityTemplates => Set<AvailabilityTemplate>();
+    public DbSet<AvailabilityRule> AvailabilityRules => Set<AvailabilityRule>();
+    public DbSet<AvailabilityOverride> AvailabilityOverrides => Set<AvailabilityOverride>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
