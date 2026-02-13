@@ -51,15 +51,23 @@ public class PaymentsController : ControllerBase
         return await ProcessIyzicoCallback(token);
     }
 
+    private string GetFrontendUrl()
+    {
+        // Koyeb'de Frontend__BaseUrl, local'de FrontendUrl kullanılır
+        return _configuration["Frontend:BaseUrl"]
+            ?? _configuration["FrontendUrl"]
+            ?? "https://mentorship-platform-react.vercel.app";
+    }
+
     private async Task<IActionResult> ProcessIyzicoCallback(string? token)
     {
-        _logger.LogInformation("📥 Iyzico callback - Token: {Token}, Method: {Method}", token, Request.Method);
+        var frontendUrl = GetFrontendUrl();
+        _logger.LogInformation("📥 Iyzico callback - Token: {Token}, Method: {Method}, FrontendUrl: {FrontendUrl}",
+            token, Request.Method, frontendUrl);
 
         if (string.IsNullOrEmpty(token))
         {
-            // Token yoksa frontend'e yönlendir (kullanıcı doğrudan URL'e girmiş olabilir)
-            var url = _configuration["FrontendUrl"];
-            return Redirect($"{url}/api/payment/failed");
+            return Redirect($"{frontendUrl}/api/payment/failed");
         }
 
         try
@@ -69,17 +77,16 @@ public class PaymentsController : ControllerBase
 
             if (!result.IsSuccess)
             {
-                var frontendUrl = _configuration["FrontendUrl"];
+                _logger.LogWarning("❌ Payment verification failed for token: {Token}", token);
                 return Redirect($"{frontendUrl}/payment/failed");
             }
 
-            var frontendSuccessUrl = _configuration["FrontendUrl"];
-            return Redirect($"{frontendSuccessUrl}/api/payment/success");
+            _logger.LogInformation("✅ Payment successful, redirecting to frontend");
+            return Redirect($"{frontendUrl}/api/payment/success");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Callback error");
-            var frontendUrl = _configuration["FrontendUrl"];
             return Redirect($"{frontendUrl}/api/payment/failed");
         }
     }
