@@ -39,6 +39,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<AvailabilityOverride> AvailabilityOverrides => Set<AvailabilityOverride>();
     public DbSet<BookingQuestion> BookingQuestions => Set<BookingQuestion>();
     public DbSet<BookingQuestionResponse> BookingQuestionResponses => Set<BookingQuestionResponse>();
+    public DbSet<PresetAvatar> PresetAvatars => Set<PresetAvatar>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

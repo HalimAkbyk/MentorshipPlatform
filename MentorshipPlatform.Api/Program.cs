@@ -116,6 +116,10 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
 });
 
+// External Auth Service
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
+
 // Email Service
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -233,6 +237,11 @@ var allowedOrigins = new List<string> { "http://localhost:3000" };
 var frontendUrl = builder.Configuration["Frontend:BaseUrl"];
 if (!string.IsNullOrEmpty(frontendUrl))
     allowedOrigins.Add(frontendUrl);
+
+// FrontendUrl env var (fallback / eski format)
+var frontendUrlLegacy = builder.Configuration["FrontendUrl"];
+if (!string.IsNullOrEmpty(frontendUrlLegacy))
+    allowedOrigins.Add(frontendUrlLegacy);
 
 // CORS__AllowedOrigins__0, CORS__AllowedOrigins__1, ... env vars
 var corsSection = builder.Configuration.GetSection("CORS:AllowedOrigins");

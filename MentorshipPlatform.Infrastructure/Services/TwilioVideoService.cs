@@ -20,7 +20,19 @@ public class TwilioVideoService : IVideoService
     {
         _options = options.Value;
         _logger = logger;
-        
+
+        _logger.LogInformation(
+            "TwilioVideoService init — AccountSid={Sid}, ApiKeySid={Key}, StatusCallbackUrl={Url}",
+            string.IsNullOrEmpty(_options.AccountSid) ? "(EMPTY)" : _options.AccountSid[..Math.Min(8, _options.AccountSid.Length)] + "***",
+            string.IsNullOrEmpty(_options.ApiKeySid) ? "(EMPTY)" : _options.ApiKeySid[..Math.Min(8, _options.ApiKeySid.Length)] + "***",
+            _options.StatusCallbackUrl ?? "(null)");
+
+        if (string.IsNullOrEmpty(_options.AccountSid) || string.IsNullOrEmpty(_options.AuthToken))
+        {
+            _logger.LogError("Twilio AccountSid or AuthToken is empty! Video features will not work.");
+            return;
+        }
+
         TwilioClient.Init(_options.AccountSid, _options.AuthToken);
     }
 
@@ -101,7 +113,8 @@ public class TwilioVideoService : IVideoService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating Twilio token");
+            _logger.LogError(ex, "Error generating Twilio token for room {RoomName}. ExType={ExType}, Message={Msg}",
+                roomName, ex.GetType().FullName, ex.Message);
             return new VideoTokenResult(false, null, ex.Message);
         }
     }

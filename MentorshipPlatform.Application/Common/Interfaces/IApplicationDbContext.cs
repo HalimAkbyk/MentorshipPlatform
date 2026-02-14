@@ -24,6 +24,7 @@ public interface IApplicationDbContext
     DbSet<AvailabilityOverride> AvailabilityOverrides { get; }
     DbSet<BookingQuestion> BookingQuestions { get; }
     DbSet<BookingQuestionResponse> BookingQuestionResponses { get; }
+    DbSet<PresetAvatar> PresetAvatars { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

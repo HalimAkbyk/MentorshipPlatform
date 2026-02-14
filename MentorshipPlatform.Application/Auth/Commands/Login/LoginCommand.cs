@@ -39,6 +39,10 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<AuthResp
         if (user == null)
             return Result<AuthResponse>.Failure("Invalid email or password");
 
+        // Social-only accounts have no password
+        if (string.IsNullOrEmpty(user.PasswordHash))
+            return Result<AuthResponse>.Failure("Bu hesap sosyal giriş ile oluşturulmuş. Lütfen sosyal giriş butonlarını kullanın.");
+
         var verificationResult = _passwordHasher.VerifyHashedPassword(
             user, user.PasswordHash!, request.Password);
 

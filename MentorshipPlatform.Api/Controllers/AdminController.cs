@@ -20,13 +20,15 @@ public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IPaymentService _paymentService;
-    private readonly IMediator _mediator;  
+    private readonly IMediator _mediator;
+    private readonly IStorageService _storage;
 
-    public AdminController(ApplicationDbContext db, IPaymentService paymentService, IMediator mediator)  
+    public AdminController(ApplicationDbContext db, IPaymentService paymentService, IMediator mediator, IStorageService storage)
     {
         _db = db;
         _paymentService = paymentService;
-        _mediator = mediator; 
+        _mediator = mediator;
+        _storage = storage;
     }
 
     // -----------------------------
@@ -418,5 +420,118 @@ public class AdminController : ControllerBase
             return BadRequest(new { errors = result.Errors });
 
         return Ok(new { success = true });
+    }
+
+    // -----------------------------
+    // PRESET AVATARS
+    // -----------------------------
+    public record PresetAvatarDto(Guid Id, string Url, string Label, int SortOrder, bool IsActive);
+    public record UpdatePresetAvatarRequest(string Label, int SortOrder, bool IsActive);
+
+    [HttpGet("preset-avatars")]
+    public async Task<IActionResult> GetPresetAvatars()
+    {
+        var items = await _db.PresetAvatars
+            .AsNoTracking()
+            .OrderBy(a => a.SortOrder)
+            .Select(a => new PresetAvatarDto(a.Id, a.Url, a.Label, a.SortOrder, a.IsActive))
+            .ToListAsync();
+
+        return Ok(items);
+    }
+
+    [HttpPost("preset-avatars")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> CreatePresetAvatar(
+        IFormFile file,
+        [FromForm] string label,
+        [FromForm] int sortOrder)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Dosya secilmedi." } });
+
+        if (file.Length > 2 * 1024 * 1024)
+            return BadRequest(new { errors = new[] { "Dosya boyutu 2MB'den buyuk olamaz." } });
+
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
+        if (!allowedTypes.Contains(file.ContentType.ToLower()))
+            return BadRequest(new { errors = new[] { "Sadece JPG, PNG, GIF, WebP veya SVG dosyalari yuklenebilir." } });
+
+        using var stream = file.OpenReadStream();
+        var result = await _storage.UploadFileAsync(
+            stream,
+            file.FileName,
+            file.ContentType,
+            "preset-avatars",
+            "avatar",
+            default);
+
+        if (!result.Success)
+            return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Dosya yuklenemedi." } });
+
+        var avatar = new Domain.Entities.PresetAvatar(result.PublicUrl!, label, sortOrder);
+        _db.PresetAvatars.Add(avatar);
+        await _db.SaveChangesAsync();
+
+        return Ok(new PresetAvatarDto(avatar.Id, avatar.Url, avatar.Label, avatar.SortOrder, avatar.IsActive));
+    }
+
+    [HttpPut("preset-avatars/{id:guid}")]
+    public async Task<IActionResult> UpdatePresetAvatar([FromRoute] Guid id, [FromBody] UpdatePresetAvatarRequest req)
+    {
+        var avatar = await _db.PresetAvatars.FirstOrDefaultAsync(a => a.Id == id);
+        if (avatar == null) return NotFound();
+
+        avatar.Update(avatar.Url, req.Label, req.SortOrder, req.IsActive);
+        await _db.SaveChangesAsync();
+
+        return Ok(new PresetAvatarDto(avatar.Id, avatar.Url, avatar.Label, avatar.SortOrder, avatar.IsActive));
+    }
+
+    [HttpPut("preset-avatars/{id:guid}/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdatePresetAvatarImage([FromRoute] Guid id, IFormFile file)
+    {
+        var avatar = await _db.PresetAvatars.FirstOrDefaultAsync(a => a.Id == id);
+        if (avatar == null) return NotFound();
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Dosya secilmedi." } });
+
+        if (file.Length > 2 * 1024 * 1024)
+            return BadRequest(new { errors = new[] { "Dosya boyutu 2MB'den buyuk olamaz." } });
+
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
+        if (!allowedTypes.Contains(file.ContentType.ToLower()))
+            return BadRequest(new { errors = new[] { "Sadece JPG, PNG, GIF, WebP veya SVG dosyalari yuklenebilir." } });
+
+        using var stream = file.OpenReadStream();
+        var result = await _storage.UploadFileAsync(
+            stream,
+            file.FileName,
+            file.ContentType,
+            "preset-avatars",
+            "avatar",
+            default);
+
+        if (!result.Success)
+            return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Dosya yuklenemedi." } });
+
+        avatar.Update(result.PublicUrl!, avatar.Label, avatar.SortOrder, avatar.IsActive);
+        await _db.SaveChangesAsync();
+
+        return Ok(new PresetAvatarDto(avatar.Id, avatar.Url, avatar.Label, avatar.SortOrder, avatar.IsActive));
+    }
+
+    [HttpDelete("preset-avatars/{id:guid}")]
+    public async Task<IActionResult> DeletePresetAvatar([FromRoute] Guid id)
+    {
+        var avatar = await _db.PresetAvatars.FirstOrDefaultAsync(a => a.Id == id);
+        if (avatar == null) return NotFound();
+
+        _db.PresetAvatars.Remove(avatar);
+        await _db.SaveChangesAsync();
+
+        return Ok();
     }
 }

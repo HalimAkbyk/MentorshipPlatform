@@ -3,6 +3,9 @@ using MentorshipPlatform.Application.Bookings.Commands.CancelBooking;
 using MentorshipPlatform.Application.Bookings.Commands.CreateBooking;
 using MentorshipPlatform.Application.Bookings.Commands.CompleteBooking;
 using MentorshipPlatform.Application.Bookings.Commands.DisputeBooking;
+using MentorshipPlatform.Application.Bookings.Commands.RescheduleBooking;
+using MentorshipPlatform.Application.Bookings.Commands.ApproveReschedule;
+using MentorshipPlatform.Application.Bookings.Commands.RejectReschedule;
 using MentorshipPlatform.Application.Bookings.Queries.GetMyBookings;
 using MentorshipPlatform.Application.Bookings.Queries.GetBookingById;
 using MentorshipPlatform.Domain.Enums;
@@ -98,4 +101,43 @@ public class BookingsController : ControllerBase
 
         return Ok();
     }
+
+    // ─── Reschedule Endpoints ───
+
+    [HttpPost("{id}/reschedule")]
+    public async Task<IActionResult> RescheduleBooking(Guid id, [FromBody] RescheduleBookingRequest body)
+    {
+        var result = await _mediator.Send(new RescheduleBookingCommand(id, body.NewStartAt));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok();
+    }
+
+    [HttpPost("{id}/reschedule/approve")]
+    [Authorize(Policy = "RequireStudentRole")]
+    public async Task<IActionResult> ApproveReschedule(Guid id)
+    {
+        var result = await _mediator.Send(new ApproveRescheduleCommand(id));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok();
+    }
+
+    [HttpPost("{id}/reschedule/reject")]
+    [Authorize(Policy = "RequireStudentRole")]
+    public async Task<IActionResult> RejectReschedule(Guid id)
+    {
+        var result = await _mediator.Send(new RejectRescheduleCommand(id));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok();
+    }
 }
+
+public record RescheduleBookingRequest(DateTime NewStartAt);

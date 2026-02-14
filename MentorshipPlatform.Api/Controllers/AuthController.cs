@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Auth.Commands.ExternalLogin;
 using MentorshipPlatform.Application.Auth.Commands.Login;
 using MentorshipPlatform.Application.Auth.Commands.RegisterUser;
 using MentorshipPlatform.Application.Auth.Queries.GetMe;
@@ -44,6 +45,19 @@ public class AuthController : ControllerBase
         return Ok(result.Data);
     }
     
+    [HttpPost("external-login")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ExternalLoginResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExternalLogin([FromBody] ExternalLoginCommand command)
+    {
+        var result = await _mediator.Send(command);
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(result.Data);
+    }
+
     [HttpGet("me")]
     [Authorize]
     [ProducesResponseType(typeof(MeDto), StatusCodes.Status200OK)]

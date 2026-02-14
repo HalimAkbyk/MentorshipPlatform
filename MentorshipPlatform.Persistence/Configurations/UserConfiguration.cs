@@ -37,8 +37,18 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
                 v => JsonSerializer.Deserialize<List<UserRole>>(v, (JsonSerializerOptions)null!)!)
             .HasColumnType("jsonb");
 
+        builder.Property(u => u.ExternalProvider)
+            .HasMaxLength(20);
+
+        builder.Property(u => u.ExternalId)
+            .HasMaxLength(255);
+
         builder.HasIndex(u => u.Email).IsUnique();
         builder.HasIndex(u => u.Phone).IsUnique();
+
+        builder.HasIndex(u => new { u.ExternalProvider, u.ExternalId })
+            .IsUnique()
+            .HasFilter("\"ExternalProvider\" IS NOT NULL");
 
         builder.HasOne(u => u.MentorProfile)
             .WithOne(m => m.User)

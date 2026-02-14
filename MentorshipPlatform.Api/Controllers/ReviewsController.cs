@@ -1,4 +1,7 @@
+using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
+using MentorshipPlatform.Application.Reviews.Commands.CreateReview;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,14 +9,26 @@ namespace MentorshipPlatform.Api.Controllers;
 [ApiController]
 [Route("api/reviews")]
 public class ReviewsController: ControllerBase {
-    
-    private readonly IApplicationDbContext _context;
 
-    public ReviewsController(IApplicationDbContext context)
+    private readonly IApplicationDbContext _context;
+    private readonly IMediator _mediator;
+
+    public ReviewsController(IApplicationDbContext context, IMediator mediator)
     {
         _context = context;
+        _mediator = mediator;
     }
-    
+
+    [HttpPost]
+    [Authorize]
+    public async Task<IActionResult> CreateReview([FromBody] CreateReviewCommand command)
+    {
+        var result = await _mediator.Send(command);
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(new { reviewId = result.Data });
+    }
+
     [HttpGet("mentors/{mentorId}")]
     public async Task<IActionResult> GetMentorReviews(Guid mentorId)
     {

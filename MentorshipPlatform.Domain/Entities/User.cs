@@ -13,6 +13,10 @@ public class User : BaseEntity
     public int? BirthYear { get; private set; }
     public UserStatus Status { get; private set; } = UserStatus.Active;
 
+    // External (social) login
+    public string? ExternalProvider { get; private set; }
+    public string? ExternalId { get; private set; }
+
     private readonly List<UserRole> _roles = new();
     public IReadOnlyCollection<UserRole> Roles => _roles.AsReadOnly();
 
@@ -29,6 +33,25 @@ public class User : BaseEntity
             PasswordHash = passwordHash
         };
         return user;
+    }
+
+    public static User CreateExternal(string email, string displayName, string? avatarUrl, string provider, string externalId)
+    {
+        var user = new User
+        {
+            Email = email,
+            DisplayName = displayName,
+            AvatarUrl = avatarUrl,
+            ExternalProvider = provider,
+            ExternalId = externalId
+        };
+        return user;
+    }
+
+    public void LinkExternalProvider(string provider, string externalId)
+    {
+        ExternalProvider = provider;
+        ExternalId = externalId;
     }
 
     public void AddRole(UserRole role)

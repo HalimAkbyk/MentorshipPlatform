@@ -21,6 +21,7 @@ public record BookingDetailDto(
     Guid MentorUserId,
     string MentorName,
     string? MentorAvatar,
+    Guid OfferingId,
     DateTime StartAt,
     DateTime EndAt,
     int DurationMin,
@@ -29,6 +30,12 @@ public record BookingDetailDto(
     decimal Price,
     string Currency,
     string? CancellationReason,
+    bool HasReview,
+    int RescheduleCountStudent,
+    int RescheduleCountMentor,
+    DateTime? PendingRescheduleStartAt,
+    DateTime? PendingRescheduleEndAt,
+    Guid? PendingRescheduleRequestedBy,
     DateTime CreatedAt,
     List<BookingQuestionResponseDto>? QuestionResponses);
 
@@ -78,6 +85,10 @@ public class GetBookingByIdQueryHandler
         if (booking.StudentUserId != userId && booking.MentorUserId != userId)
             return Result<BookingDetailDto>.Failure("Unauthorized");
 
+        // Check if review exists for this booking
+        var hasReview = await _context.Reviews
+            .AnyAsync(r => r.ResourceType == "Booking" && r.ResourceId == request.BookingId, cancellationToken);
+
         var dto = new BookingDetailDto(
             booking.Id,
             booking.StudentUserId,
@@ -85,6 +96,7 @@ public class GetBookingByIdQueryHandler
             booking.MentorUserId,
             booking.Mentor.DisplayName,
             booking.Mentor.AvatarUrl,
+            booking.OfferingId,
             booking.StartAt,
             booking.EndAt,
             booking.DurationMin,
@@ -93,6 +105,12 @@ public class GetBookingByIdQueryHandler
             booking.Offering.PriceAmount,
             booking.Offering.Currency,
             booking.CancellationReason,
+            hasReview,
+            booking.RescheduleCountStudent,
+            booking.RescheduleCountMentor,
+            booking.PendingRescheduleStartAt,
+            booking.PendingRescheduleEndAt,
+            booking.PendingRescheduleRequestedBy,
             booking.CreatedAt,
             questionResponses.Count > 0 ? questionResponses : null);
 

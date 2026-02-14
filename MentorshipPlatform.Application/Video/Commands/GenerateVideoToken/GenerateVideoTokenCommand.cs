@@ -41,6 +41,16 @@ public class GenerateVideoTokenCommandHandler
 
         var userId = _currentUser.UserId.Value;
 
+        // Booking status kontrolü — iptal edilen/tamamlanan seanslara token verilmez
+        if (Guid.TryParse(request.RoomName, out var parsedBookingId))
+        {
+            var booking = await _context.Bookings
+                .FirstOrDefaultAsync(b => b.Id == parsedBookingId, cancellationToken);
+            if (booking != null && booking.Status != Domain.Enums.BookingStatus.Confirmed)
+                return Result<VideoTokenDto>.Failure(
+                    $"Bu seans için video token oluşturulamaz. Seans durumu: {booking.Status}");
+        }
+
         // Get user info
         var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
         if (user == null)

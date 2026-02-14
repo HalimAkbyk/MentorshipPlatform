@@ -13,11 +13,13 @@ public class MeController : ControllerBase
 {
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IStorageService _storage;
 
-    public MeController(IApplicationDbContext db, ICurrentUserService currentUser)
+    public MeController(IApplicationDbContext db, ICurrentUserService currentUser, IStorageService storage)
     {
         _db = db;
         _currentUser = currentUser;
+        _storage = storage;
     }
 
     [HttpGet]
@@ -57,13 +59,95 @@ public class MeController : ControllerBase
             displayName: req.DisplayName,
             phone: req.Phone,
             birthYear: req.BirthYear,
-            avatarUrl:req.AvatarUrl
+            avatarUrl: req.AvatarUrl ?? user.AvatarUrl
         );
 
         await _db.SaveChangesAsync(ct);
 
         return Ok(ToDto(user));
     }
+
+    [HttpGet("preset-avatars")]
+    public async Task<IActionResult> GetPresetAvatars(CancellationToken ct)
+    {
+        var items = await _db.PresetAvatars
+            .AsNoTracking()
+            .Where(a => a.IsActive)
+            .OrderBy(a => a.SortOrder)
+            .Select(a => new { a.Id, a.Url, a.Label, a.SortOrder })
+            .ToListAsync(ct);
+
+        return Ok(items);
+    }
+
+    [HttpPost("avatar")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadAvatar(IFormFile avatar, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) return Unauthorized();
+
+        if (avatar == null || avatar.Length == 0)
+            return BadRequest(new { errors = new[] { "Dosya secilmedi." } });
+
+        // Max 2MB
+        if (avatar.Length > 2 * 1024 * 1024)
+            return BadRequest(new { errors = new[] { "Dosya boyutu 2MB'den buyuk olamaz." } });
+
+        // Only images
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+        if (!allowedTypes.Contains(avatar.ContentType.ToLower()))
+            return BadRequest(new { errors = new[] { "Sadece JPG, PNG, GIF veya WebP dosyalari yuklenebilir." } });
+
+        var userId = _currentUser.UserId.Value;
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
+        if (user == null) return Unauthorized();
+
+        // Upload to storage
+        using var stream = avatar.OpenReadStream();
+        var result = await _storage.UploadFileAsync(
+            stream,
+            avatar.FileName,
+            avatar.ContentType,
+            userId.ToString(),
+            "avatar",
+            ct);
+
+        if (!result.Success)
+            return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Dosya yuklenemedi." } });
+
+        // Update user avatar URL
+        user.UpdateProfile(
+            displayName: user.DisplayName,
+            phone: user.Phone,
+            birthYear: user.BirthYear,
+            avatarUrl: result.PublicUrl);
+
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new { avatarUrl = result.PublicUrl });
+    }
+
+    [HttpPut("avatar-url")]
+    public async Task<IActionResult> SetAvatarUrl([FromBody] SetAvatarUrlRequest req, CancellationToken ct)
+    {
+        if (!_currentUser.UserId.HasValue) return Unauthorized();
+
+        var userId = _currentUser.UserId.Value;
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId, ct);
+        if (user == null) return Unauthorized();
+
+        user.UpdateProfile(
+            displayName: user.DisplayName,
+            phone: user.Phone,
+            birthYear: user.BirthYear,
+            avatarUrl: req.AvatarUrl);
+
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new { avatarUrl = req.AvatarUrl });
+    }
+
+    public sealed record SetAvatarUrlRequest(string AvatarUrl);
 
     private static object ToDto(User u) => new
     {

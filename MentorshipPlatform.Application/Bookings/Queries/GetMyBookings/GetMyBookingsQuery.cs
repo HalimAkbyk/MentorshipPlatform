@@ -29,7 +29,9 @@ public record BookingDto(
     BookingStatus Status,
     // Offering bilgileri
     decimal Price,
-    string Currency);
+    string Currency,
+    // Reschedule bilgileri
+    bool HasPendingReschedule);
 
 public class GetMyBookingsQueryHandler 
     : IRequestHandler<GetMyBookingsQuery, Result<List<BookingDto>>>
@@ -83,7 +85,9 @@ public class GetMyBookingsQueryHandler
                 b.Status,
                 // Offering bilgileri
                 b.Offering.PriceAmount,
-                b.Offering.Currency))
+                b.Offering.Currency,
+                // Reschedule bilgileri
+                b.PendingRescheduleStartAt.HasValue))
             .ToListAsync(cancellationToken);
 
         return Result<List<BookingDto>>.Success(bookings);

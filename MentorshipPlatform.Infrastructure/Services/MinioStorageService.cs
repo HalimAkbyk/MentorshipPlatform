@@ -39,9 +39,12 @@ public class MinioStorageService : IStorageService
             var sanitizedFileName = SanitizeFileName(fileName);
 
             // ✅ Type'a göre folder structure
-            var folderPrefix = documentType == "University"
-                ? "student-documents"
-                : "transcript-documents";
+            var folderPrefix = documentType switch
+            {
+                "University" => "student-documents",
+                "avatar" => "avatars",
+                _ => "transcript-documents"
+            };
 
             // ✅ FileKey: {type-folder}/{guid}/{filename}
             var guid = Guid.NewGuid();

@@ -37,6 +37,17 @@ public class CompleteBookingCommandHandler : IRequestHandler<CompleteBookingComm
         if (booking.MentorUserId != _currentUser.UserId.Value)
             return Result.Failure("Unauthorized");
 
+        // Seans süresi henüz dolmadıysa tamamlamaya izin verme
+        if (DateTime.UtcNow < booking.EndAt)
+        {
+            await _history.LogAsync("Booking", booking.Id, "EarlyEndAttempt",
+                booking.Status.ToString(), booking.Status.ToString(),
+                $"Mentor seansı erken sonlandırmaya çalıştı. Planlanan bitiş: {booking.EndAt:HH:mm}, Şu an: {DateTime.UtcNow:HH:mm}",
+                _currentUser.UserId.Value, "Mentor", ct: cancellationToken);
+
+            return Result.Failure("Seans süresi henüz dolmadı. Video oturumu sonlandırıldı ancak seans devam ediyor. Odayı tekrar aktifleştirebilirsiniz.");
+        }
+
         var oldStatus = booking.Status.ToString();
         booking.Complete();
 
