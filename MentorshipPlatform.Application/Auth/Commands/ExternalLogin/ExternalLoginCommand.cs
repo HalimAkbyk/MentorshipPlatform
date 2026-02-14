@@ -23,7 +23,8 @@ public record ExternalLoginResponse(
     string AccessToken,
     string RefreshToken,
     UserRole[] Roles,
-    bool IsNewUser);
+    bool IsNewUser,
+    string? PendingToken = null);
 
 public class ExternalLoginCommandValidator : AbstractValidator<ExternalLoginCommand>
 {
@@ -105,7 +106,12 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             {
                 // 4. Create new user — InitialRole required
                 if (request.InitialRole == null)
-                    return Result<ExternalLoginResponse>.Failure("ROLE_REQUIRED");
+                {
+                    // Include the provider access token so frontend can retry
+                    // with role selection without needing the one-time auth code again
+                    var pt = externalUser.ProviderAccessToken ?? "";
+                    return Result<ExternalLoginResponse>.Failure($"ROLE_REQUIRED:{pt}");
+                }
 
                 var displayName = request.DisplayName ?? externalUser.DisplayName;
                 user = User.CreateExternal(

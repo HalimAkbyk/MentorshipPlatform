@@ -4,7 +4,8 @@ public record ExternalUserInfo(
     string ExternalId,
     string Email,
     string DisplayName,
-    string? AvatarUrl);
+    string? AvatarUrl,
+    string? ProviderAccessToken = null);
 
 public interface IExternalAuthService
 {

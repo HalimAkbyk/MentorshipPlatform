@@ -133,7 +133,11 @@ public class ExternalAuthService : IExternalAuthService
             var accessToken = tokenJson.GetProperty("access_token").GetString()!;
 
             // Step 2: Use access token to get user info
-            return await ValidateLinkedInTokenAsync(accessToken);
+            var userInfo = await ValidateLinkedInTokenAsync(accessToken);
+            if (userInfo == null) return null;
+
+            // Attach the provider access token so it can be reused for ROLE_REQUIRED retries
+            return userInfo with { ProviderAccessToken = accessToken };
         }
         catch (Exception ex)
         {
