@@ -107,10 +107,16 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
                 // 4. Create new user — InitialRole required
                 if (request.InitialRole == null)
                 {
-                    // Include the provider access token so frontend can retry
-                    // with role selection without needing the one-time auth code again
-                    var pt = externalUser.ProviderAccessToken ?? "";
-                    return Result<ExternalLoginResponse>.Failure($"ROLE_REQUIRED:{pt}");
+                    // Return a success response with PendingToken instead of a failure.
+                    // This avoids HTTP 400 and the global error interceptor toast.
+                    // Frontend detects PendingToken != null → shows role selection UI.
+                    return Result<ExternalLoginResponse>.Success(new ExternalLoginResponse(
+                        Guid.Empty,
+                        "",
+                        "",
+                        Array.Empty<UserRole>(),
+                        false,
+                        PendingToken: externalUser.ProviderAccessToken ?? ""));
                 }
 
                 var displayName = request.DisplayName ?? externalUser.DisplayName;
