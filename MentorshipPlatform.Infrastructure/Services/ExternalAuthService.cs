@@ -34,7 +34,6 @@ public class ExternalAuthService : IExternalAuthService
             "google" => await ValidateGoogleTokenAsync(token),
             "microsoft" => await ValidateMicrosoftTokenAsync(token),
             "linkedin" => await ValidateLinkedInTokenAsync(token),
-            "apple" => await ValidateAppleTokenAsync(token),
             _ => throw new ArgumentException($"Unsupported provider: {provider}")
         };
     }
@@ -212,44 +211,6 @@ public class ExternalAuthService : IExternalAuthService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "LinkedIn token validation failed");
-            return null;
-        }
-    }
-
-    private async Task<ExternalUserInfo?> ValidateAppleTokenAsync(string idToken)
-    {
-        try
-        {
-            // Fetch Apple's public JWKS keys
-            var client = _httpClientFactory.CreateClient();
-            var jwksResponse = await client.GetAsync("https://appleid.apple.com/auth/keys");
-            if (!jwksResponse.IsSuccessStatusCode) return null;
-            var jwksJson = await jwksResponse.Content.ReadAsStringAsync();
-
-            var jwks = new JsonWebKeySet(jwksJson);
-            var tokenHandler = new JwtSecurityTokenHandler();
-
-            var validationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidIssuer = "https://appleid.apple.com",
-                ValidateAudience = true,
-                ValidAudience = _configuration["ExternalAuth:Apple:ClientId"],
-                ValidateLifetime = true,
-                IssuerSigningKeys = jwks.GetSigningKeys()
-            };
-
-            var principal = tokenHandler.ValidateToken(idToken, validationParameters, out _);
-            var sub = principal.FindFirst("sub")?.Value;
-            var email = principal.FindFirst("email")?.Value;
-
-            if (sub == null || email == null) return null;
-
-            return new ExternalUserInfo(sub, email, email, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Apple token validation failed");
             return null;
         }
     }

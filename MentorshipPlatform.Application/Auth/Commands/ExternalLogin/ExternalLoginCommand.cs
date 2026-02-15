@@ -7,6 +7,7 @@ using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using MentorshipPlatform.Identity.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Auth.Commands.ExternalLogin;
 
@@ -28,14 +29,14 @@ public record ExternalLoginResponse(
 
 public class ExternalLoginCommandValidator : AbstractValidator<ExternalLoginCommand>
 {
-    private static readonly string[] SupportedProviders = { "google", "microsoft", "linkedin", "apple" };
+    private static readonly string[] SupportedProviders = { "google", "microsoft", "linkedin" };
 
     public ExternalLoginCommandValidator()
     {
         RuleFor(x => x.Provider)
             .NotEmpty()
             .Must(p => SupportedProviders.Contains(p.ToLowerInvariant()))
-            .WithMessage("Desteklenmeyen sağlayıcı. Desteklenen: google, microsoft, linkedin, apple");
+            .WithMessage("Desteklenmeyen sağlayıcı. Desteklenen: google, microsoft, linkedin");
 
         // Token or Code must be provided
         RuleFor(x => x)
@@ -49,15 +50,18 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
     private readonly IApplicationDbContext _context;
     private readonly IExternalAuthService _externalAuthService;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly Microsoft.Extensions.Logging.ILogger<ExternalLoginCommandHandler> _logger;
 
     public ExternalLoginCommandHandler(
         IApplicationDbContext context,
         IExternalAuthService externalAuthService,
-        IJwtTokenGenerator jwtTokenGenerator)
+        IJwtTokenGenerator jwtTokenGenerator,
+        Microsoft.Extensions.Logging.ILogger<ExternalLoginCommandHandler> logger)
     {
         _context = context;
         _externalAuthService = externalAuthService;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _logger = logger;
     }
 
     public async Task<Result<ExternalLoginResponse>> Handle(
@@ -110,13 +114,18 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
                     // Return a success response with PendingToken instead of a failure.
                     // This avoids HTTP 400 and the global error interceptor toast.
                     // Frontend detects PendingToken != null → shows role selection UI.
+                    var newUserPt = !string.IsNullOrEmpty(request.Token)
+                        ? request.Token
+                        : !string.IsNullOrEmpty(externalUser.ProviderAccessToken)
+                            ? externalUser.ProviderAccessToken
+                            : "ROLE_REQUIRED";
                     return Result<ExternalLoginResponse>.Success(new ExternalLoginResponse(
                         Guid.Empty,
                         "",
                         "",
                         Array.Empty<UserRole>(),
                         false,
-                        PendingToken: externalUser.ProviderAccessToken ?? ""));
+                        PendingToken: newUserPt));
                 }
 
                 var displayName = request.DisplayName ?? externalUser.DisplayName;
@@ -136,6 +145,12 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
         }
 
         // 5. If user has no roles, require role selection
+        _logger.LogInformation(
+            "ExternalLogin user {UserId} email={Email} rolesCount={RolesCount} roles=[{Roles}] initialRole={InitialRole}",
+            user.Id, user.Email, user.Roles.Count,
+            string.Join(",", user.Roles),
+            request.InitialRole);
+
         if (!user.Roles.Any())
         {
             if (request.InitialRole != null)
@@ -147,7 +162,15 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             else
             {
                 // No role yet — ask frontend to show role selection
-                var pt = request.Token ?? externalUser?.ProviderAccessToken ?? "";
+                // Use a guaranteed non-empty sentinel if no real token is available
+                var pt = !string.IsNullOrEmpty(request.Token)
+                    ? request.Token
+                    : !string.IsNullOrEmpty(externalUser?.ProviderAccessToken)
+                        ? externalUser.ProviderAccessToken
+                        : "ROLE_REQUIRED";
+                _logger.LogWarning(
+                    "ExternalLogin returning pendingToken for role-less user {UserId}, token length={TokenLen}, requestToken length={ReqLen}",
+                    user.Id, pt?.Length ?? 0, request.Token?.Length ?? 0);
                 return Result<ExternalLoginResponse>.Success(new ExternalLoginResponse(
                     Guid.Empty,
                     "",
@@ -163,6 +186,9 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             return Result<ExternalLoginResponse>.Failure("Hesap aktif değil");
 
         // 7. Generate JWT
+        _logger.LogInformation(
+            "ExternalLogin generating JWT for user {UserId} with roles [{Roles}]",
+            user.Id, string.Join(",", user.Roles));
         var (accessToken, refreshToken) = _jwtTokenGenerator.GenerateTokens(
             user.Id, user.Email!, user.Roles.ToArray());
 
