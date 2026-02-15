@@ -48,8 +48,16 @@ public class ExternalAuthService : IExternalAuthService
         };
     }
 
-    private async Task<ExternalUserInfo?> ValidateGoogleTokenAsync(string idToken)
+    private async Task<ExternalUserInfo?> ValidateGoogleTokenAsync(string token)
     {
+        // First try as access_token (from implicit flow / useGoogleLogin)
+        // Access tokens start with "ya29." — use Google userinfo endpoint
+        if (token.StartsWith("ya29."))
+        {
+            return await ValidateGoogleAccessTokenAsync(token);
+        }
+
+        // Otherwise treat as ID token (JWT) for auth-code flow
         try
         {
             var clientId = _configuration["ExternalAuth:Google:ClientId"];
@@ -57,7 +65,7 @@ public class ExternalAuthService : IExternalAuthService
             {
                 Audience = new[] { clientId }
             };
-            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
+            var payload = await GoogleJsonWebSignature.ValidateAsync(token, settings);
             return new ExternalUserInfo(
                 payload.Subject,
                 payload.Email,
@@ -66,7 +74,43 @@ public class ExternalAuthService : IExternalAuthService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Google token validation failed");
+            _logger.LogWarning(ex, "Google ID token validation failed");
+            return null;
+        }
+    }
+
+    private async Task<ExternalUserInfo?> ValidateGoogleAccessTokenAsync(string accessToken)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await client.GetAsync("https://www.googleapis.com/oauth2/v3/userinfo");
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Google userinfo request failed: {StatusCode}", response.StatusCode);
+                return null;
+            }
+
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+            var sub = json.GetProperty("sub").GetString()!;
+            var email = json.TryGetProperty("email", out var emailProp)
+                ? emailProp.GetString() : null;
+            var name = json.TryGetProperty("name", out var nameProp)
+                ? nameProp.GetString() : null;
+            var picture = json.TryGetProperty("picture", out var picProp)
+                ? picProp.GetString() : null;
+
+            if (email == null) return null;
+
+            return new ExternalUserInfo(sub, email, name ?? email, picture);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google access token validation failed");
             return null;
         }
     }
