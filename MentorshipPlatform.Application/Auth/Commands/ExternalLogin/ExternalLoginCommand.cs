@@ -135,11 +135,34 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        // 5. Check if account is active
+        // 5. If user has no roles, require role selection
+        if (!user.Roles.Any())
+        {
+            if (request.InitialRole != null)
+            {
+                // Role provided — assign it now
+                user.AddRole(request.InitialRole.Value);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            else
+            {
+                // No role yet — ask frontend to show role selection
+                var pt = request.Token ?? externalUser?.ProviderAccessToken ?? "";
+                return Result<ExternalLoginResponse>.Success(new ExternalLoginResponse(
+                    Guid.Empty,
+                    "",
+                    "",
+                    Array.Empty<UserRole>(),
+                    false,
+                    PendingToken: pt));
+            }
+        }
+
+        // 6. Check if account is active
         if (user.Status != UserStatus.Active)
             return Result<ExternalLoginResponse>.Failure("Hesap aktif değil");
 
-        // 6. Generate JWT
+        // 7. Generate JWT
         var (accessToken, refreshToken) = _jwtTokenGenerator.GenerateTokens(
             user.Id, user.Email!, user.Roles.ToArray());
 
