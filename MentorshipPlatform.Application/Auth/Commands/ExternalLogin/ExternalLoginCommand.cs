@@ -29,14 +29,14 @@ public record ExternalLoginResponse(
 
 public class ExternalLoginCommandValidator : AbstractValidator<ExternalLoginCommand>
 {
-    private static readonly string[] SupportedProviders = { "google", "microsoft", "linkedin" };
+    private static readonly string[] SupportedProviders = { "google", "linkedin" };
 
     public ExternalLoginCommandValidator()
     {
         RuleFor(x => x.Provider)
             .NotEmpty()
             .Must(p => SupportedProviders.Contains(p.ToLowerInvariant()))
-            .WithMessage("Desteklenmeyen sağlayıcı. Desteklenen: google, microsoft, linkedin");
+            .WithMessage("Desteklenmeyen sağlayıcı. Desteklenen: google, linkedin");
 
         // Token or Code must be provided
         RuleFor(x => x)

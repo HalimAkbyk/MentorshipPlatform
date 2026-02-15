@@ -32,7 +32,6 @@ public class ExternalAuthService : IExternalAuthService
         return provider.ToLowerInvariant() switch
         {
             "google" => await ValidateGoogleTokenAsync(token),
-            "microsoft" => await ValidateMicrosoftTokenAsync(token),
             "linkedin" => await ValidateLinkedInTokenAsync(token),
             _ => throw new ArgumentException($"Unsupported provider: {provider}")
         };
@@ -110,37 +109,6 @@ public class ExternalAuthService : IExternalAuthService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Google access token validation failed");
-            return null;
-        }
-    }
-
-    private async Task<ExternalUserInfo?> ValidateMicrosoftTokenAsync(string accessToken)
-    {
-        try
-        {
-            var client = _httpClientFactory.CreateClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            var response = await client.GetAsync("https://graph.microsoft.com/v1.0/me");
-            if (!response.IsSuccessStatusCode) return null;
-
-            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
-            var id = json.GetProperty("id").GetString()!;
-            var email = json.TryGetProperty("mail", out var mailProp) && mailProp.ValueKind != JsonValueKind.Null
-                ? mailProp.GetString()
-                : json.TryGetProperty("userPrincipalName", out var upnProp)
-                    ? upnProp.GetString()
-                    : null;
-            var displayName = json.TryGetProperty("displayName", out var dnProp)
-                ? dnProp.GetString()
-                : email;
-
-            if (email == null) return null;
-
-            return new ExternalUserInfo(id, email, displayName ?? email, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Microsoft token validation failed");
             return null;
         }
     }
