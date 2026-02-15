@@ -41,6 +41,14 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<BookingQuestionResponse> BookingQuestionResponses => Set<BookingQuestionResponse>();
     public DbSet<PresetAvatar> PresetAvatars => Set<PresetAvatar>();
 
+    // Course entities
+    public DbSet<Course> Courses => Set<Course>();
+    public DbSet<CourseSection> CourseSections => Set<CourseSection>();
+    public DbSet<CourseLecture> CourseLectures => Set<CourseLecture>();
+    public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
+    public DbSet<LectureProgress> LectureProgresses => Set<LectureProgress>();
+    public DbSet<LectureNote> LectureNotes => Set<LectureNote>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

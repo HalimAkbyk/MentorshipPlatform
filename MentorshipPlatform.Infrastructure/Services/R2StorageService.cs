@@ -159,6 +159,27 @@ public class R2StorageService : IStorageService
         }
     }
 
+    public Task<string> GetPresignedUploadUrlAsync(
+        string fileKey,
+        string contentType,
+        TimeSpan expiration,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _options.BucketName,
+            Key = fileKey,
+            Expires = DateTime.UtcNow.Add(expiration),
+            Verb = HttpVerb.PUT,
+            ContentType = contentType,
+            Protocol = Protocol.HTTPS,
+        };
+
+        var url = _s3Client.GetPreSignedURL(request);
+        _logger.LogInformation("📤 Generated presigned UPLOAD URL for FileKey: {FileKey}", fileKey);
+        return Task.FromResult(url);
+    }
+
     private string GeneratePresignedUrl(string fileKey, TimeSpan expiration)
     {
         var request = new GetPreSignedUrlRequest

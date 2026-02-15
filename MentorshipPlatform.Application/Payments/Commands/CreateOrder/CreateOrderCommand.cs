@@ -115,6 +115,25 @@ public class CreateOrderCommandHandler
                 // GroupClass logic...
                 return Result<CreateOrderResponse>.Failure("GroupClass not implemented yet");
             }
+            else if (orderType == OrderType.Course)
+            {
+                var enrollment = await _context.CourseEnrollments
+                    .Include(e => e.Course)
+                    .FirstOrDefaultAsync(e => e.Id == request.ResourceId, cancellationToken);
+
+                if (enrollment == null)
+                {
+                    return Result<CreateOrderResponse>.Failure("Course enrollment not found");
+                }
+
+                if (enrollment.Course == null)
+                {
+                    return Result<CreateOrderResponse>.Failure("Course not found");
+                }
+
+                amount = enrollment.Course.Price;
+                currency = enrollment.Course.Currency;
+            }
 
             // Platform fee (7%)
             var platformFee = amount * 0.07m;

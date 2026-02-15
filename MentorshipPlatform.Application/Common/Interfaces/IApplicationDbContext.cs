@@ -26,5 +26,13 @@ public interface IApplicationDbContext
     DbSet<BookingQuestionResponse> BookingQuestionResponses { get; }
     DbSet<PresetAvatar> PresetAvatars { get; }
 
+    // Course entities
+    DbSet<Course> Courses { get; }
+    DbSet<CourseSection> CourseSections { get; }
+    DbSet<CourseLecture> CourseLectures { get; }
+    DbSet<CourseEnrollment> CourseEnrollments { get; }
+    DbSet<LectureProgress> LectureProgresses { get; }
+    DbSet<LectureNote> LectureNotes { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

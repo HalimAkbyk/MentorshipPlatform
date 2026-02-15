@@ -116,6 +116,27 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                         cancellationToken);
                 slot?.MarkAsBooked();
             }
+            else if (order.Type == OrderType.Course)
+            {
+                var courseEnrollment = await _context.CourseEnrollments
+                    .Include(e => e.Course)
+                    .FirstOrDefaultAsync(e => e.Id == order.ResourceId, cancellationToken);
+
+                if (courseEnrollment == null)
+                {
+                    _logger.LogError("❌ Related course enrollment not found: {ResourceId}", order.ResourceId);
+                    return Result<bool>.Failure("Related course enrollment not found");
+                }
+
+                courseEnrollment.Confirm();
+                courseEnrollment.Course.IncrementEnrollmentCount();
+                mentorUserId = courseEnrollment.Course.MentorUserId;
+
+                await _history.LogAsync("CourseEnrollment", courseEnrollment.Id, "StatusChanged",
+                    "PendingPayment", "Active",
+                    "Ödeme sonrası kurs erişimi aktifleştirildi",
+                    performedByRole: "System", ct: cancellationToken);
+            }
             else
             {
                 var enrollment = await _context.ClassEnrollments

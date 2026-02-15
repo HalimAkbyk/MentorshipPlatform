@@ -46,6 +46,16 @@ public class NoOpStorageService : IStorageService
         return Task.FromResult(string.Empty);
     }
 
+    public Task<string> GetPresignedUploadUrlAsync(
+        string fileKey,
+        string contentType,
+        TimeSpan expiration,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning("⚠️ Presigned upload URL requested but no storage service is configured. FileKey: {FileKey}", fileKey);
+        return Task.FromResult(string.Empty);
+    }
+
     public Task<bool> DeleteFileAsync(string fileKey, CancellationToken cancellationToken = default)
     {
         _logger.LogWarning("⚠️ File deletion requested but no storage service is configured. FileKey: {FileKey}", fileKey);

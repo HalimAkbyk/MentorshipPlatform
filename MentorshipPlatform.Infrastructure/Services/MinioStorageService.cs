@@ -200,6 +200,21 @@ public class MinioStorageService : IStorageService
         return url;
     }
 
+    public async Task<string> GetPresignedUploadUrlAsync(
+        string fileKey,
+        string contentType,
+        TimeSpan expiration,
+        CancellationToken cancellationToken = default)
+    {
+        var url = await _minioClient.PresignedPutObjectAsync(new PresignedPutObjectArgs()
+            .WithBucket(_options.BucketName)
+            .WithObject(fileKey)
+            .WithExpiry((int)expiration.TotalSeconds));
+
+        _logger.LogInformation("📤 Generated presigned UPLOAD URL for FileKey: {FileKey}", fileKey);
+        return url;
+    }
+
     public async Task<bool> DeleteFileAsync(string fileKey, CancellationToken cancellationToken = default)
     {
         try

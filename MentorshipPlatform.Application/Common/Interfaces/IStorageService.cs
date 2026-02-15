@@ -18,4 +18,10 @@ public interface IStorageService
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteFileAsync(string fileKey, CancellationToken cancellationToken = default);
+
+    Task<string> GetPresignedUploadUrlAsync(
+        string fileKey,
+        string contentType,
+        TimeSpan expiration,
+        CancellationToken cancellationToken = default);
 }
