@@ -11,6 +11,7 @@ public class Course : BaseEntity
     public string? Description { get; private set; }
     public string? ShortDescription { get; private set; }
     public string? CoverImageUrl { get; private set; }
+    public string? CoverImagePosition { get; private set; }
     public string? PromoVideoKey { get; private set; }
     public decimal Price { get; private set; }
     public string Currency { get; private set; } = "TRY";
@@ -71,6 +72,7 @@ public class Course : BaseEntity
         string? language,
         CourseLevel level,
         string? coverImageUrl,
+        string? coverImagePosition,
         string? promoVideoKey,
         string? whatYouWillLearnJson,
         string? requirementsJson,
@@ -84,6 +86,7 @@ public class Course : BaseEntity
         Language = language;
         Level = level;
         CoverImageUrl = coverImageUrl;
+        CoverImagePosition = coverImagePosition;
         PromoVideoKey = promoVideoKey;
         WhatYouWillLearnJson = whatYouWillLearnJson;
         RequirementsJson = requirementsJson;

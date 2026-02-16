@@ -10,6 +10,7 @@ public record EnrolledCourseDto(
     Guid CourseId,
     string Title,
     string? CoverImageUrl,
+    string? CoverImagePosition,
     string MentorName,
     string? MentorAvatarUrl,
     decimal CompletionPercentage,
@@ -41,7 +42,7 @@ public class GetEnrolledCoursesQueryHandler : IRequestHandler<GetEnrolledCourses
             .Where(e => e.StudentUserId == _currentUser.UserId.Value && e.Status == CourseEnrollmentStatus.Active)
             .OrderByDescending(e => e.LastAccessedAt ?? e.CreatedAt)
             .Select(e => new EnrolledCourseDto(
-                e.CourseId, e.Course.Title, e.Course.CoverImageUrl,
+                e.CourseId, e.Course.Title, e.Course.CoverImageUrl, e.Course.CoverImagePosition,
                 e.Course.MentorUser.DisplayName, e.Course.MentorUser.AvatarUrl,
                 e.CompletionPercentage, e.LastAccessedAt,
                 e.Course.TotalLectures, e.Course.TotalDurationSec))

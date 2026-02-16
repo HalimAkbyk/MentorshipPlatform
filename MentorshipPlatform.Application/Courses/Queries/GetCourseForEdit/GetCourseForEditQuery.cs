@@ -34,6 +34,7 @@ public record CourseEditDto(
     string? Language,
     string? Category,
     string? CoverImageUrl,
+    string? CoverImagePosition,
     string? PromoVideoKey,
     string? WhatYouWillLearnJson,
     string? RequirementsJson,
@@ -73,7 +74,7 @@ public class GetCourseForEditQueryHandler : IRequestHandler<GetCourseForEditQuer
         var dto = new CourseEditDto(
             course.Id, course.Title, course.ShortDescription, course.Description,
             course.Price, course.Currency, course.Status.ToString(), course.Level.ToString(),
-            course.Language, course.Category, course.CoverImageUrl, course.PromoVideoKey,
+            course.Language, course.Category, course.CoverImageUrl, course.CoverImagePosition, course.PromoVideoKey,
             course.WhatYouWillLearnJson, course.RequirementsJson, course.TargetAudienceJson,
             course.TotalLectures, course.TotalDurationSec, course.EnrollmentCount,
             course.Sections.Select(s => new SectionEditDto(

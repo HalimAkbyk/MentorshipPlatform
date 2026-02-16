@@ -82,6 +82,7 @@ public class CoursesController : ControllerBase
             body.Language,
             body.Level,
             body.CoverImageUrl,
+            body.CoverImagePosition,
             body.PromoVideoKey,
             body.WhatYouWillLearn,
             body.Requirements,
@@ -189,8 +190,8 @@ public class CoursesController : ControllerBase
 
         course.Update(course.Title, course.ShortDescription, course.Description, course.Price,
             course.Category, course.Language, course.Level, uploadResult.PublicUrl,
-            course.PromoVideoKey, course.WhatYouWillLearnJson, course.RequirementsJson,
-            course.TargetAudienceJson);
+            course.CoverImagePosition, course.PromoVideoKey, course.WhatYouWillLearnJson,
+            course.RequirementsJson, course.TargetAudienceJson);
         await _context.SaveChangesAsync(ct);
 
         return Ok(new { coverImageUrl = uploadResult.PublicUrl });
@@ -225,6 +226,7 @@ public record UpdateCourseRequest(
     string? Language,
     string? Level,
     string? CoverImageUrl,
+    string? CoverImagePosition,
     string? PromoVideoKey,
     List<string>? WhatYouWillLearn,
     List<string>? Requirements,

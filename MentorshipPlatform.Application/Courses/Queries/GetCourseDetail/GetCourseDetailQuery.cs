@@ -16,6 +16,7 @@ public record CourseDetailDto(
     string? ShortDescription,
     string? Description,
     string? CoverImageUrl,
+    string? CoverImagePosition,
     string? PromoVideoKey,
     decimal Price,
     string Currency,
@@ -87,7 +88,7 @@ public class GetCourseDetailQueryHandler : IRequestHandler<GetCourseDetailQuery,
 
         var dto = new CourseDetailDto(
             course.Id, course.Title, course.ShortDescription, course.Description,
-            course.CoverImageUrl, course.PromoVideoKey,
+            course.CoverImageUrl, course.CoverImagePosition, course.PromoVideoKey,
             course.Price, course.Currency, course.Level.ToString(),
             course.Language, course.Category,
             course.WhatYouWillLearnJson, course.RequirementsJson, course.TargetAudienceJson,
