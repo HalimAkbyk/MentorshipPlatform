@@ -9,6 +9,7 @@ using MentorshipPlatform.Application.Availability.Queries.GetAvailabilityTemplat
 using MentorshipPlatform.Application.Availability.Queries.GetAvailableTimeSlots;
 using MentorshipPlatform.Application.Availability.Queries.GetMentorAvailability;
 using MentorshipPlatform.Application.Availability.Queries.GetMyAvailability;
+using MentorshipPlatform.Application.Mentors.Commands.BecomeMentor;
 using MentorshipPlatform.Application.Mentors.Commands.CreateMentorProfile;
 using MentorshipPlatform.Application.Mentors.Commands.DeleteVerification;
 using MentorshipPlatform.Application.Mentors.Commands.SubmitVerification;
@@ -137,6 +138,15 @@ public class MentorsController : ControllerBase
             isApprovedForBookings = isApprovedForBookings,
             verifications = verificationsWithUrls
         });
+    }
+
+    [HttpPost("become-mentor")]
+    [Authorize(Policy = "RequireStudentRole")]
+    public async Task<IActionResult> BecomeMentor([FromBody] BecomeMentorCommand command)
+    {
+        var result = await _mediator.Send(command);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
     }
 
     [HttpPost("me/profile")]
