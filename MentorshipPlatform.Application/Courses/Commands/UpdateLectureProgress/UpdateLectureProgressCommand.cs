@@ -5,6 +5,7 @@ using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Courses.Commands.UpdateLectureProgress;
 
@@ -27,11 +28,16 @@ public class UpdateLectureProgressCommandHandler : IRequestHandler<UpdateLecture
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly ILogger<UpdateLectureProgressCommandHandler> _logger;
 
-    public UpdateLectureProgressCommandHandler(IApplicationDbContext context, ICurrentUserService currentUser)
+    public UpdateLectureProgressCommandHandler(
+        IApplicationDbContext context,
+        ICurrentUserService currentUser,
+        ILogger<UpdateLectureProgressCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
+        _logger = logger;
     }
 
     public async Task<Result> Handle(UpdateLectureProgressCommand request, CancellationToken cancellationToken)
@@ -50,18 +56,30 @@ public class UpdateLectureProgressCommandHandler : IRequestHandler<UpdateLecture
                 && e.Status == CourseEnrollmentStatus.Active, cancellationToken);
         if (enrollment == null) return Result.Failure("Active enrollment not found");
 
-        var progress = await _context.LectureProgresses
-            .FirstOrDefaultAsync(p => p.EnrollmentId == enrollment.Id && p.LectureId == request.LectureId, cancellationToken);
-
-        if (progress == null)
+        try
         {
-            progress = LectureProgress.Create(enrollment.Id, request.LectureId);
-            _context.LectureProgresses.Add(progress);
-        }
+            var progress = await _context.LectureProgresses
+                .FirstOrDefaultAsync(p => p.EnrollmentId == enrollment.Id && p.LectureId == request.LectureId, cancellationToken);
 
-        progress.UpdateProgress(request.WatchedSec, request.LastPositionSec);
-        enrollment.UpdateLastAccessed();
-        await _context.SaveChangesAsync(cancellationToken);
+            if (progress == null)
+            {
+                progress = LectureProgress.Create(enrollment.Id, request.LectureId);
+                _context.LectureProgresses.Add(progress);
+            }
+
+            progress.UpdateProgress(request.WatchedSec, request.LastPositionSec);
+            enrollment.UpdateLastAccessed();
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            // Concurrent insert race condition on unique index {EnrollmentId, LectureId}.
+            // Two simultaneous requests both saw progress==null and tried to INSERT.
+            // This is non-critical — the next progress save will succeed since the record now exists.
+            _logger.LogWarning(ex,
+                "Progress save conflict for lecture {LectureId} (concurrent insert), will succeed on next save",
+                request.LectureId);
+        }
 
         return Result.Success();
     }

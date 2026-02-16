@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Courses.Commands.CreateLecture;
 using MentorshipPlatform.Application.Courses.Commands.UpdateLecture;
 using MentorshipPlatform.Application.Courses.Commands.DeleteLecture;
@@ -7,6 +8,7 @@ using MentorshipPlatform.Application.Courses.Commands.GetVideoUploadUrl;
 using MentorshipPlatform.Application.Courses.Commands.ConfirmVideoUpload;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Api.Controllers;
 
@@ -15,10 +17,20 @@ namespace MentorshipPlatform.Api.Controllers;
 public class CourseLecturesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IStorageService _storageService;
+    private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUser;
 
-    public CourseLecturesController(IMediator mediator)
+    public CourseLecturesController(
+        IMediator mediator,
+        IStorageService storageService,
+        IApplicationDbContext context,
+        ICurrentUserService currentUser)
     {
         _mediator = mediator;
+        _storageService = storageService;
+        _context = context;
+        _currentUser = currentUser;
     }
 
     /// <summary>Yeni ders ekle</summary>
@@ -73,6 +85,63 @@ public class CourseLecturesController : ControllerBase
         var result = await _mediator.Send(
             new ConfirmVideoUploadCommand(lectureId, body.VideoKey, body.DurationSec), ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+    /// <summary>Video dosyasını backend üzerinden yükle (CORS-safe proxy)</summary>
+    [HttpPost("api/lectures/{lectureId:guid}/upload-video")]
+    [RequestSizeLimit(524_288_000)] // 500 MB
+    [RequestFormLimits(MultipartBodyLengthLimit = 524_288_000)]
+    public async Task<IActionResult> UploadVideo(Guid lectureId, IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Video dosyası gerekli" } });
+
+        var userId = _currentUser.UserId;
+        if (userId == null || userId == Guid.Empty)
+            return Unauthorized();
+
+        // Verify lecture exists and belongs to the mentor's course
+        var lecture = await _context.CourseLectures
+            .Include(l => l.Section)
+                .ThenInclude(s => s.Course)
+            .FirstOrDefaultAsync(l => l.Id == lectureId, ct);
+
+        if (lecture == null)
+            return NotFound(new { errors = new[] { "Ders bulunamadı" } });
+
+        if (lecture.Section.Course.MentorUserId != userId)
+            return Forbid();
+
+        var courseId = lecture.Section.Course.Id;
+        var sanitizedFileName = SanitizeFileName(file.FileName);
+        var fileKey = $"courses/{courseId}/lectures/{lectureId}/{Guid.NewGuid()}_{sanitizedFileName}";
+
+        using var stream = file.OpenReadStream();
+        var uploadResult = await _storageService.UploadFileAsync(
+            stream, sanitizedFileName, file.ContentType, userId.ToString()!, "course-video", ct);
+
+        if (!uploadResult.Success)
+            return BadRequest(new { errors = new[] { uploadResult.ErrorMessage ?? "Video yükleme başarısız" } });
+
+        // Return the file key — frontend will call confirm-upload with duration
+        return Ok(new { videoKey = uploadResult.FileKey });
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return "video.mp4";
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        name = name.Replace("ğ", "g").Replace("Ğ", "G")
+            .Replace("ü", "u").Replace("Ü", "U")
+            .Replace("ş", "s").Replace("Ş", "S")
+            .Replace("ı", "i").Replace("İ", "I")
+            .Replace("ö", "o").Replace("Ö", "O")
+            .Replace("ç", "c").Replace("Ç", "C");
+        var sanitized = new string(name.Where(c => c < 128)
+            .Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '-').ToArray());
+        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"-+", "-").Trim('-');
+        if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "video";
+        return sanitized + ext;
     }
 }
 

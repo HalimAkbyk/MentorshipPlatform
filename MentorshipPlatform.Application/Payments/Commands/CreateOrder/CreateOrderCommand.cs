@@ -135,9 +135,18 @@ public class CreateOrderCommandHandler
                 currency = enrollment.Course.Currency;
             }
 
-            // Platform fee (7%)
-            var platformFee = amount * 0.07m;
-            var totalAmount = amount + platformFee;
+            // Platform fee (7%) - Sadece Booking ve GroupClass için öğrenciye ek ücret yansıtılır.
+            // Kurs satın almalarda öğrenci direk kurs fiyatını öder, komisyon eğitmenden kesilir.
+            decimal totalAmount;
+            if (orderType == OrderType.Course)
+            {
+                totalAmount = amount; // Öğrenci tam fiyat öder, komisyon yok
+            }
+            else
+            {
+                var platformFee = amount * 0.07m;
+                totalAmount = amount + platformFee;
+            }
 
             // Create order
             var order = Order.Create(

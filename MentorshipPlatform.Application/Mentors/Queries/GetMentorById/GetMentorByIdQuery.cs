@@ -19,6 +19,9 @@ public record MentorDetailDto(
     string? Headline,
     decimal RatingAvg,
     int RatingCount,
+    bool IsListed,
+    bool IsOwnProfile,
+    string? VerificationStatus,
     List<OfferingDto> Offerings,
     List<VerificationBadgeDto> Badges,
     List<AvailabilitySlotDto> AvailableSlots);
@@ -36,14 +39,16 @@ public record VerificationBadgeDto(VerificationType Type, bool IsVerified);
 
 public record AvailabilitySlotDto(Guid Id, DateTime StartAt, DateTime EndAt);
 
-public class GetMentorByIdQueryHandler 
+public class GetMentorByIdQueryHandler
     : IRequestHandler<GetMentorByIdQuery, Result<MentorDetailDto>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetMentorByIdQueryHandler(IApplicationDbContext context)
+    public GetMentorByIdQueryHandler(IApplicationDbContext context, ICurrentUserService currentUser)
     {
         _context = context;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<MentorDetailDto>> Handle(
@@ -56,7 +61,11 @@ public class GetMentorByIdQueryHandler
             .Include(m => m.Verifications)
             .FirstOrDefaultAsync(m => m.UserId == request.MentorUserId, cancellationToken);
 
-        if (mentor == null || !mentor.IsListed)
+        // Kendi profilini görüntüleyen mentor IsListed kontrolünden muaf
+        var isOwnProfile = _currentUser.UserId.HasValue && _currentUser.UserId.Value == request.MentorUserId;
+        if (mentor == null)
+            return Result<MentorDetailDto>.Failure("Mentor not found");
+        if (!mentor.IsListed && !isOwnProfile)
             return Result<MentorDetailDto>.Failure("Mentor not found");
 
         // Get available slots (next 30 days)
@@ -88,6 +97,29 @@ public class GetMentorByIdQueryHandler
             .Select(type => new VerificationBadgeDto(type, mentor.IsVerified(type)))
             .ToList();
 
+        // Doğrulama durumu özeti (sadece kendi profilinde anlamlı)
+        string? verificationStatus = null;
+        if (isOwnProfile)
+        {
+            var verifications = mentor.Verifications.ToList();
+            if (!verifications.Any())
+            {
+                verificationStatus = "NoDocuments"; // Hiç belge yüklenmemiş
+            }
+            else if (verifications.Any(v => v.Status == VerificationStatus.Approved))
+            {
+                verificationStatus = "Approved"; // En az bir belge onaylı
+            }
+            else if (verifications.Any(v => v.Status == VerificationStatus.Pending))
+            {
+                verificationStatus = "PendingApproval"; // Onay bekliyor
+            }
+            else if (verifications.All(v => v.Status == VerificationStatus.Rejected))
+            {
+                verificationStatus = "Rejected"; // Hepsi reddedilmiş
+            }
+        }
+
         var dto = new MentorDetailDto(
             mentor.UserId,
             mentor.User.DisplayName,
@@ -99,6 +131,9 @@ public class GetMentorByIdQueryHandler
             mentor.Headline,
             mentor.RatingAvg,
             mentor.RatingCount,
+            mentor.IsListed,
+            isOwnProfile,
+            verificationStatus,
             offerings,
             badges,
             availableSlots);

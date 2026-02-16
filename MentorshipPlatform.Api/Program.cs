@@ -27,6 +27,12 @@ using Amazon.Runtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Allow large file uploads (500 MB) for video course content
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 524_288_000; // 500 MB
+});
+
 //Serilog Configuration
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)

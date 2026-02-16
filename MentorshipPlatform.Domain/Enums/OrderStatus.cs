@@ -6,5 +6,6 @@ public enum OrderStatus
     Paid,
     Failed,
     Refunded,
+    PartiallyRefunded,
     Chargeback
 }

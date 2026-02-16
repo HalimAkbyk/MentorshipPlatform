@@ -137,6 +137,11 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
                     externalUser.ExternalId);
 
                 user.AddRole(request.InitialRole.Value);
+                // Mentor seçen kullanıcıya otomatik olarak Student rolünü de ekle
+                if (request.InitialRole.Value == UserRole.Mentor)
+                {
+                    user.AddRole(UserRole.Student);
+                }
                 _context.Users.Add(user);
                 isNewUser = true;
             }
@@ -157,6 +162,11 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             {
                 // Role provided — assign it now
                 user.AddRole(request.InitialRole.Value);
+                // Mentor seçen kullanıcıya otomatik olarak Student rolünü de ekle
+                if (request.InitialRole.Value == UserRole.Mentor)
+                {
+                    user.AddRole(UserRole.Student);
+                }
                 await _context.SaveChangesAsync(cancellationToken);
             }
             else

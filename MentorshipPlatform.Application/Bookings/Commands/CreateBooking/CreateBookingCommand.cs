@@ -57,6 +57,10 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
         var studentUserId = _currentUser.UserId.Value;
 
+        // Kendi takvimine randevu alamaz
+        if (studentUserId == request.MentorUserId)
+            return Result<Guid>.Failure("Kendi takviminize randevu alamazsınız");
+
         // Validate offering (soruları da yükle)
         var offering = await _context.Offerings
             .Include(o => o.Questions)

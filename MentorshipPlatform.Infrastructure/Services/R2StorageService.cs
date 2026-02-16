@@ -38,9 +38,13 @@ public class R2StorageService : IStorageService
         {
             var sanitizedFileName = SanitizeFileName(fileName);
 
-            var folderPrefix = documentType == "University"
-                ? "student-documents"
-                : "transcript-documents";
+            var folderPrefix = documentType switch
+            {
+                "University" => "student-documents",
+                "course-video" => "courses",
+                "avatar" => "avatars",
+                _ => "transcript-documents",
+            };
 
             var guid = Guid.NewGuid();
             var fileKey = $"{folderPrefix}/{guid}_{sanitizedFileName}";

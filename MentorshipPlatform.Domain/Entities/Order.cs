@@ -12,6 +12,7 @@ public class Order : BaseEntity
     public decimal AmountTotal { get; private set; }
     public string Currency { get; private set; } = "TRY";
     public OrderStatus Status { get; private set; }
+    public decimal RefundedAmount { get; private set; }
     public string? PaymentProvider { get; private set; }
     public string? ProviderPaymentId { get; private set; }
     public string? CheckoutToken { get; private set; }
@@ -27,7 +28,7 @@ public class Order : BaseEntity
     {
         return new Order
         {
-            BuyerUserId = buyerUserId?? Guid.NewGuid(), //Todo: burası empty gelemez, newguid idareten eklendi.
+            BuyerUserId = buyerUserId ?? Guid.NewGuid(),
             Type = type,
             ResourceId = resourceId,
             AmountTotal = amount,
@@ -46,5 +47,18 @@ public class Order : BaseEntity
 
     public void SetCheckoutToken(string token) => CheckoutToken = token;
     public void MarkAsFailed() => Status = OrderStatus.Failed;
-    public void MarkAsRefunded() => Status = OrderStatus.Refunded;
+
+    public void MarkAsRefunded()
+    {
+        RefundedAmount = AmountTotal;
+        Status = OrderStatus.Refunded;
+    }
+
+    public void MarkAsPartiallyRefunded(decimal amount)
+    {
+        RefundedAmount += amount;
+        Status = RefundedAmount >= AmountTotal
+            ? OrderStatus.Refunded
+            : OrderStatus.PartiallyRefunded;
+    }
 }

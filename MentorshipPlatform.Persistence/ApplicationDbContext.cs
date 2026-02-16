@@ -49,6 +49,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<LectureProgress> LectureProgresses => Set<LectureProgress>();
     public DbSet<LectureNote> LectureNotes => Set<LectureNote>();
 
+    // Refund entities
+    public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

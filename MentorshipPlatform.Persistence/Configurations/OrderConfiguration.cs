@@ -21,6 +21,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.AmountTotal)
             .HasPrecision(18, 2);
 
+        builder.Property(o => o.RefundedAmount)
+            .HasPrecision(18, 2);
+
         builder.Property(o => o.Currency)
             .HasMaxLength(3);
 

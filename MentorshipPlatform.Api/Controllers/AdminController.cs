@@ -11,6 +11,8 @@ using MentorshipPlatform.Application.Admin.Commands.PublishMentor;
 using MentorshipPlatform.Application.Admin.Queries.GetPendingMentors;
 using MentorshipPlatform.Application.Admin.Queries.GetProcessHistory;
 using MentorshipPlatform.Application.Admin.Queries.GetSystemHealth;
+using MentorshipPlatform.Application.Admin.Queries.GetPlatformRevenue;
+using MentorshipPlatform.Application.Admin.Queries.GetPlatformTransactions;
 using MentorshipPlatform.Application.Bookings.Commands.ResolveDispute;
 
 [ApiController]
@@ -420,6 +422,30 @@ public class AdminController : ControllerBase
             return BadRequest(new { errors = result.Errors });
 
         return Ok(new { success = true });
+    }
+
+    // -----------------------------
+    // REVENUE
+    // -----------------------------
+    [HttpGet("revenue/summary")]
+    public async Task<IActionResult> GetRevenueSummary(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+    {
+        var result = await _mediator.Send(new GetPlatformRevenueSummaryQuery(from, to));
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
+    }
+
+    [HttpGet("revenue/transactions")]
+    public async Task<IActionResult> GetRevenueTransactions(
+        [FromQuery] string? accountType,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await _mediator.Send(new GetPlatformTransactionsQuery(accountType, page, pageSize));
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
     }
 
     // -----------------------------

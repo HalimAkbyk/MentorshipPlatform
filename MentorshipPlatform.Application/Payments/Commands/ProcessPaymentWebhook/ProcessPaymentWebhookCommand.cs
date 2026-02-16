@@ -1,6 +1,8 @@
+using Hangfire;
 using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
+using MentorshipPlatform.Application.Jobs;
 using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +18,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
     private readonly IApplicationDbContext _context;
     private readonly IPaymentService _paymentService;
     private readonly IProcessHistoryService _history;
+    private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ILogger<ProcessPaymentWebhookCommandHandler> _logger;
     private const decimal MENTOR_COMMISSION_PERCENTAGE = 0.15m;
 
@@ -23,11 +26,13 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
         IApplicationDbContext context,
         IPaymentService paymentService,
         IProcessHistoryService history,
+        IBackgroundJobClient backgroundJobs,
         ILogger<ProcessPaymentWebhookCommandHandler> logger)
     {
         _context = context;
         _paymentService = paymentService;
         _history = history;
+        _backgroundJobs = backgroundJobs;
         _logger = logger;
     }
 
@@ -173,6 +178,19 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                 order.Id));
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Schedule course payout after 7-day refund window
+            if (order.Type == OrderType.Course)
+            {
+                var coursePayoutTime = DateTime.UtcNow.AddDays(7);
+                _backgroundJobs.Schedule<ProcessCoursePayoutJob>(
+                    job => job.Execute(order.Id),
+                    coursePayoutTime);
+
+                _logger.LogInformation(
+                    "📅 Scheduled course payout for Order {OrderId} at {PayoutTime}",
+                    order.Id, coursePayoutTime);
+            }
 
             _logger.LogInformation("✅ Payment processed successfully for Order: {OrderId}", order.Id);
             return Result.Success();

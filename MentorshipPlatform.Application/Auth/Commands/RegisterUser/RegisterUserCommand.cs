@@ -71,18 +71,26 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, R
         var user = User.Create(request.Email, request.DisplayName, passwordHash);
         user.AddRole(request.InitialRole);
 
+        // Mentor seçen kullanıcıya otomatik olarak Student rolünü de ekle
+        // Böylece mentor, diğer mentorların kurslarına kayıt olabilir ve birebir seans alabilir
+        if (request.InitialRole == UserRole.Mentor)
+        {
+            user.AddRole(UserRole.Student);
+        }
+
         _context.Users.Add(user);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Generate tokens
+        // Generate tokens — tüm rolleri dahil et
+        var allRoles = user.Roles.ToArray();
         var (accessToken, refreshToken) = _jwtTokenGenerator.GenerateTokens(
-            user.Id, user.Email!, new[] { request.InitialRole });
+            user.Id, user.Email!, allRoles);
 
         var response = new AuthResponse(
             user.Id,
             accessToken,
             refreshToken,
-            new[] { request.InitialRole });
+            allRoles);
 
         return Result<AuthResponse>.Success(response);
     }

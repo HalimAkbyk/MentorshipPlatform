@@ -38,6 +38,10 @@ public class EnrollInCourseCommandHandler : IRequestHandler<EnrollInCourseComman
         if (course == null) return Result<Guid>.Failure("Course not found");
         if (course.Status != CourseStatus.Published) return Result<Guid>.Failure("Bu kurs şu anda satışta değil");
 
+        // Kendi kursuna kayıt olamaz
+        if (course.MentorUserId == studentId)
+            return Result<Guid>.Failure("Kendi kursunuza kayıt olamazsınız");
+
         var existing = await _context.CourseEnrollments
             .FirstOrDefaultAsync(e => e.CourseId == request.CourseId && e.StudentUserId == studentId, cancellationToken);
 

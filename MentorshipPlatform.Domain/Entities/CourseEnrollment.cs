@@ -50,4 +50,26 @@ public class CourseEnrollment : BaseEntity
         LastAccessedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// Calculates the refund percentage for a course enrollment based on:
+    /// - Days since enrollment
+    /// - Completion percentage (content consumed)
+    /// Rules:
+    ///   ≤ 7 days AND < 10% progress → 100% refund
+    ///   ≤ 14 days AND < 30% progress → 50% refund
+    ///   Otherwise → 0% (no refund)
+    /// </summary>
+    public decimal CalculateCourseRefundPercentage()
+    {
+        var daysSinceEnrollment = (DateTime.UtcNow - CreatedAt).TotalDays;
+
+        if (daysSinceEnrollment <= 7 && CompletionPercentage < 10)
+            return 1.0m; // 100%
+
+        if (daysSinceEnrollment <= 14 && CompletionPercentage < 30)
+            return 0.5m; // 50%
+
+        return 0m; // No refund
+    }
 }

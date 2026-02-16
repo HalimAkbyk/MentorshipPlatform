@@ -34,5 +34,8 @@ public interface IApplicationDbContext
     DbSet<LectureProgress> LectureProgresses { get; }
     DbSet<LectureNote> LectureNotes { get; }
 
+    // Refund entities
+    DbSet<RefundRequest> RefundRequests { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
