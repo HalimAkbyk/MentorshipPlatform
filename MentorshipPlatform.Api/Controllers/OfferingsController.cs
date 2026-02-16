@@ -1,4 +1,6 @@
+using System.Text.RegularExpressions;
 using MediatR;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Offerings.Commands.CreateOffering;
 using MentorshipPlatform.Application.Offerings.Commands.DeleteOffering;
 using MentorshipPlatform.Application.Offerings.Commands.ReorderOfferings;
@@ -14,6 +16,7 @@ using MentorshipPlatform.Application.Availability.Queries.GetOfferingAvailabilit
 using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Api.Controllers;
 
@@ -22,10 +25,20 @@ namespace MentorshipPlatform.Api.Controllers;
 public class OfferingsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IStorageService _storageService;
 
-    public OfferingsController(IMediator mediator)
+    public OfferingsController(
+        IMediator mediator,
+        IApplicationDbContext context,
+        ICurrentUserService currentUser,
+        IStorageService storageService)
     {
         _mediator = mediator;
+        _context = context;
+        _currentUser = currentUser;
+        _storageService = storageService;
     }
 
     /// <summary>Mentor'un kendi paketlerini listele</summary>
@@ -174,6 +187,61 @@ public class OfferingsController : ControllerBase
     {
         var result = await _mediator.Send(new DeleteOfferingAvailabilityTemplateCommand(id), ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+    /// <summary>Paket kapak görseli yükle</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpPost("{id:guid}/upload-cover")]
+    [RequestSizeLimit(10_485_760)] // 10 MB
+    public async Task<IActionResult> UploadCoverImage(Guid id, IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Dosya seçilmedi" } });
+
+        var userId = _currentUser.UserId;
+        if (userId == null) return Unauthorized();
+
+        var offering = await _context.Offerings
+            .FirstOrDefaultAsync(o => o.Id == id && o.MentorUserId == userId.Value, ct);
+
+        if (offering == null)
+            return NotFound(new { errors = new[] { "Paket bulunamadı" } });
+
+        var sanitizedFileName = SanitizeFileName(file.FileName);
+
+        using var stream = file.OpenReadStream();
+        var uploadResult = await _storageService.UploadFileAsync(
+            stream, sanitizedFileName, file.ContentType, userId.ToString()!, "offering-cover", ct);
+
+        if (!uploadResult.Success)
+            return BadRequest(new { errors = new[] { uploadResult.ErrorMessage ?? "Kapak görseli yükleme başarısız" } });
+
+        offering.Update(
+            offering.Title, offering.Description, offering.DurationMinDefault,
+            offering.PriceAmount, offering.Category, offering.Subtitle,
+            offering.DetailedDescription, offering.SessionType,
+            offering.MaxBookingDaysAhead, offering.MinNoticeHours,
+            uploadResult.PublicUrl);
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { coverImageUrl = uploadResult.PublicUrl });
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return "image.jpg";
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        name = name.Replace("ğ", "g").Replace("Ğ", "G")
+            .Replace("ü", "u").Replace("Ü", "U")
+            .Replace("ş", "s").Replace("Ş", "S")
+            .Replace("ı", "i").Replace("İ", "I")
+            .Replace("ö", "o").Replace("Ö", "O")
+            .Replace("ç", "c").Replace("Ç", "C");
+        var sanitized = new string(name.Where(c => c < 128)
+            .Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '-').ToArray());
+        sanitized = Regex.Replace(sanitized, @"-+", "-").Trim('-');
+        if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "image";
+        return sanitized + ext;
     }
 }
 
