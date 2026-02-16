@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Auth.Commands.ChangePassword;
 using MentorshipPlatform.Application.Auth.Commands.ExternalLogin;
 using MentorshipPlatform.Application.Auth.Commands.Login;
 using MentorshipPlatform.Application.Auth.Commands.RegisterUser;
@@ -13,10 +14,12 @@ namespace MentorshipPlatform.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IMediator mediator)
+    public AuthController(IMediator mediator, ILogger<AuthController> logger)
     {
         _mediator = mediator;
+        _logger = logger;
     }
 
     [HttpPost("signup")]
@@ -55,6 +58,16 @@ public class AuthController : ControllerBase
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
 
+        var data = result.Data!;
+        _logger.LogWarning(
+            "ExternalLogin response: UserId={UserId} HasAccessToken={HasToken} HasPendingToken={HasPending} PendingToken={PT} Roles=[{Roles}] IsNewUser={IsNew}",
+            data.UserId,
+            !string.IsNullOrEmpty(data.AccessToken),
+            !string.IsNullOrEmpty(data.PendingToken),
+            data.PendingToken ?? "(null)",
+            string.Join(",", data.Roles),
+            data.IsNewUser);
+
         return Ok(result.Data);
     }
 
@@ -66,5 +79,14 @@ public class AuthController : ControllerBase
         var result = await _mediator.Send(new GetMeQuery());
         if (!result.IsSuccess) return Unauthorized(new { errors = result.Errors });
         return Ok(result.Data);
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordCommand command)
+    {
+        var result = await _mediator.Send(command);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(new { ok = true });
     }
 }

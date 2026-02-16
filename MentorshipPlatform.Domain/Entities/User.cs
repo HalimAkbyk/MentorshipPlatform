@@ -70,6 +70,12 @@ public class User : BaseEntity
         BirthYear = birthYear;
         UpdatedAt = DateTime.UtcNow;
     }
+    public void ChangePassword(string newPasswordHash)
+    {
+        PasswordHash = newPasswordHash;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void Suspend() => Status = UserStatus.Suspended;
     public void Activate() => Status = UserStatus.Active;
 
