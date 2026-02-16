@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Courses.Commands.CreateCourse;
 using MentorshipPlatform.Application.Courses.Commands.UpdateCourse;
 using MentorshipPlatform.Application.Courses.Commands.PublishCourse;
@@ -8,8 +9,10 @@ using MentorshipPlatform.Application.Courses.Queries.GetMyCourses;
 using MentorshipPlatform.Application.Courses.Queries.GetCourseForEdit;
 using MentorshipPlatform.Application.Courses.Queries.GetPublicCourses;
 using MentorshipPlatform.Application.Courses.Queries.GetCourseDetail;
+using MentorshipPlatform.Application.Courses.Queries.GetPreviewLecture;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Api.Controllers;
 
@@ -18,10 +21,20 @@ namespace MentorshipPlatform.Api.Controllers;
 public class CoursesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IStorageService _storageService;
+    private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUser;
 
-    public CoursesController(IMediator mediator)
+    public CoursesController(
+        IMediator mediator,
+        IStorageService storageService,
+        IApplicationDbContext context,
+        ICurrentUserService currentUser)
     {
         _mediator = mediator;
+        _storageService = storageService;
+        _context = context;
+        _currentUser = currentUser;
     }
 
     /// <summary>Mentor'un kendi kurslarını listele</summary>
@@ -131,6 +144,74 @@ public class CoursesController : ControllerBase
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         if (result.Data == null) return NotFound();
         return Ok(result.Data);
+    }
+
+    /// <summary>Ücretsiz önizleme dersi (herkese açık)</summary>
+    [AllowAnonymous]
+    [HttpGet("{courseId:guid}/preview/{lectureId:guid}")]
+    public async Task<IActionResult> GetPreviewLecture(Guid courseId, Guid lectureId, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetPreviewLectureQuery(courseId, lectureId), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
+    }
+
+    /// <summary>Kurs kapak görseli yükle</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpPost("{id:guid}/upload-cover")]
+    [RequestSizeLimit(10_485_760)]
+    public async Task<IActionResult> UploadCoverImage(Guid id, IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Dosya seçilmedi" } });
+
+        var userId = _currentUser.UserId;
+        if (userId == null)
+            return Unauthorized();
+
+        var course = await _context.Courses
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
+
+        if (course == null)
+            return NotFound(new { errors = new[] { "Kurs bulunamadı" } });
+
+        if (course.MentorUserId != userId)
+            return Forbid();
+
+        var sanitizedFileName = SanitizeFileName(file.FileName);
+
+        using var stream = file.OpenReadStream();
+        var uploadResult = await _storageService.UploadFileAsync(
+            stream, sanitizedFileName, file.ContentType, userId.ToString()!, "course-cover", ct);
+
+        if (!uploadResult.Success)
+            return BadRequest(new { errors = new[] { uploadResult.ErrorMessage ?? "Kapak görseli yükleme başarısız" } });
+
+        course.Update(course.Title, course.ShortDescription, course.Description, course.Price,
+            course.Category, course.Language, course.Level, uploadResult.PublicUrl,
+            course.PromoVideoKey, course.WhatYouWillLearnJson, course.RequirementsJson,
+            course.TargetAudienceJson);
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { coverImageUrl = uploadResult.PublicUrl });
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return "image.jpg";
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        name = name.Replace("ğ", "g").Replace("Ğ", "G")
+            .Replace("ü", "u").Replace("Ü", "U")
+            .Replace("ş", "s").Replace("Ş", "S")
+            .Replace("ı", "i").Replace("İ", "I")
+            .Replace("ö", "o").Replace("Ö", "O")
+            .Replace("ç", "c").Replace("Ç", "C");
+        var sanitized = new string(name.Where(c => c < 128)
+            .Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '-').ToArray());
+        sanitized = System.Text.RegularExpressions.Regex.Replace(sanitized, @"-+", "-").Trim('-');
+        if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "image";
+        return sanitized + ext;
     }
 }
 
