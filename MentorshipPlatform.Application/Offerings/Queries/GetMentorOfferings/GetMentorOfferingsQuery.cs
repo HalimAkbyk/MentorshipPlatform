@@ -20,6 +20,8 @@ public record MentorOfferingDto(
     int MaxBookingDaysAhead,
     int MinNoticeHours,
     string? CoverImageUrl,
+    string? CoverImagePosition,
+    string? CoverImageTransform,
     Guid? AvailabilityTemplateId,
     List<MentorOfferingQuestionDto> Questions);
 
@@ -30,18 +32,22 @@ public record GetMentorOfferingsQuery(Guid MentorUserId) : IRequest<Result<List<
 public class GetMentorOfferingsQueryHandler : IRequestHandler<GetMentorOfferingsQuery, Result<List<MentorOfferingDto>>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetMentorOfferingsQueryHandler(IApplicationDbContext context)
+    public GetMentorOfferingsQueryHandler(IApplicationDbContext context, ICurrentUserService currentUser)
     {
         _context = context;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<List<MentorOfferingDto>>> Handle(GetMentorOfferingsQuery request, CancellationToken ct)
     {
-        // Sadece aktif ve listelenmiş mentorların aktif paketlerini göster
+        // Kendi profilini görüntüleyen mentor IsListed kontrolünden muaf
+        var isOwnProfile = _currentUser.UserId.HasValue && _currentUser.UserId.Value == request.MentorUserId;
+
         var mentorExists = await _context.MentorProfiles
             .AsNoTracking()
-            .AnyAsync(m => m.UserId == request.MentorUserId && m.IsListed, ct);
+            .AnyAsync(m => m.UserId == request.MentorUserId && (m.IsListed || isOwnProfile), ct);
 
         if (!mentorExists)
             return Result<List<MentorOfferingDto>>.Failure("Mentor not found");
@@ -66,6 +72,8 @@ public class GetMentorOfferingsQueryHandler : IRequestHandler<GetMentorOfferings
                 o.MaxBookingDaysAhead,
                 o.MinNoticeHours,
                 o.CoverImageUrl,
+                o.CoverImagePosition,
+                o.CoverImageTransform,
                 o.AvailabilityTemplateId,
                 o.Questions.OrderBy(q => q.SortOrder).Select(q =>
                     new MentorOfferingQuestionDto(q.Id, q.QuestionText, q.IsRequired, q.SortOrder)

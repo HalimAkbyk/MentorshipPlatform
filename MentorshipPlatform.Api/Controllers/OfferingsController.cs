@@ -95,7 +95,9 @@ public class OfferingsController : ControllerBase
             body.SessionType,
             body.MaxBookingDaysAhead,
             body.MinNoticeHours,
-            body.CoverImageUrl);
+            body.CoverImageUrl,
+            body.CoverImagePosition,
+            body.CoverImageTransform);
 
         var result = await _mediator.Send(command, ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
@@ -220,7 +222,7 @@ public class OfferingsController : ControllerBase
             offering.PriceAmount, offering.Category, offering.Subtitle,
             offering.DetailedDescription, offering.SessionType,
             offering.MaxBookingDaysAhead, offering.MinNoticeHours,
-            uploadResult.PublicUrl);
+            uploadResult.PublicUrl, offering.CoverImagePosition, offering.CoverImageTransform);
         await _context.SaveChangesAsync(ct);
 
         return Ok(new { coverImageUrl = uploadResult.PublicUrl });
@@ -276,7 +278,9 @@ public record UpdateOfferingRequest(
     string? SessionType,
     int MaxBookingDaysAhead,
     int MinNoticeHours,
-    string? CoverImageUrl);
+    string? CoverImageUrl,
+    string? CoverImagePosition,
+    string? CoverImageTransform);
 
 public record ReorderOfferingsRequest(List<Guid> OfferingIds);
 

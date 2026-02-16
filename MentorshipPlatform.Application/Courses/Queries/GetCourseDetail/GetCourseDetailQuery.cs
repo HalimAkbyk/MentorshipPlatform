@@ -17,6 +17,7 @@ public record CourseDetailDto(
     string? Description,
     string? CoverImageUrl,
     string? CoverImagePosition,
+    string? CoverImageTransform,
     string? PromoVideoKey,
     decimal Price,
     string Currency,
@@ -33,7 +34,8 @@ public record CourseDetailDto(
     int EnrollmentCount,
     CourseMentorDto Mentor,
     List<CurriculumSectionDto> Curriculum,
-    bool IsEnrolled);
+    bool IsEnrolled,
+    bool IsOwnCourse);
 
 public record GetCourseDetailQuery(Guid CourseId) : IRequest<Result<CourseDetailDto>>;
 
@@ -66,12 +68,14 @@ public class GetCourseDetailQueryHandler : IRequestHandler<GetCourseDetailQuery,
             .FirstOrDefaultAsync(m => m.UserId == course.MentorUserId, cancellationToken);
 
         var isEnrolled = false;
+        var isOwnCourse = false;
         if (_currentUser.UserId.HasValue)
         {
             isEnrolled = await _context.CourseEnrollments
                 .AnyAsync(e => e.CourseId == request.CourseId
                     && e.StudentUserId == _currentUser.UserId.Value
                     && e.Status == CourseEnrollmentStatus.Active, cancellationToken);
+            isOwnCourse = course.MentorUserId == _currentUser.UserId.Value;
         }
 
         var mentor = new CourseMentorDto(
@@ -88,13 +92,13 @@ public class GetCourseDetailQueryHandler : IRequestHandler<GetCourseDetailQuery,
 
         var dto = new CourseDetailDto(
             course.Id, course.Title, course.ShortDescription, course.Description,
-            course.CoverImageUrl, course.CoverImagePosition, course.PromoVideoKey,
+            course.CoverImageUrl, course.CoverImagePosition, course.CoverImageTransform, course.PromoVideoKey,
             course.Price, course.Currency, course.Level.ToString(),
             course.Language, course.Category,
             course.WhatYouWillLearnJson, course.RequirementsJson, course.TargetAudienceJson,
             course.TotalLectures, course.TotalDurationSec,
             course.RatingAvg, course.RatingCount, course.EnrollmentCount,
-            mentor, curriculum, isEnrolled);
+            mentor, curriculum, isEnrolled, isOwnCourse);
 
         return Result<CourseDetailDto>.Success(dto);
     }

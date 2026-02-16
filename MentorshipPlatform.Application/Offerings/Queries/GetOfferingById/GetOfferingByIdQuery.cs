@@ -22,6 +22,8 @@ public record OfferingDetailDto(
     int MaxBookingDaysAhead,
     int MinNoticeHours,
     string? CoverImageUrl,
+    string? CoverImagePosition,
+    string? CoverImageTransform,
     Guid? AvailabilityTemplateId,
     List<OfferingQuestionDto> Questions);
 
@@ -65,6 +67,8 @@ public class GetOfferingByIdQueryHandler : IRequestHandler<GetOfferingByIdQuery,
             offering.MaxBookingDaysAhead,
             offering.MinNoticeHours,
             offering.CoverImageUrl,
+            offering.CoverImagePosition,
+            offering.CoverImageTransform,
             offering.AvailabilityTemplateId,
             offering.Questions.OrderBy(q => q.SortOrder).Select(q =>
                 new OfferingQuestionDto(q.Id, q.QuestionText, q.IsRequired, q.SortOrder)

@@ -24,6 +24,8 @@ public class Offering : BaseEntity
     public int MinNoticeHours { get; private set; } = 2;
     public int SortOrder { get; private set; }
     public string? CoverImageUrl { get; private set; }
+    public string? CoverImagePosition { get; private set; }
+    public string? CoverImageTransform { get; private set; }
     public Guid? AvailabilityTemplateId { get; private set; }
 
     // Navigation properties
@@ -71,7 +73,9 @@ public class Offering : BaseEntity
         string? sessionType,
         int maxBookingDaysAhead,
         int minNoticeHours,
-        string? coverImageUrl)
+        string? coverImageUrl,
+        string? coverImagePosition = null,
+        string? coverImageTransform = null)
     {
         Title = title;
         Description = description;
@@ -84,6 +88,8 @@ public class Offering : BaseEntity
         MaxBookingDaysAhead = maxBookingDaysAhead > 0 ? maxBookingDaysAhead : 60;
         MinNoticeHours = minNoticeHours >= 0 ? minNoticeHours : 2;
         CoverImageUrl = coverImageUrl;
+        CoverImagePosition = coverImagePosition;
+        CoverImageTransform = coverImageTransform;
         UpdatedAt = DateTime.UtcNow;
     }
 

@@ -12,6 +12,7 @@ public record PublicCourseDto(
     string? ShortDescription,
     string? CoverImageUrl,
     string? CoverImagePosition,
+    string? CoverImageTransform,
     decimal Price,
     string Currency,
     string Level,
@@ -86,7 +87,7 @@ public class GetPublicCoursesQueryHandler : IRequestHandler<GetPublicCoursesQuer
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(c => new PublicCourseDto(
-                c.Id, c.Title, c.ShortDescription, c.CoverImageUrl, c.CoverImagePosition,
+                c.Id, c.Title, c.ShortDescription, c.CoverImageUrl, c.CoverImagePosition, c.CoverImageTransform,
                 c.Price, c.Currency, c.Level.ToString(), c.Category,
                 c.MentorUser.DisplayName, c.MentorUser.AvatarUrl,
                 c.TotalLectures, c.TotalDurationSec,

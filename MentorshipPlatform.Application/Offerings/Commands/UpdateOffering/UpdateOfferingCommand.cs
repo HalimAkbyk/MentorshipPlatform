@@ -18,7 +18,9 @@ public record UpdateOfferingCommand(
     string? SessionType,
     int MaxBookingDaysAhead,
     int MinNoticeHours,
-    string? CoverImageUrl) : IRequest<Result<bool>>;
+    string? CoverImageUrl,
+    string? CoverImagePosition,
+    string? CoverImageTransform) : IRequest<Result<bool>>;
 
 public class UpdateOfferingCommandValidator : AbstractValidator<UpdateOfferingCommand>
 {
@@ -80,7 +82,9 @@ public class UpdateOfferingCommandHandler : IRequestHandler<UpdateOfferingComman
             request.SessionType,
             request.MaxBookingDaysAhead,
             request.MinNoticeHours,
-            request.CoverImageUrl);
+            request.CoverImageUrl,
+            request.CoverImagePosition,
+            request.CoverImageTransform);
 
         await _context.SaveChangesAsync(ct);
         return Result<bool>.Success(true);

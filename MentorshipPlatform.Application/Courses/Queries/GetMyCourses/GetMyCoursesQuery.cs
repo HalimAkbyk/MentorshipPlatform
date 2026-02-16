@@ -11,6 +11,7 @@ public record MentorCourseDto(
     string? ShortDescription,
     string? CoverImageUrl,
     string? CoverImagePosition,
+    string? CoverImageTransform,
     string Status,
     string Level,
     decimal Price,
@@ -45,7 +46,7 @@ public class GetMyCoursesQueryHandler : IRequestHandler<GetMyCoursesQuery, Resul
             .Where(c => c.MentorUserId == _currentUser.UserId.Value)
             .OrderByDescending(c => c.CreatedAt)
             .Select(c => new MentorCourseDto(
-                c.Id, c.Title, c.ShortDescription, c.CoverImageUrl, c.CoverImagePosition,
+                c.Id, c.Title, c.ShortDescription, c.CoverImageUrl, c.CoverImagePosition, c.CoverImageTransform,
                 c.Status.ToString(), c.Level.ToString(),
                 c.Price, c.Currency, c.TotalLectures, c.TotalDurationSec,
                 c.EnrollmentCount, c.RatingAvg, c.RatingCount, c.CreatedAt))
