@@ -281,23 +281,20 @@ public class AdminNotificationController : ControllerBase
         }
 
         // Immediate send: get target users
-        var usersQuery = _context.Users.AsNoTracking()
-            .Where(u => u.Status == UserStatus.Active && u.Email != null);
-
-        switch (request.TargetAudience)
-        {
-            case "Students":
-                usersQuery = usersQuery.Where(u => u.Roles.Any(r => r == UserRole.Student));
-                break;
-            case "Mentors":
-                usersQuery = usersQuery.Where(u => u.Roles.Any(r => r == UserRole.Mentor));
-                break;
-            // "All" - no additional filter
-        }
-
-        var recipients = await usersQuery
-            .Select(u => new { u.Id, u.Email })
+        // Load users to memory for JSON-serialized Roles column filtering
+        // (EF Core cannot translate .Contains()/.Any() on JSON columns to SQL)
+        var allActiveUsers = await _context.Users.AsNoTracking()
+            .Where(u => u.Status == UserStatus.Active && u.Email != null)
             .ToListAsync(ct);
+
+        var targetUsers = request.TargetAudience switch
+        {
+            "Students" => allActiveUsers.Where(u => u.Roles.Contains(UserRole.Student)).ToList(),
+            "Mentors" => allActiveUsers.Where(u => u.Roles.Contains(UserRole.Mentor)).ToList(),
+            _ => allActiveUsers
+        };
+
+        var recipients = targetUsers.Select(u => new { u.Id, u.Email }).ToList();
 
         notification.MarkAsSending(recipients.Count);
         await _context.SaveChangesAsync(ct);

@@ -328,25 +328,27 @@ public class AdminFinanceController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var mentorQuery = _db.Users.AsNoTracking()
-            .Where(u => u.Roles.Contains(UserRole.Mentor));
+        // Load all users to memory for JSON-serialized Roles column filtering
+        // (EF Core cannot translate .Contains() on JSON columns to SQL)
+        var allUsers = await _db.Users.AsNoTracking().ToListAsync();
+        var mentorList = allUsers.Where(u => u.Roles.Contains(UserRole.Mentor)).ToList();
 
         if (!string.IsNullOrEmpty(search))
         {
             var searchLower = search.ToLower();
-            mentorQuery = mentorQuery.Where(u =>
+            mentorList = mentorList.Where(u =>
                 u.DisplayName.ToLower().Contains(searchLower)
-                || (u.Email != null && u.Email.ToLower().Contains(searchLower)));
+                || (u.Email != null && u.Email.ToLower().Contains(searchLower))).ToList();
         }
 
-        var totalCount = await mentorQuery.CountAsync();
+        var totalCount = mentorList.Count;
 
-        var mentors = await mentorQuery
+        var mentors = mentorList
             .OrderBy(u => u.DisplayName)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(u => new { u.Id, u.DisplayName, u.Email })
-            .ToListAsync();
+            .ToList();
 
         var mentorIds = mentors.Select(m => m.Id).ToList();
 
@@ -430,13 +432,15 @@ public class AdminFinanceController : ControllerBase
     [HttpGet("payouts/mentors/{mentorUserId:guid}")]
     public async Task<IActionResult> GetMentorPayoutDetail(Guid mentorUserId)
     {
-        var mentor = await _db.Users.AsNoTracking()
-            .Where(u => u.Id == mentorUserId && u.Roles.Contains(UserRole.Mentor))
-            .Select(u => new { u.Id, u.DisplayName, u.Email })
-            .FirstOrDefaultAsync();
+        // Fetch user by ID first, then check role in memory
+        // (EF Core cannot translate .Contains() on JSON-serialized Roles column)
+        var mentorUser = await _db.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == mentorUserId);
 
-        if (mentor == null)
+        if (mentorUser == null || !mentorUser.Roles.Contains(UserRole.Mentor))
             return NotFound(new { error = "Mentor not found" });
+
+        var mentor = new { mentorUser.Id, mentorUser.DisplayName, mentorUser.Email };
 
         // TotalEarned: MentorAvailable Credit
         var totalEarned = await _db.LedgerEntries.AsNoTracking()

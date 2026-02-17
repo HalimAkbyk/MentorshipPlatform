@@ -8,4 +8,5 @@ public interface IEmailService
     Task SendVerificationApprovedAsync(string to, string verificationType, CancellationToken cancellationToken = default);
     Task SendWelcomeEmailAsync(string to, string displayName, CancellationToken cancellationToken = default);
     Task SendUnreadMessageNotificationAsync(string to, string senderName, string offeringTitle, int unreadCount, string messagesUrl, CancellationToken cancellationToken = default);
+    Task SendGenericEmailAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default);
 }

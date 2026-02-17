@@ -16,6 +16,8 @@ public class Order : BaseEntity
     public string? PaymentProvider { get; private set; }
     public string? ProviderPaymentId { get; private set; }
     public string? CheckoutToken { get; private set; }
+    public decimal DiscountAmount { get; private set; }
+    public string? CouponCode { get; private set; }
 
     private Order() { }
 
@@ -61,5 +63,12 @@ public class Order : BaseEntity
         Status = RefundedAmount >= AmountTotal
             ? OrderStatus.Refunded
             : OrderStatus.PartiallyRefunded;
+    }
+
+    public void ApplyCoupon(string couponCode, decimal discountAmount)
+    {
+        CouponCode = couponCode;
+        DiscountAmount = discountAmount;
+        UpdatedAt = DateTime.UtcNow;
     }
 }

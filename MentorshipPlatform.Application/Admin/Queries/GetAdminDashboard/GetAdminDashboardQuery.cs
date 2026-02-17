@@ -82,24 +82,15 @@ public class GetAdminDashboardQueryHandler
         var lastMonthStart = thisMonthStart.AddMonths(-1);
 
         // ---- User Stats ----
-        var totalUsers = await _context.Users
-            .CountAsync(cancellationToken);
-
-        var totalMentors = await _context.Users
-            .CountAsync(u => u.Roles.Contains(UserRole.Mentor), cancellationToken);
-
-        var totalStudents = await _context.Users
-            .CountAsync(u => u.Roles.Contains(UserRole.Student), cancellationToken);
-
-        var activeUsersLast30Days = await _context.Users
-            .CountAsync(u => u.UpdatedAt >= thirtyDaysAgo, cancellationToken);
-
-        var newUsersThisWeek = await _context.Users
-            .CountAsync(u => u.CreatedAt >= thisWeekStart, cancellationToken);
-
-        var newUsersLastWeek = await _context.Users
-            .CountAsync(u => u.CreatedAt >= lastWeekStart && u.CreatedAt < thisWeekStart,
-                cancellationToken);
+        // Load all users into memory to avoid LINQ translation issues
+        // with JSON-serialized Roles column (Contains/Any cannot be translated to SQL)
+        var allUsers = await _context.Users.AsNoTracking().ToListAsync(cancellationToken);
+        var totalUsers = allUsers.Count;
+        var totalMentors = allUsers.Count(u => u.Roles.Contains(UserRole.Mentor));
+        var totalStudents = allUsers.Count(u => u.Roles.Contains(UserRole.Student));
+        var activeUsersLast30Days = allUsers.Count(u => u.UpdatedAt >= thirtyDaysAgo);
+        var newUsersThisWeek = allUsers.Count(u => u.CreatedAt >= thisWeekStart);
+        var newUsersLastWeek = allUsers.Count(u => u.CreatedAt >= lastWeekStart && u.CreatedAt < thisWeekStart);
 
         // ---- Revenue Stats ----
         // Revenue = Platform account Credit entries

@@ -59,5 +59,15 @@ public interface IApplicationDbContext
     DbSet<PlatformSetting> PlatformSettings { get; }
     DbSet<FeatureFlag> FeatureFlags { get; }
 
+    // Exam entities
+    DbSet<Exam> Exams { get; }
+    DbSet<ExamQuestion> ExamQuestions { get; }
+    DbSet<ExamAttempt> ExamAttempts { get; }
+    DbSet<ExamAnswer> ExamAnswers { get; }
+
+    // Coupon entities
+    DbSet<Coupon> Coupons { get; }
+    DbSet<CouponUsage> CouponUsages { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

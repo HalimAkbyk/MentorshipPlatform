@@ -132,6 +132,9 @@ builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+// Notification Service (wraps email for bulk notifications)
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
 // SMS Service (already configured for Twilio Video)
 builder.Services.AddScoped<ISmsService, SmsService>();
 

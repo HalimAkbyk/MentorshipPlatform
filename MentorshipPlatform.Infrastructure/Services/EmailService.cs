@@ -46,7 +46,7 @@ public class EmailService : IEmailService
             </html>
         ";
 
-        await SendEmailAsync(to, subject, body, cancellationToken);
+        await SendEmailInternalAsync(to, subject, body, cancellationToken);
     }
 
     public async Task SendBookingReminderAsync(
@@ -86,7 +86,7 @@ public class EmailService : IEmailService
             </html>
         ";
 
-        await SendEmailAsync(to, subject, body, cancellationToken);
+        await SendEmailInternalAsync(to, subject, body, cancellationToken);
     }
 
     public async Task SendBookingCancelledAsync(
@@ -109,7 +109,7 @@ public class EmailService : IEmailService
             </html>
         ";
 
-        await SendEmailAsync(to, subject, body, cancellationToken);
+        await SendEmailInternalAsync(to, subject, body, cancellationToken);
     }
 
     public async Task SendVerificationApprovedAsync(
@@ -136,7 +136,7 @@ public class EmailService : IEmailService
             </html>
         ";
 
-        await SendEmailAsync(to, subject, body, cancellationToken);
+        await SendEmailInternalAsync(to, subject, body, cancellationToken);
     }
 
     public async Task SendWelcomeEmailAsync(
@@ -171,7 +171,7 @@ public class EmailService : IEmailService
             </html>
         ";
 
-        await SendEmailAsync(to, subject, body, cancellationToken);
+        await SendEmailInternalAsync(to, subject, body, cancellationToken);
     }
 
     public async Task SendUnreadMessageNotificationAsync(
@@ -206,10 +206,19 @@ public class EmailService : IEmailService
             </html>
         ";
 
-        await SendEmailAsync(to, subject, body, cancellationToken);
+        await SendEmailInternalAsync(to, subject, body, cancellationToken);
     }
 
-    private async Task SendEmailAsync(
+    public async Task SendGenericEmailAsync(
+        string to,
+        string subject,
+        string htmlBody,
+        CancellationToken cancellationToken = default)
+    {
+        await SendEmailInternalAsync(to, subject, htmlBody, cancellationToken);
+    }
+
+    private async Task SendEmailInternalAsync(
         string to,
         string subject,
         string body,
