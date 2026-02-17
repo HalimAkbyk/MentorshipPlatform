@@ -228,6 +228,243 @@ public class AdminEducationController : ControllerBase
         return Ok(new { items = result, totalCount, page, pageSize, totalPages = (int)Math.Ceiling((double)totalCount / pageSize) });
     }
 
+    // GET /api/admin/education/bookings/{id} - Booking detail
+    [HttpGet("bookings/{id:guid}")]
+    public async Task<IActionResult> GetBookingDetail(Guid id)
+    {
+        var booking = await _db.Bookings
+            .Include(b => b.Offering)
+            .Include(b => b.Student)
+            .Include(b => b.Mentor)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null)
+            return NotFound(new { errors = new[] { "Booking not found." } });
+
+        // Get related order/payment info
+        var order = await _db.Orders
+            .Where(o => o.ResourceId == id && o.Type == Domain.Enums.OrderType.Booking)
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(o => new { o.Id, o.AmountTotal, Status = o.Status.ToString(), o.CreatedAt })
+            .FirstOrDefaultAsync();
+
+        // Get session/video info
+        var session = await _db.VideoSessions
+            .Where(vs => vs.ResourceType == "Booking" && vs.ResourceId == id)
+            .OrderByDescending(vs => vs.CreatedAt)
+            .Select(vs => new { vs.Id, vs.RoomName, Status = vs.Status.ToString(), vs.CreatedAt })
+            .FirstOrDefaultAsync();
+
+        // Get messages count
+        var messageCount = await _db.Messages
+            .Where(m => m.BookingId == id)
+            .CountAsync();
+
+        var result = new
+        {
+            booking.Id,
+            booking.StudentUserId,
+            StudentName = booking.Student?.DisplayName ?? "?",
+            StudentEmail = booking.Student?.Email ?? "",
+            booking.MentorUserId,
+            MentorName = booking.Mentor?.DisplayName ?? "?",
+            MentorEmail = booking.Mentor?.Email ?? "",
+            booking.StartAt,
+            booking.EndAt,
+            booking.DurationMin,
+            Status = booking.Status.ToString(),
+            booking.CancellationReason,
+            booking.RescheduleCountStudent,
+            booking.RescheduleCountMentor,
+            booking.CreatedAt,
+            OfferingId = booking.OfferingId,
+            OfferingTitle = booking.Offering?.Title ?? "-",
+            OfferingPrice = booking.Offering?.PriceAmount ?? 0,
+            OfferingCurrency = booking.Offering?.Currency ?? "TRY",
+            OfferingDuration = booking.Offering?.DurationMinDefault ?? 0,
+            Order = order,
+            Session = session,
+            MessageCount = messageCount,
+        };
+
+        return Ok(result);
+    }
+
+    // GET /api/admin/education/group-classes/{id} - Group class detail
+    [HttpGet("group-classes/{id:guid}")]
+    public async Task<IActionResult> GetGroupClassDetail(Guid id)
+    {
+        var gc = await _db.GroupClasses
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (gc == null)
+            return NotFound(new { errors = new[] { "Group class not found." } });
+
+        // Mentor info
+        var mentor = await _db.Users
+            .Where(u => u.Id == gc.MentorUserId)
+            .Select(u => new { u.DisplayName, u.Email })
+            .FirstOrDefaultAsync();
+
+        // Enrollments
+        var enrollments = await _db.ClassEnrollments
+            .Where(e => e.ClassId == id)
+            .OrderByDescending(e => e.CreatedAt)
+            .Select(e => new
+            {
+                e.Id,
+                e.StudentUserId,
+                Status = e.Status.ToString(),
+                e.CreatedAt,
+            })
+            .ToListAsync();
+
+        // Resolve student names
+        var studentIds = enrollments.Select(e => e.StudentUserId).Distinct().ToList();
+        var studentNames = await _db.Users
+            .Where(u => studentIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.DisplayName, u.Email })
+            .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, u.Email });
+
+        // Revenue from paid enrollment orders
+        var enrollmentIds = enrollments.Select(e => e.Id).ToList();
+        var totalRevenue = await _db.Orders
+            .Where(o => o.Type == Domain.Enums.OrderType.GroupClass
+                && enrollmentIds.Contains(o.ResourceId)
+                && o.Status == Domain.Enums.OrderStatus.Paid)
+            .SumAsync(o => o.AmountTotal);
+
+        var confirmedCount = enrollments.Count(e => e.Status == "Confirmed" || e.Status == "Attended");
+
+        var result = new
+        {
+            gc.Id,
+            gc.Title,
+            gc.Description,
+            gc.Category,
+            gc.CoverImageUrl,
+            gc.MentorUserId,
+            MentorName = mentor?.DisplayName ?? "?",
+            MentorEmail = mentor?.Email ?? "",
+            gc.StartAt,
+            gc.EndAt,
+            gc.Capacity,
+            gc.PricePerSeat,
+            gc.Currency,
+            Status = gc.Status.ToString(),
+            gc.CreatedAt,
+            EnrolledCount = confirmedCount,
+            TotalRevenue = totalRevenue,
+            Enrollments = enrollments.Select(e => new
+            {
+                e.Id,
+                e.StudentUserId,
+                StudentName = studentNames.GetValueOrDefault(e.StudentUserId)?.DisplayName ?? "?",
+                StudentEmail = studentNames.GetValueOrDefault(e.StudentUserId)?.Email ?? "",
+                e.Status,
+                e.CreatedAt,
+            }),
+        };
+
+        return Ok(result);
+    }
+
+    // GET /api/admin/education/exams/{id} - Exam detail
+    [HttpGet("exams/{id:guid}")]
+    public async Task<IActionResult> GetExamDetail(Guid id)
+    {
+        var exam = await _db.Exams
+            .Include(e => e.Questions)
+            .FirstOrDefaultAsync(e => e.Id == id);
+
+        if (exam == null)
+            return NotFound(new { errors = new[] { "Exam not found." } });
+
+        // Mentor info
+        var mentor = await _db.Users
+            .Where(u => u.Id == exam.MentorUserId)
+            .Select(u => new { u.DisplayName, u.Email })
+            .FirstOrDefaultAsync();
+
+        // Attempts
+        var attempts = await _db.ExamAttempts
+            .Where(a => a.ExamId == id)
+            .OrderByDescending(a => a.StartedAt)
+            .Select(a => new
+            {
+                a.Id,
+                a.StudentUserId,
+                a.ScorePercentage,
+                a.EarnedPoints,
+                a.TotalPoints,
+                a.Passed,
+                a.StartedAt,
+                a.CompletedAt,
+                a.Status,
+            })
+            .ToListAsync();
+
+        // Resolve student names
+        var studentIds = attempts.Select(a => a.StudentUserId).Distinct().ToList();
+        var studentNames = await _db.Users
+            .Where(u => studentIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.DisplayName, u.Email })
+            .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, u.Email });
+
+        var completedAttempts = attempts.Where(a => a.CompletedAt != null).ToList();
+        var averageScore = completedAttempts.Count > 0 ? completedAttempts.Average(a => (double)a.ScorePercentage) : 0;
+        var passRate = completedAttempts.Count > 0 ? (double)completedAttempts.Count(a => a.Passed) / completedAttempts.Count * 100 : 0;
+
+        var result = new
+        {
+            exam.Id,
+            exam.Title,
+            exam.Description,
+            exam.MentorUserId,
+            MentorName = mentor?.DisplayName ?? "?",
+            MentorEmail = mentor?.Email ?? "",
+            exam.ScopeType,
+            exam.ScopeId,
+            exam.DurationMinutes,
+            exam.PassingScore,
+            exam.IsPublished,
+            exam.ShuffleQuestions,
+            exam.ShowResults,
+            exam.MaxAttempts,
+            exam.StartDate,
+            exam.EndDate,
+            exam.CreatedAt,
+            QuestionCount = exam.Questions.Count,
+            AttemptCount = attempts.Count,
+            AverageScore = Math.Round(averageScore, 1),
+            PassRate = Math.Round(passRate, 1),
+            Questions = exam.Questions.Select(q => new
+            {
+                q.Id,
+                q.QuestionText,
+                q.QuestionType,
+                q.Points,
+                q.SortOrder,
+            }).OrderBy(q => q.SortOrder),
+            Attempts = attempts.Select(a => new
+            {
+                a.Id,
+                a.StudentUserId,
+                StudentName = studentNames.GetValueOrDefault(a.StudentUserId)?.DisplayName ?? "?",
+                StudentEmail = studentNames.GetValueOrDefault(a.StudentUserId)?.Email ?? "",
+                a.ScorePercentage,
+                a.EarnedPoints,
+                a.TotalPoints,
+                a.Passed,
+                a.Status,
+                a.StartedAt,
+                a.CompletedAt,
+            }),
+        };
+
+        return Ok(result);
+    }
+
     // GET /api/admin/education/courses/{id} - Course detail
     [HttpGet("courses/{id:guid}")]
     public async Task<IActionResult> GetCourseDetail(Guid id)
