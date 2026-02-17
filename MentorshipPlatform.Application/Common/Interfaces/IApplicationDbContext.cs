@@ -52,5 +52,12 @@ public interface IApplicationDbContext
     DbSet<NotificationTemplate> NotificationTemplates { get; }
     DbSet<BulkNotification> BulkNotifications { get; }
 
+    // Moderation entities
+    DbSet<BlacklistEntry> BlacklistEntries { get; }
+
+    // Platform settings entities
+    DbSet<PlatformSetting> PlatformSettings { get; }
+    DbSet<FeatureFlag> FeatureFlags { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

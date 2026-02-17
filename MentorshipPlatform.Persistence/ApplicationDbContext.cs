@@ -67,6 +67,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
     public DbSet<BulkNotification> BulkNotifications => Set<BulkNotification>();
 
+    // Moderation entities
+    public DbSet<BlacklistEntry> BlacklistEntries => Set<BlacklistEntry>();
+
+    // Platform settings entities
+    public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
+    public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
