@@ -48,5 +48,9 @@ public interface IApplicationDbContext
     DbSet<Announcement> Announcements { get; }
     DbSet<StaticPage> StaticPages { get; }
 
+    // Notification entities
+    DbSet<NotificationTemplate> NotificationTemplates { get; }
+    DbSet<BulkNotification> BulkNotifications { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

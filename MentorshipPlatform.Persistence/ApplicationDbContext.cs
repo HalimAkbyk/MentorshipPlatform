@@ -63,6 +63,10 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<StaticPage> StaticPages => Set<StaticPage>();
 
+    // Notification entities
+    public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
+    public DbSet<BulkNotification> BulkNotifications => Set<BulkNotification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
