@@ -14,6 +14,9 @@ using MentorshipPlatform.Application.Admin.Queries.GetAdminDashboard;
 using MentorshipPlatform.Application.Admin.Queries.GetSystemHealth;
 using MentorshipPlatform.Application.Admin.Queries.GetPlatformRevenue;
 using MentorshipPlatform.Application.Admin.Queries.GetPlatformTransactions;
+using MentorshipPlatform.Application.Admin.Queries.GetAllUsers;
+using MentorshipPlatform.Application.Admin.Queries.GetUserDetail;
+using MentorshipPlatform.Application.Admin.Commands.ChangeUserRole;
 using MentorshipPlatform.Application.Bookings.Commands.ResolveDispute;
 using MentorshipPlatform.Application.Messages.Queries.GetMessageReports;
 using MentorshipPlatform.Application.Messages.Commands.ReviewMessageReport;
@@ -602,6 +605,55 @@ public class AdminController : ControllerBase
             reportId, body.Status, body.AdminNotes));
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
+        return Ok(new { success = true });
+    }
+
+    // -----------------------------
+    // USER MANAGEMENT
+    // -----------------------------
+
+    [HttpGet("users")]
+    public async Task<IActionResult> GetUsers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? role = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] bool sortDesc = false)
+    {
+        var result = await _mediator.Send(new GetAllUsersQuery(
+            page, pageSize, search, role, status, sortBy, sortDesc));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(result.Data);
+    }
+
+    [HttpGet("users/{userId:guid}/detail")]
+    public async Task<IActionResult> GetUserDetail(Guid userId)
+    {
+        var result = await _mediator.Send(new GetUserDetailQuery(userId));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(result.Data);
+    }
+
+    public record ChangeUserRoleRequest(string Role, string Action);
+
+    [HttpPost("users/{userId:guid}/role")]
+    public async Task<IActionResult> ChangeUserRole(
+        Guid userId, [FromBody] ChangeUserRoleRequest request)
+    {
+        var result = await _mediator.Send(new ChangeUserRoleCommand(
+            userId, request.Role, request.Action));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
         return Ok(new { success = true });
     }
 }

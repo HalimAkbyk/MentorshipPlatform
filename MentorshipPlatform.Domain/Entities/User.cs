@@ -62,6 +62,11 @@ public class User : BaseEntity
         }
     }
 
+    public void RemoveRole(UserRole role)
+    {
+        _roles.Remove(role);
+    }
+
     public void UpdateProfile(string displayName,string? phone, string? avatarUrl, int? birthYear)
     {
         DisplayName = displayName;
