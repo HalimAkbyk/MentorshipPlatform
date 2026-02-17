@@ -136,11 +136,32 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
             }
         }
 
-        // Create refund ledger entries
+        // Create refund ledger entries (coupon-aware reverse split)
         if (mentorUserId.HasValue)
         {
-            var mentorRefundPortion = refundAmount * (1 - PLATFORM_COMMISSION_RATE);
-            var platformRefundPortion = refundAmount * PLATFORM_COMMISSION_RATE;
+            decimal mentorRefundPortion, platformRefundPortion;
+            bool isAdminCoupon = order.DiscountAmount > 0
+                && string.Equals(order.CouponCreatedByRole, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (isAdminCoupon)
+            {
+                // Admin coupon: mentor was credited based on original price, platform took the hit.
+                // On refund, reverse the same proportions.
+                var originalPrice = order.AmountTotal + order.DiscountAmount;
+                var originalMentorNet = originalPrice * (1 - PLATFORM_COMMISSION_RATE);
+                var originalPlatformCommission = order.AmountTotal - originalMentorNet;
+
+                // Refund ratio (partial refund support)
+                var refundRatio = refundAmount / order.AmountTotal;
+                mentorRefundPortion = originalMentorNet * refundRatio;
+                platformRefundPortion = originalPlatformCommission * refundRatio;
+            }
+            else
+            {
+                // Standard split (mentor coupon or no coupon)
+                mentorRefundPortion = refundAmount * (1 - PLATFORM_COMMISSION_RATE);
+                platformRefundPortion = refundAmount * PLATFORM_COMMISSION_RATE;
+            }
 
             // Determine if mentor funds are in escrow or available
             var mentorAvailableCredits = await _context.LedgerEntries

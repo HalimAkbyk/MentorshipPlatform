@@ -88,9 +88,22 @@ public class PaymentReconciliationJob
                                         !s.IsBooked);
                                 slot?.MarkAsBooked();
 
-                                // Create ledger entries
-                                var mentorNet = order.AmountTotal * (1 - MENTOR_COMMISSION_PERCENTAGE);
-                                var platformCommission = order.AmountTotal * MENTOR_COMMISSION_PERCENTAGE;
+                                // Create ledger entries (coupon-aware split)
+                                decimal mentorNet, platformCommission;
+                                bool isAdminCoupon = order.DiscountAmount > 0
+                                    && string.Equals(order.CouponCreatedByRole, "Admin", StringComparison.OrdinalIgnoreCase);
+
+                                if (isAdminCoupon)
+                                {
+                                    var originalPrice = order.AmountTotal + order.DiscountAmount;
+                                    mentorNet = originalPrice * (1 - MENTOR_COMMISSION_PERCENTAGE);
+                                    platformCommission = order.AmountTotal - mentorNet;
+                                }
+                                else
+                                {
+                                    mentorNet = order.AmountTotal * (1 - MENTOR_COMMISSION_PERCENTAGE);
+                                    platformCommission = order.AmountTotal * MENTOR_COMMISSION_PERCENTAGE;
+                                }
 
                                 _context.LedgerEntries.Add(LedgerEntry.Create(
                                     LedgerAccountType.MentorEscrow,

@@ -159,8 +159,27 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
             }
 
             // Create ledger entries (escrow model)
-            var mentorNet = order.AmountTotal * (1 - MENTOR_COMMISSION_PERCENTAGE);
-            var platformCommission = order.AmountTotal * MENTOR_COMMISSION_PERCENTAGE;
+            // Coupon-aware split:
+            //   Admin coupon  → discount comes from platform's share. Mentor earns as if no discount.
+            //   Mentor coupon → standard split on actual paid amount. Mentor bears the discount.
+            //   No coupon     → standard split.
+            decimal mentorNet, platformCommission;
+            bool isAdminCoupon = order.DiscountAmount > 0
+                                 && string.Equals(order.CouponCreatedByRole, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (isAdminCoupon)
+            {
+                // Original price before discount
+                var originalPrice = order.AmountTotal + order.DiscountAmount;
+                mentorNet = originalPrice * (1 - MENTOR_COMMISSION_PERCENTAGE);
+                platformCommission = order.AmountTotal - mentorNet; // may be negative (platform promotional cost)
+            }
+            else
+            {
+                // Standard calculation (mentor coupon or no coupon)
+                mentorNet = order.AmountTotal * (1 - MENTOR_COMMISSION_PERCENTAGE);
+                platformCommission = order.AmountTotal * MENTOR_COMMISSION_PERCENTAGE;
+            }
 
             _context.LedgerEntries.Add(LedgerEntry.Create(
                 LedgerAccountType.MentorEscrow,

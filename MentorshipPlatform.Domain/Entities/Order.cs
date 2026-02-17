@@ -18,6 +18,7 @@ public class Order : BaseEntity
     public string? CheckoutToken { get; private set; }
     public decimal DiscountAmount { get; private set; }
     public string? CouponCode { get; private set; }
+    public string? CouponCreatedByRole { get; private set; } // "Admin" or "Mentor" — determines who bears the discount cost
 
     private Order() { }
 
@@ -65,10 +66,11 @@ public class Order : BaseEntity
             : OrderStatus.PartiallyRefunded;
     }
 
-    public void ApplyCoupon(string couponCode, decimal discountAmount)
+    public void ApplyCoupon(string couponCode, decimal discountAmount, string? couponCreatedByRole = null)
     {
         CouponCode = couponCode;
         DiscountAmount = discountAmount;
+        CouponCreatedByRole = couponCreatedByRole;
         UpdatedAt = DateTime.UtcNow;
     }
 }

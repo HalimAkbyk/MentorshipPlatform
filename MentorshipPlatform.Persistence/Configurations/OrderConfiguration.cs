@@ -39,6 +39,9 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.CouponCode)
             .HasMaxLength(50);
 
+        builder.Property(o => o.CouponCreatedByRole)
+            .HasMaxLength(20);
+
         builder.HasIndex(o => o.BuyerUserId);
         builder.HasIndex(o => o.ProviderPaymentId);
         builder.HasIndex(o => new { o.Type, o.ResourceId });

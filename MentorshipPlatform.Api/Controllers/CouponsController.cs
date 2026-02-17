@@ -594,8 +594,8 @@ public class CouponsController : ControllerBase
         if (finalDiscount <= 0)
             return BadRequest(new { errors = new[] { "Coupon does not provide any discount for this order amount." } });
 
-        // Apply coupon to order
-        order.ApplyCoupon(coupon.Code, finalDiscount);
+        // Apply coupon to order (include who created the coupon for ledger calculation)
+        order.ApplyCoupon(coupon.Code, finalDiscount, coupon.CreatedByRole);
 
         // Create usage record
         var usage = CouponUsage.Create(coupon.Id, userId, order.Id, finalDiscount);
