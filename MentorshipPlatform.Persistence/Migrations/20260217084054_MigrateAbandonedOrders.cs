@@ -10,17 +10,30 @@ namespace MentorshipPlatform.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // 1) Reclassify existing Failed orders that never had a payment attempt
-            // (ProviderPaymentId is NULL → user opened Iyzico popup but closed without paying)
+            // ──────────────────────────────────────────────────────────────
+            // ORDERS CLEANUP
+            // ──────────────────────────────────────────────────────────────
+
+            // 1) Failed orders with no payment attempt → Abandoned
             migrationBuilder.Sql(
                 @"UPDATE ""Orders""
                   SET ""Status"" = 'Abandoned'
                   WHERE ""Status"" = 'Failed'
                     AND ""ProviderPaymentId"" IS NULL;");
 
-            // 2) Reclassify Cancelled bookings that were auto-cancelled due to unpaid stale bookings
-            // These are bookings whose related order was never paid (Abandoned/Failed with no payment)
-            // CancellationReason contains 'ödenmemiş' or the booking has no Paid order
+            // 2) Very old Pending orders that the expire job somehow missed → Abandoned
+            migrationBuilder.Sql(
+                @"UPDATE ""Orders""
+                  SET ""Status"" = 'Abandoned'
+                  WHERE ""Status"" = 'Pending'
+                    AND ""CreatedAt"" < NOW() - INTERVAL '1 hour';");
+
+            // ──────────────────────────────────────────────────────────────
+            // BOOKINGS CLEANUP
+            // ──────────────────────────────────────────────────────────────
+
+            // 3) Cancelled bookings whose order was never paid → Expired
+            //    (These were auto-cancelled by CreateBookingCommand stale cleanup)
             migrationBuilder.Sql(
                 @"UPDATE ""Bookings""
                   SET ""Status"" = 'Expired',
@@ -31,9 +44,30 @@ namespace MentorshipPlatform.Persistence.Migrations
                       FROM ""Bookings"" b
                       INNER JOIN ""Orders"" o ON o.""ResourceId"" = b.""Id"" AND o.""Type"" = 'Booking'
                       WHERE b.""Status"" = 'Cancelled'
-                        AND o.""Status"" IN ('Abandoned', 'Failed')
+                        AND o.""Status"" IN ('Abandoned', 'Failed', 'Pending')
                         AND o.""ProviderPaymentId"" IS NULL
                     );");
+
+            // 4) Cancelled bookings that have NO order at all → Expired
+            //    (Edge case: booking created but order creation failed)
+            migrationBuilder.Sql(
+                @"UPDATE ""Bookings""
+                  SET ""Status"" = 'Expired',
+                      ""CancellationReason"" = NULL
+                  WHERE ""Status"" = 'Cancelled'
+                    AND ""Id"" NOT IN (
+                      SELECT o.""ResourceId""
+                      FROM ""Orders"" o
+                      WHERE o.""Type"" = 'Booking'
+                    );");
+
+            // 5) Lingering PendingPayment bookings older than 1 hour → Expired
+            //    (Expire job may have missed these)
+            migrationBuilder.Sql(
+                @"UPDATE ""Bookings""
+                  SET ""Status"" = 'Expired'
+                  WHERE ""Status"" = 'PendingPayment'
+                    AND ""CreatedAt"" < NOW() - INTERVAL '1 hour';");
         }
 
         /// <inheritdoc />
