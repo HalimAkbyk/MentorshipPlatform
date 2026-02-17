@@ -10,6 +10,7 @@ using MediatR;
 using MentorshipPlatform.Application.Admin.Commands.PublishMentor;
 using MentorshipPlatform.Application.Admin.Queries.GetPendingMentors;
 using MentorshipPlatform.Application.Admin.Queries.GetProcessHistory;
+using MentorshipPlatform.Application.Admin.Queries.GetAdminDashboard;
 using MentorshipPlatform.Application.Admin.Queries.GetSystemHealth;
 using MentorshipPlatform.Application.Admin.Queries.GetPlatformRevenue;
 using MentorshipPlatform.Application.Admin.Queries.GetPlatformTransactions;
@@ -351,6 +352,20 @@ public class AdminController : ControllerBase
     {
         var result = await _mediator.Send(new GetProcessHistoryQuery(
             entityType, entityId, action, dateFrom, dateTo, page, pageSize));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(result.Data);
+    }
+
+    // -----------------------------
+    // ADMIN DASHBOARD
+    // -----------------------------
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> GetDashboard()
+    {
+        var result = await _mediator.Send(new GetAdminDashboardQuery());
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
