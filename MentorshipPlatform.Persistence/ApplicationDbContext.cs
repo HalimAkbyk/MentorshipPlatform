@@ -84,6 +84,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<CouponUsage> CouponUsages => Set<CouponUsage>();
 
+    // Category entities
+    public DbSet<Category> Categories => Set<Category>();
+
+    // Admin notification entities
+    public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

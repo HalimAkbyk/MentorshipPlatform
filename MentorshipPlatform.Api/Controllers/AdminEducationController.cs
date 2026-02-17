@@ -227,4 +227,99 @@ public class AdminEducationController : ControllerBase
 
         return Ok(new { items = result, totalCount, page, pageSize, totalPages = (int)Math.Ceiling((double)totalCount / pageSize) });
     }
+
+    // GET /api/admin/education/courses/{id} - Course detail
+    [HttpGet("courses/{id:guid}")]
+    public async Task<IActionResult> GetCourseDetail(Guid id)
+    {
+        var course = await _db.Courses
+            .Include(c => c.Sections.OrderBy(s => s.SortOrder))
+                .ThenInclude(s => s.Lectures.OrderBy(l => l.SortOrder))
+            .Include(c => c.MentorUser)
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (course == null)
+            return NotFound(new { errors = new[] { "Course not found." } });
+
+        // Enrollments
+        var enrollments = await _db.CourseEnrollments
+            .Where(e => e.CourseId == id)
+            .OrderByDescending(e => e.CreatedAt)
+            .Select(e => new
+            {
+                e.Id,
+                e.StudentUserId,
+                Status = e.Status.ToString(),
+                Progress = e.CompletionPercentage,
+                e.CreatedAt,
+            })
+            .ToListAsync();
+
+        // Resolve student names
+        var studentIds = enrollments.Select(e => e.StudentUserId).Distinct().ToList();
+        var studentNames = await _db.Users
+            .Where(u => studentIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.DisplayName, u.Email })
+            .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, u.Email });
+
+        // Revenue from paid orders for this course's enrollments
+        var enrollmentIds = enrollments.Select(e => e.Id).ToList();
+        var totalRevenue = await _db.Orders
+            .Where(o => o.Type == Domain.Enums.OrderType.Course
+                && enrollmentIds.Contains(o.ResourceId)
+                && o.Status == Domain.Enums.OrderStatus.Paid)
+            .SumAsync(o => o.AmountTotal);
+
+        var result = new
+        {
+            course.Id,
+            course.Title,
+            course.Description,
+            course.ShortDescription,
+            course.CoverImageUrl,
+            course.Price,
+            course.Currency,
+            Status = course.Status.ToString(),
+            Level = course.Level.ToString(),
+            course.Category,
+            course.Language,
+            course.TotalDurationSec,
+            course.TotalLectures,
+            course.RatingAvg,
+            course.RatingCount,
+            course.EnrollmentCount,
+            course.CreatedAt,
+            course.UpdatedAt,
+            MentorUserId = course.MentorUserId,
+            MentorName = course.MentorUser?.DisplayName ?? "?",
+            MentorEmail = course.MentorUser?.Email ?? "",
+            TotalRevenue = totalRevenue,
+            Sections = course.Sections.Select(s => new
+            {
+                s.Id,
+                s.Title,
+                s.SortOrder,
+                Lectures = s.Lectures.Select(l => new
+                {
+                    l.Id,
+                    l.Title,
+                    l.DurationSec,
+                    l.IsPreview,
+                    l.SortOrder,
+                })
+            }),
+            Enrollments = enrollments.Select(e => new
+            {
+                e.Id,
+                e.StudentUserId,
+                StudentName = studentNames.GetValueOrDefault(e.StudentUserId)?.DisplayName ?? "?",
+                StudentEmail = studentNames.GetValueOrDefault(e.StudentUserId)?.Email ?? "",
+                e.Status,
+                e.Progress,
+                e.CreatedAt,
+            }),
+        };
+
+        return Ok(result);
+    }
 }

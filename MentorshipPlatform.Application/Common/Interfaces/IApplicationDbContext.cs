@@ -69,5 +69,11 @@ public interface IApplicationDbContext
     DbSet<Coupon> Coupons { get; }
     DbSet<CouponUsage> CouponUsages { get; }
 
+    // Category entities
+    DbSet<Category> Categories { get; }
+
+    // Admin notification entities
+    DbSet<AdminNotification> AdminNotifications { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
