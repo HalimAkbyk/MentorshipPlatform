@@ -64,7 +64,15 @@ public class GetMyBookingsQueryHandler
             .Where(b => b.StudentUserId == userId || b.MentorUserId == userId);
 
         if (request.Status.HasValue)
+        {
             query = query.Where(b => b.Status == request.Status.Value);
+        }
+        else
+        {
+            // Default: exclude PendingPayment and Expired bookings (abandoned payment attempts)
+            query = query.Where(b => b.Status != BookingStatus.PendingPayment
+                                  && b.Status != BookingStatus.Expired);
+        }
 
         var bookings = await query
             .OrderByDescending(b => b.StartAt)

@@ -47,6 +47,7 @@ public class Order : BaseEntity
 
     public void SetCheckoutToken(string token) => CheckoutToken = token;
     public void MarkAsFailed() => Status = OrderStatus.Failed;
+    public void MarkAsAbandoned() => Status = OrderStatus.Abandoned;
 
     public void MarkAsRefunded()
     {

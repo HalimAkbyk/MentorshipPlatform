@@ -38,11 +38,23 @@ public class ExpirePendingOrdersJob
 
             foreach (var order in expiredOrders)
             {
-                order.MarkAsFailed();
+                // Distinguish between abandoned (user closed popup) vs actual payment failure
+                // If ProviderPaymentId is null, Iyzico never received a payment attempt
+                var isAbandoned = string.IsNullOrEmpty(order.ProviderPaymentId);
+
+                if (isAbandoned)
+                    order.MarkAsAbandoned();
+                else
+                    order.MarkAsFailed();
+
+                var newStatus = isAbandoned ? "Abandoned" : "Failed";
+                var description = isAbandoned
+                    ? $"Kullanıcı ödeme yapmadan vazgeçti ({EXPIRY_MINUTES} dk süre doldu)"
+                    : $"Sipariş {EXPIRY_MINUTES} dakika içinde ödenmedi, otomatik iptal edildi";
 
                 await _history.LogAsync("Order", order.Id, "StatusChanged",
-                    "Pending", "Failed",
-                    $"Sipariş {EXPIRY_MINUTES} dakika içinde ödenmedi, otomatik iptal edildi",
+                    "Pending", newStatus,
+                    description,
                     performedByRole: "System");
 
                 // If this is a booking order, expire the booking and release the slot

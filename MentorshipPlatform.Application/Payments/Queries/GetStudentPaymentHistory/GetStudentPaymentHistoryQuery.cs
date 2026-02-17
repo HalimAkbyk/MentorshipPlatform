@@ -61,8 +61,8 @@ public class GetStudentPaymentHistoryQueryHandler
             query = query.Where(o => o.Status == status);
         }
 
-        // Only show orders that are not Pending (those are incomplete payment attempts)
-        query = query.Where(o => o.Status != OrderStatus.Pending);
+        // Exclude Pending (incomplete) and Abandoned (user closed popup without paying)
+        query = query.Where(o => o.Status != OrderStatus.Pending && o.Status != OrderStatus.Abandoned);
 
         var orderedQuery = query.OrderByDescending(o => o.CreatedAt);
 
