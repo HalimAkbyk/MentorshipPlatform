@@ -360,11 +360,103 @@ try
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await dbContext.Database.MigrateAsync();
         Log.Information("Database migrations applied successfully");
+
+        // Seed CMS data if tables are empty
+        await SeedCmsData(dbContext);
     }
 }
 catch (Exception ex)
 {
     Log.Error(ex, "An error occurred while migrating the database");
+}
+
+// CMS Seed Data
+static async Task SeedCmsData(ApplicationDbContext db)
+{
+    try
+    {
+        // Seed Banners (only if none exist)
+        if (!await db.Banners.AnyAsync())
+        {
+            db.Banners.AddRange(
+                Banner.Create("Yaz Donemi %25 Indirim", "Tum birebir mentorluk paketlerinde gecerli. Sinirli sure!", null, "/public/mentors", "Top", null, null, 1),
+                Banner.Create("Grup Dersleri Artik Aktif!", "Canli grup dersleriyle birlikte ogren, birlikte basla.", null, "/student/explore-classes", "Top", null, null, 2),
+                Banner.Create("Iyzico ile Guvenli Odeme", "Tum odemeleriniz Iyzico altyapisiyla guvence altinda.", null, null, "Bottom", null, null, 3)
+            );
+            await db.SaveChangesAsync();
+            Log.Information("CMS Banners seeded successfully");
+        }
+
+        // Seed Announcements (only if none exist)
+        if (!await db.Announcements.AnyAsync())
+        {
+            db.Announcements.AddRange(
+                Announcement.Create("Sistem Bakimi", "19 Subat 02:00-04:00 arasi planli bakim yapilacaktir. Bu sure zarfinda platforma erisim kisitli olabilir.", "Maintenance", "All", null, null, true),
+                Announcement.Create("Video Kurslar Yayinda!", "Artik mentorler video kurs olusturup satabilir. Kendi hizinizda ogrenin!", "Info", "All", null, null, true),
+                Announcement.Create("Profil Bilgilerinizi Tamamlayin", "Odeme islemi yapabilmek icin profil bilgilerinizin eksiksiz olmasi gerekmektedir.", "Warning", "Students", null, null, true)
+            );
+            await db.SaveChangesAsync();
+            Log.Information("CMS Announcements seeded successfully");
+        }
+
+        // Seed Static Pages (only if none exist)
+        if (!await db.StaticPages.AnyAsync())
+        {
+            var privacyContent = @"<div class=""space-y-8"">
+<section><h2 class=""text-2xl font-bold mb-4"">1. Veri Sorumlusu</h2><p class=""text-gray-600 leading-relaxed"">degisimmentorluk.com (""Platform"") olarak, 6698 sayili Kisisel Verilerin Korunmasi Kanunu (""KVKK"") kapsaminda veri sorumlusu sifatiyla kisisel verilerinizi islemekteyiz.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">2. Toplanan Veriler</h2><p class=""text-gray-600 leading-relaxed mb-4"">Platformumuzu kullanirken asagidaki kisisel veriler toplanabilir:</p><ul class=""list-disc list-inside space-y-2 text-gray-600""><li>Kimlik bilgileri (ad, soyad)</li><li>Iletisim bilgileri (e-posta, telefon)</li><li>Egitim bilgileri (universite, bolum, mezuniyet yili)</li><li>Odeme bilgileri (Iyzico uzerinden islenir, kart bilgileri saklanmaz)</li><li>Kullanim verileri (oturum bilgileri, tercihler)</li></ul></section>
+<section><h2 class=""text-2xl font-bold mb-4"">3. Verilerin Islenmesi Amaci</h2><ul class=""list-disc list-inside space-y-2 text-gray-600""><li>Uyelik ve hesap yonetimi</li><li>Mentorluk hizmetinin sunulmasi</li><li>Odeme islemlerinin gerceklestirilmesi</li><li>Iletisim ve destek hizmetleri</li><li>Yasal yukumluluklerin yerine getirilmesi</li></ul></section>
+<section><h2 class=""text-2xl font-bold mb-4"">4. Verilerin Aktarilmasi</h2><p class=""text-gray-600 leading-relaxed"">Kisisel verileriniz, hizmet saglayicilarimiz (odeme altyapisi, sunucu hizmeti) ile paylasabilir. Ucuncu taraflarla sadece yasal zorunluluk halinde paylasilir.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">5. Cerezler</h2><p class=""text-gray-600 leading-relaxed"">Platformumuz, kullanici deneyimini iyilestirmek amaciyla cerezler kullanir. Tarayici ayarlarinizdan cerez tercihlerinizi yonetebilirsiniz.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">6. Veri Guvenligi</h2><p class=""text-gray-600 leading-relaxed"">SSL/TLS sifreleme, guvenli sunucu altyapisi ve erisim kontrolleri gibi teknik ve idari tedbirler uygulanmaktadir.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">7. KVKK Kapsamindaki Haklariniz</h2><ul class=""list-disc list-inside space-y-2 text-gray-600""><li>Kisisel verilerinizin islenip islenmedigini ogrenme</li><li>Islenmisse buna iliskin bilgi talep etme</li><li>Eksik veya yanlis islenmisse duzeltilmesini isteme</li><li>Silinmesini veya yok edilmesini isteme</li><li>Aleyhine bir sonuc cikmasi halinde itiraz etme</li></ul></section>
+<section><h2 class=""text-2xl font-bold mb-4"">8. Iletisim</h2><p class=""text-gray-600 leading-relaxed"">KVKK kapsamindaki haklarinizi kullanmak icin destek@degisimmentorluk.com adresinden bize ulasabilirsiniz.</p></section>
+</div>";
+
+            var termsContent = @"<div class=""space-y-8"">
+<section><h2 class=""text-2xl font-bold mb-4"">1. Genel Hukumler</h2><p class=""text-gray-600 leading-relaxed"">Bu kullanim sartlari, degisimmentorluk.com (""Platform"") uzerinden sunulan hizmetlerin kullanimina iliskin kosullari duzenler. Platformu kullanarak bu sartlari kabul etmis sayilirsiniz.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">2. Hizmet Tanimi</h2><p class=""text-gray-600 leading-relaxed"">Platform, mentorler ile danisanlar arasinda online mentorluk hizmeti saglar. Mentorler bagimsiz hizmet saglayicilaridir.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">3. Uyelik ve Hesap</h2><p class=""text-gray-600 leading-relaxed"">Platforma uye olmak icin gecerli bir e-posta adresi ve dogru kisisel bilgiler gereklidir. Hesabinizin guvenliginden siz sorumlusunuz.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">4. Odeme ve Iade</h2><p class=""text-gray-600 leading-relaxed"">Odemeler Iyzico altyapisi uzerinden islenir. Ders baslama saatinden 24 saat once yapilan iptallerde tam iade yapilir. 24 saatten az kalan iptallerde iade yapilmaz.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">5. Mentor Sorumluluklari</h2><p class=""text-gray-600 leading-relaxed"">Mentorler, belirledikleri saatlerde musait olmak ve profesyonel bir tutum sergilemekle yukumludur.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">6. Danisan Sorumluluklari</h2><p class=""text-gray-600 leading-relaxed"">Danisanlar, randevularina zamaninda katilmak ve mentorlere saygi gostermekle yukumludur.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">7. Icerik ve Fikri Mulkiyet</h2><p class=""text-gray-600 leading-relaxed"">Platformdaki tum icerikler degisimmentorluk.com'a aittir. Izinsiz kopyalanmasi yasaktir.</p></section>
+<section><h2 class=""text-2xl font-bold mb-4"">8. Iletisim</h2><p class=""text-gray-600 leading-relaxed"">Sorulariniz icin destek@degisimmentorluk.com adresinden bize ulasabilirsiniz.</p></section>
+</div>";
+
+            var faqContent = @"<div class=""space-y-6"">
+<details class=""border border-gray-200 rounded-xl bg-white""><summary class=""px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-50"">Mentorluk nedir?</summary><p class=""px-6 pb-4 text-gray-600"">Mentorluk, hedef universitesini kazanmis ogrencilerin, sinava hazirlanan ogrencilere birebir online gorusmeler araciligiyla rehberlik etmesidir.</p></details>
+<details class=""border border-gray-200 rounded-xl bg-white""><summary class=""px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-50"">Nasil kayit olurum?</summary><p class=""px-6 pb-4 text-gray-600"">Ana sayfadaki ""Uye Ol"" butonuna tiklayarak kayit olabilirsiniz. Kayit ucretsizdir.</p></details>
+<details class=""border border-gray-200 rounded-xl bg-white""><summary class=""px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-50"">Ucretlendirme nasil calisiyor?</summary><p class=""px-6 pb-4 text-gray-600"">Her mentor kendi ucretini belirler. Danisanlardan %7 platform bedeli alinir. Mentorlerden %15 komisyon kesilir.</p></details>
+<details class=""border border-gray-200 rounded-xl bg-white""><summary class=""px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-50"">Odeme guvenligi nasil saglaniyor?</summary><p class=""px-6 pb-4 text-gray-600"">Tum odemeler Iyzico altyapisi uzerinden guvenlice islenir.</p></details>
+<details class=""border border-gray-200 rounded-xl bg-white""><summary class=""px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-50"">Randevumu iptal edebilir miyim?</summary><p class=""px-6 pb-4 text-gray-600"">24 saat oncesine kadar ucretsiz iptal yapabilirsiniz. 24 saatten az kalan iptallerde iade yapilmaz.</p></details>
+<details class=""border border-gray-200 rounded-xl bg-white""><summary class=""px-6 py-4 font-medium text-gray-900 cursor-pointer hover:bg-gray-50"">Mentor olmak icin ne gerekiyor?</summary><p class=""px-6 pb-4 text-gray-600"">Kayit olduktan sonra universite ve kimlik dogrulamasi yapmaniz gerekir. Basvurunuz admin tarafindan incelenir.</p></details>
+</div>";
+
+            var supportContent = @"<div class=""space-y-8"">
+<div class=""grid md:grid-cols-2 gap-8"">
+<div class=""bg-white rounded-xl border p-6""><h3 class=""font-bold text-lg mb-2"">📧 E-posta</h3><p class=""text-gray-600 mb-2"">Genel sorular ve destek icin:</p><a href=""mailto:destek@degisimmentorluk.com"" class=""text-indigo-600 hover:underline font-medium"">destek@degisimmentorluk.com</a></div>
+<div class=""bg-white rounded-xl border p-6""><h3 class=""font-bold text-lg mb-2"">📞 Telefon</h3><p class=""text-gray-600 mb-2"">Bizi arayin:</p><a href=""tel:+905331408819"" class=""text-indigo-600 hover:underline font-medium"">0 533 140 88 19</a></div>
+<div class=""bg-white rounded-xl border p-6""><h3 class=""font-bold text-lg mb-2"">📍 Adres</h3><p class=""text-gray-600"">Sancaktepe / Istanbul</p></div>
+<div class=""bg-white rounded-xl border p-6""><h3 class=""font-bold text-lg mb-2"">🕐 Calisma Saatleri</h3><p class=""text-gray-600"">Pazartesi - Cuma: 09:00 - 18:00</p><p class=""text-gray-600"">Cumartesi: 10:00 - 14:00</p></div>
+</div>
+<div class=""bg-indigo-50 rounded-2xl p-8 text-center""><h2 class=""text-2xl font-bold mb-4"">Hizli Destek</h2><p class=""text-gray-600 max-w-xl mx-auto"">Sikca sorulan sorular icin <a href=""/public/faq"" class=""text-indigo-600 hover:underline font-medium"">SSS sayfamizi</a> ziyaret edebilirsiniz.</p></div>
+</div>";
+
+            db.StaticPages.AddRange(
+                StaticPage.Create("gizlilik-politikasi", "Gizlilik Politikasi ve KVKK", privacyContent, "Gizlilik Politikasi - Degisim Mentorluk", "degisimmentorluk.com gizlilik politikasi ve KVKK aydinlatma metni"),
+                StaticPage.Create("kullanim-sartlari", "Kullanim Sartlari", termsContent, "Kullanim Sartlari - Degisim Mentorluk", "degisimmentorluk.com kullanim sartlari ve kosullari"),
+                StaticPage.Create("sss", "Sikca Sorulan Sorular", faqContent, "SSS - Degisim Mentorluk", "Mentorluk platformu hakkinda sikca sorulan sorular"),
+                StaticPage.Create("destek", "Iletisim ve Destek", supportContent, "Destek - Degisim Mentorluk", "degisimmentorluk.com iletisim ve destek sayfasi")
+            );
+            await db.SaveChangesAsync();
+            Log.Information("CMS Static Pages seeded successfully");
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "CMS seed data could not be applied (may already exist)");
+    }
 }
 
 app.MapGet("/weatherforecast", () =>
