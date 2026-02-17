@@ -37,5 +37,9 @@ public interface IApplicationDbContext
     // Refund entities
     DbSet<RefundRequest> RefundRequests { get; }
 
+    // Messaging entities
+    DbSet<Message> Messages { get; }
+    DbSet<MessageReport> MessageReports { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

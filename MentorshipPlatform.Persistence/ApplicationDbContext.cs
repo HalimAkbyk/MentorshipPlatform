@@ -52,6 +52,10 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     // Refund entities
     public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();
 
+    // Messaging entities
+    public DbSet<Message> Messages => Set<Message>();
+    public DbSet<MessageReport> MessageReports => Set<MessageReport>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

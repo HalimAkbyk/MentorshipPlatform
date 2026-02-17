@@ -14,6 +14,8 @@ using MentorshipPlatform.Application.Admin.Queries.GetSystemHealth;
 using MentorshipPlatform.Application.Admin.Queries.GetPlatformRevenue;
 using MentorshipPlatform.Application.Admin.Queries.GetPlatformTransactions;
 using MentorshipPlatform.Application.Bookings.Commands.ResolveDispute;
+using MentorshipPlatform.Application.Messages.Queries.GetMessageReports;
+using MentorshipPlatform.Application.Messages.Commands.ReviewMessageReport;
 
 [ApiController]
 [Route("api/admin")]
@@ -559,5 +561,32 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok();
+    }
+
+    // -----------------------------
+    // MESSAGE REPORTS
+    // -----------------------------
+
+    [HttpGet("message-reports")]
+    public async Task<IActionResult> GetMessageReports(
+        [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var result = await _mediator.Send(new GetMessageReportsQuery(status, page, pageSize));
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
+    }
+
+    public record ReviewMessageReportRequest(ReportStatus Status, string? AdminNotes);
+
+    [HttpPost("message-reports/{reportId:guid}/review")]
+    public async Task<IActionResult> ReviewMessageReport(
+        Guid reportId, [FromBody] ReviewMessageReportRequest body)
+    {
+        var result = await _mediator.Send(new ReviewMessageReportCommand(
+            reportId, body.Status, body.AdminNotes));
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(new { success = true });
     }
 }
