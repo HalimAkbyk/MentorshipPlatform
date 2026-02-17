@@ -42,5 +42,11 @@ public interface IApplicationDbContext
     DbSet<MessageReport> MessageReports { get; }
     DbSet<MessageNotificationLog> MessageNotificationLogs { get; }
 
+    // CMS entities
+    DbSet<HomepageModule> HomepageModules { get; }
+    DbSet<Banner> Banners { get; }
+    DbSet<Announcement> Announcements { get; }
+    DbSet<StaticPage> StaticPages { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -57,6 +57,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<MessageReport> MessageReports => Set<MessageReport>();
     public DbSet<MessageNotificationLog> MessageNotificationLogs => Set<MessageNotificationLog>();
 
+    // CMS entities
+    public DbSet<HomepageModule> HomepageModules => Set<HomepageModule>();
+    public DbSet<Banner> Banners => Set<Banner>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<StaticPage> StaticPages => Set<StaticPage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
