@@ -83,6 +83,23 @@ public class ExpirePendingOrdersJob
                             performedByRole: "System");
                     }
                 }
+                // If this is a group class enrollment, cancel the enrollment
+                else if (order.Type == OrderType.GroupClass)
+                {
+                    var enrollment = await _context.ClassEnrollments
+                        .FirstOrDefaultAsync(e => e.Id == order.ResourceId
+                            && e.Status == EnrollmentStatus.PendingPayment);
+
+                    if (enrollment != null)
+                    {
+                        enrollment.Cancel();
+
+                        await _history.LogAsync("ClassEnrollment", enrollment.Id, "StatusChanged",
+                            "PendingPayment", "Cancelled",
+                            "Ödeme süresi doldu, grup dersi kaydı otomatik iptal edildi.",
+                            performedByRole: "System");
+                    }
+                }
             }
 
             await _context.SaveChangesAsync();

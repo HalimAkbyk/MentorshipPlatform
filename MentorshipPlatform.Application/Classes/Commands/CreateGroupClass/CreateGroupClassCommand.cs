@@ -8,11 +8,13 @@ namespace MentorshipPlatform.Application.Classes.Commands.CreateGroupClass;
 
 public record CreateGroupClassCommand(
     string Title,
-    string Description,
+    string? Description,
+    string Category,
     DateTime StartAt,
     DateTime EndAt,
     int Capacity,
-    decimal PricePerSeat) : IRequest<Result<Guid>>;
+    decimal PricePerSeat,
+    string? CoverImageUrl) : IRequest<Result<Guid>>;
 
 public class CreateGroupClassCommandValidator : AbstractValidator<CreateGroupClassCommand>
 {
@@ -20,6 +22,7 @@ public class CreateGroupClassCommandValidator : AbstractValidator<CreateGroupCla
     {
         RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Description).MaximumLength(2000);
+        RuleFor(x => x.Category).NotEmpty().MaximumLength(100);
         RuleFor(x => x.StartAt).GreaterThan(DateTime.UtcNow.AddHours(24));
         RuleFor(x => x.EndAt).GreaterThan(x => x.StartAt);
         RuleFor(x => x.Capacity).InclusiveBetween(2, 100);
@@ -27,7 +30,7 @@ public class CreateGroupClassCommandValidator : AbstractValidator<CreateGroupCla
     }
 }
 
-public class CreateGroupClassCommandHandler 
+public class CreateGroupClassCommandHandler
     : IRequestHandler<CreateGroupClassCommand, Result<Guid>>
 {
     private readonly IApplicationDbContext _context;
@@ -53,10 +56,13 @@ public class CreateGroupClassCommandHandler
         var groupClass = GroupClass.Create(
             mentorUserId,
             request.Title,
+            request.Description,
+            request.Category,
             request.StartAt,
             request.EndAt,
             request.Capacity,
-            request.PricePerSeat);
+            request.PricePerSeat,
+            request.CoverImageUrl);
 
         groupClass.Publish();
 

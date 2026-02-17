@@ -112,8 +112,18 @@ public class CreateOrderCommandHandler
             }
             else if (orderType == OrderType.GroupClass)
             {
-                // GroupClass logic...
-                return Result<CreateOrderResponse>.Failure("GroupClass not implemented yet");
+                var enrollment = await _context.ClassEnrollments
+                    .Include(e => e.Class)
+                    .FirstOrDefaultAsync(e => e.Id == request.ResourceId, cancellationToken);
+
+                if (enrollment == null)
+                    return Result<CreateOrderResponse>.Failure("Class enrollment not found");
+
+                if (enrollment.Class == null)
+                    return Result<CreateOrderResponse>.Failure("Group class not found");
+
+                amount = enrollment.Class.PricePerSeat;
+                currency = enrollment.Class.Currency;
             }
             else if (orderType == OrderType.Course)
             {

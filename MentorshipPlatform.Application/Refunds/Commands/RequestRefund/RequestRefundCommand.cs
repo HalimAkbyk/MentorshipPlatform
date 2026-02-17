@@ -113,9 +113,25 @@ public class RequestRefundCommandHandler
 
             eligibleAmount = Math.Min(remainingRefundable, order.AmountTotal * refundPercentage);
         }
+        else if (order.Type == OrderType.GroupClass)
+        {
+            // GroupClass — same time-based refund policy as Booking
+            var classEnrollment = await _context.ClassEnrollments
+                .Include(e => e.Class)
+                .FirstOrDefaultAsync(e => e.Id == order.ResourceId, cancellationToken);
+
+            if (classEnrollment == null)
+                return Result<RefundRequestDto>.Failure("Class enrollment not found");
+
+            var refundPercentage = classEnrollment.Class.CalculateRefundPercentage();
+            if (refundPercentage == 0)
+                return Result<RefundRequestDto>.Failure(
+                    "This group class is no longer eligible for a refund (less than 2 hours until start)");
+
+            eligibleAmount = Math.Min(remainingRefundable, order.AmountTotal * refundPercentage);
+        }
         else
         {
-            // GroupClass — default: remaining refundable
             eligibleAmount = remainingRefundable;
         }
 

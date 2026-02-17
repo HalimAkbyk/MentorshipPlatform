@@ -27,6 +27,7 @@ public class ClassEnrollment : BaseEntity
     }
 
     public void Confirm() => Status = EnrollmentStatus.Confirmed;
+    public void Cancel() => Status = EnrollmentStatus.Cancelled;
     public void MarkAttended() => Status = EnrollmentStatus.Attended;
     public void Refund() => Status = EnrollmentStatus.Refunded;
 }
