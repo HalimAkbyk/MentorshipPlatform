@@ -153,10 +153,10 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         {
             foreach (var stale in staleBookings)
             {
-                stale.Cancel("Yeni booking oluşturuldu, eski ödenmemiş randevu otomatik iptal edildi");
+                stale.MarkAsExpired();
             }
 
-            // İlişkili Pending order'ları da iptal et
+            // İlişkili Pending order'ları abandoned olarak işaretle (ödeme yapılmadı)
             var staleBookingIds = staleBookings.Select(b => b.Id).ToList();
             var staleOrders = await _context.Orders
                 .Where(o => staleBookingIds.Contains(o.ResourceId) && o.Status == OrderStatus.Pending)
@@ -164,7 +164,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
 
             foreach (var staleOrder in staleOrders)
             {
-                staleOrder.MarkAsFailed();
+                staleOrder.MarkAsAbandoned();
             }
 
             await _context.SaveChangesAsync(cancellationToken);
