@@ -40,6 +40,7 @@ public interface IApplicationDbContext
     // Messaging entities
     DbSet<Message> Messages { get; }
     DbSet<MessageReport> MessageReports { get; }
+    DbSet<MessageNotificationLog> MessageNotificationLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

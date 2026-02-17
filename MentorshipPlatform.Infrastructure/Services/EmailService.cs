@@ -174,6 +174,41 @@ public class EmailService : IEmailService
         await SendEmailAsync(to, subject, body, cancellationToken);
     }
 
+    public async Task SendUnreadMessageNotificationAsync(
+        string to,
+        string senderName,
+        string offeringTitle,
+        int unreadCount,
+        string messagesUrl,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"💬 {senderName} size {unreadCount} okunmamış mesaj gönderdi";
+        var body = $@"
+            <html>
+            <body style='font-family: Arial, sans-serif;'>
+                <h2>Okunmamış Mesajlarınız Var!</h2>
+                <p><strong>{senderName}</strong> size mesaj gönderdi.</p>
+                <div style='background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;'>
+                    <p><strong>Ders:</strong> {offeringTitle}</p>
+                    <p><strong>Okunmamış mesaj sayısı:</strong> {unreadCount}</p>
+                </div>
+                <p>
+                    <a href='{messagesUrl}'
+                       style='background-color: #2563eb; color: white; padding: 12px 24px;
+                              text-decoration: none; border-radius: 6px; display: inline-block;'>
+                        Mesajlara Git
+                    </a>
+                </p>
+                <p style='font-size: 12px; color: #6b7280; margin-top: 20px;'>
+                    Bu otomatik bir bildirimdir. Mesajlarınızı okuduktan sonra bu bildirimler duracaktır.
+                </p>
+            </body>
+            </html>
+        ";
+
+        await SendEmailAsync(to, subject, body, cancellationToken);
+    }
+
     private async Task SendEmailAsync(
         string to,
         string subject,

@@ -15,7 +15,9 @@ public record MessageDto(
     string Content,
     bool IsRead,
     bool IsOwnMessage,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    DateTime? DeliveredAt,
+    DateTime? ReadAt);
 
 public record GetBookingMessagesQuery(
     Guid BookingId,
@@ -78,7 +80,9 @@ public class GetBookingMessagesQueryHandler
                 m.Content,
                 m.IsRead,
                 m.SenderUserId == userId,
-                m.CreatedAt);
+                m.CreatedAt,
+                m.DeliveredAt,
+                m.ReadAt);
         }).ToList();
 
         return Result<PaginatedList<MessageDto>>.Success(

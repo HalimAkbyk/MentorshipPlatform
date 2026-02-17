@@ -55,6 +55,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     // Messaging entities
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageReport> MessageReports => Set<MessageReport>();
+    public DbSet<MessageNotificationLog> MessageNotificationLogs => Set<MessageNotificationLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -12,11 +12,16 @@ public class MarkMessagesAsReadCommandHandler : IRequestHandler<MarkMessagesAsRe
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IChatNotificationService _chatNotification;
 
-    public MarkMessagesAsReadCommandHandler(IApplicationDbContext context, ICurrentUserService currentUser)
+    public MarkMessagesAsReadCommandHandler(
+        IApplicationDbContext context,
+        ICurrentUserService currentUser,
+        IChatNotificationService chatNotification)
     {
         _context = context;
         _currentUser = currentUser;
+        _chatNotification = chatNotification;
     }
 
     public async Task<Result> Handle(MarkMessagesAsReadCommand request, CancellationToken cancellationToken)
@@ -43,13 +48,26 @@ public class MarkMessagesAsReadCommandHandler : IRequestHandler<MarkMessagesAsRe
                         && !m.IsRead)
             .ToListAsync(cancellationToken);
 
+        if (!unreadMessages.Any())
+            return Result.Success();
+
+        var readMessageIds = new List<Guid>();
+        Guid? senderUserId = null;
+
         foreach (var message in unreadMessages)
         {
             message.MarkAsRead();
+            readMessageIds.Add(message.Id);
+            senderUserId ??= message.SenderUserId;
         }
 
-        if (unreadMessages.Any())
-            await _context.SaveChangesAsync(cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Notify the sender that their messages were read
+        if (senderUserId != null && readMessageIds.Count > 0)
+        {
+            await _chatNotification.NotifyMessagesRead(senderUserId.Value, request.BookingId, readMessageIds);
+        }
 
         return Result.Success();
     }

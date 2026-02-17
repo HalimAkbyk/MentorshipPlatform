@@ -13,7 +13,9 @@ using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using MentorshipPlatform.Identity.Services;
 using MentorshipPlatform.Infrastructure.Services;
+using MentorshipPlatform.Api.Hubs;
 using MentorshipPlatform.Api.Middleware;
+using MentorshipPlatform.Api.Services;
 using MentorshipPlatform.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -163,6 +165,21 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(jwtOptions.Secret))
     };
+
+    // Allow SignalR to receive JWT from query string
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization(options =>
@@ -235,6 +252,10 @@ builder.Services.AddHangfire(configuration => configuration
         c.UseNpgsqlConnection(connectionString)));
 
 builder.Services.AddHangfireServer();
+
+// SignalR
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IChatNotificationService, ChatNotificationService>();
 
 // CORS
 var allowedOrigins = new List<string> { "http://localhost:3000" };
@@ -310,6 +331,9 @@ try
 
     RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.CleanupStaleSessionsJob>(
         "cleanup-stale-sessions", job => job.Execute(), "*/15 * * * *"); // Every 15 minutes
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.SendUnreadMessageNotificationJob>(
+        "send-unread-message-notifications", job => job.Execute(), "*/2 * * * *"); // Every 2 minutes
 }
 catch (Exception ex)
 {
@@ -317,6 +341,7 @@ catch (Exception ex)
 }
 
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 app.MapHealthChecks("/health");
 
 var summaries = new[]
