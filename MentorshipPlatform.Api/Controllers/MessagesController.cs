@@ -3,6 +3,7 @@ using MentorshipPlatform.Application.Messages.Commands.MarkMessagesAsRead;
 using MentorshipPlatform.Application.Messages.Commands.ReportMessage;
 using MentorshipPlatform.Application.Messages.Commands.SendMessage;
 using MentorshipPlatform.Application.Messages.Queries.GetBookingMessages;
+using MentorshipPlatform.Application.Messages.Queries.GetMyConversations;
 using MentorshipPlatform.Application.Messages.Queries.GetUnreadMessageCount;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -50,6 +51,16 @@ public class MessagesController : ControllerBase
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
         return Ok();
+    }
+
+    /// <summary>Get all conversations for current user</summary>
+    [HttpGet("conversations")]
+    public async Task<IActionResult> GetConversations()
+    {
+        var result = await _mediator.Send(new GetMyConversationsQuery());
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
     }
 
     /// <summary>Get unread message count for current user</summary>
