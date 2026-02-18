@@ -249,6 +249,9 @@ builder.Services.AddScoped<IProcessHistoryService, ProcessHistoryService>();
 // Feature Flags
 builder.Services.AddScoped<IFeatureFlagService, FeatureFlagService>();
 
+// Platform Settings
+builder.Services.AddScoped<IPlatformSettingService, PlatformSettingService>();
+
 // Hangfire
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

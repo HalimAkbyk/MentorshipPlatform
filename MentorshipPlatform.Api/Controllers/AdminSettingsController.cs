@@ -58,11 +58,16 @@ public class AdminSettingsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
+    private readonly IPlatformSettingService _settingsService;
 
-    public AdminSettingsController(ApplicationDbContext db, ICurrentUserService currentUser)
+    public AdminSettingsController(
+        ApplicationDbContext db,
+        ICurrentUserService currentUser,
+        IPlatformSettingService settingsService)
     {
         _db = db;
         _currentUser = currentUser;
+        _settingsService = settingsService;
     }
 
     // -----------------------------
@@ -119,6 +124,9 @@ public class AdminSettingsController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        // Invalidate settings cache so changes take effect immediately
+        _settingsService.InvalidateCache();
+
         return Ok(new PlatformSettingDto
         {
             Id = setting.Id,
@@ -139,13 +147,36 @@ public class AdminSettingsController : ControllerBase
     {
         var defaults = new List<(string Key, string Value, string Description, string Category)>
         {
-            ("platform_name", "MentorHub", "Platform display name", "General"),
-            ("maintenance_mode", "false", "Enable/disable maintenance mode", "General"),
-            ("platform_commission_rate", "0.07", "Platform commission rate for bookings", "Fee"),
-            ("mentor_commission_rate", "0.15", "Mentor commission rate", "Fee"),
-            ("course_commission_rate", "0.07", "Platform commission rate for courses", "Fee"),
-            ("registration_open", "true", "Whether new user registration is open", "Registration"),
-            ("email_verification_required", "true", "Whether email verification is required for new users", "Registration"),
+            // ── General ──
+            ("platform_name", "Degisim Mentorluk", "Platform goruntuleme adi", "General"),
+            ("platform_description", "Mentor ve ogrenci eslestirme platformu", "Platform aciklamasi", "General"),
+            ("support_email", "destek@degisimmentorluk.com", "Destek e-posta adresi", "General"),
+            ("frontend_url", "https://mentorshipplatformreact.vercel.app", "Frontend URL adresi", "General"),
+
+            // ── Fee / Commission ──
+            ("platform_commission_rate", "0.07", "1:1 ders rezervasyonlari icin platform komisyon orani (0.07 = %7)", "Fee"),
+            ("mentor_commission_rate", "0.15", "Mentor komisyon kesintisi orani (0.15 = %15)", "Fee"),
+            ("course_commission_rate", "0.07", "Kurs ve grup dersleri icin platform komisyon orani (0.07 = %7)", "Fee"),
+
+            // ── Email (SMTP) ──
+            ("smtp_host", "", "SMTP sunucu adresi (orn: smtp.gmail.com)", "Email"),
+            ("smtp_port", "587", "SMTP port numarasi", "Email"),
+            ("smtp_username", "", "SMTP kullanici adi", "Email"),
+            ("smtp_password", "", "SMTP sifresi", "Email"),
+            ("smtp_from_email", "", "Gonderici e-posta adresi", "Email"),
+            ("smtp_from_name", "Degisim Mentorluk", "Gonderici adi", "Email"),
+
+            // ── SMS ──
+            ("sms_enabled", "false", "SMS bildirimlerini ac/kapat", "SMS"),
+
+            // ── Payment ──
+            ("payment_provider", "iyzico", "Odeme saglayici (iyzico)", "Payment"),
+
+            // ── Limits ──
+            ("max_booking_per_day", "10", "Bir mentor icin gunluk maksimum ders sayisi", "Limits"),
+            ("max_class_capacity", "50", "Grup dersi maksimum katilimci sayisi", "Limits"),
+            ("default_session_duration_min", "60", "Varsayilan ders suresi (dakika)", "Limits"),
+            ("booking_auto_expire_minutes", "30", "Odenmemis rezervasyonlarin otomatik iptal suresi (dakika)", "Limits"),
         };
 
         var existingKeys = await _db.PlatformSettings

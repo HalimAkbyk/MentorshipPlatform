@@ -20,19 +20,21 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
     private readonly IProcessHistoryService _history;
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ILogger<ProcessPaymentWebhookCommandHandler> _logger;
-    private const decimal MENTOR_COMMISSION_PERCENTAGE = 0.15m;
+    private readonly IPlatformSettingService _settings;
 
     public ProcessPaymentWebhookCommandHandler(
         IApplicationDbContext context,
         IPaymentService paymentService,
         IProcessHistoryService history,
         IBackgroundJobClient backgroundJobs,
-        ILogger<ProcessPaymentWebhookCommandHandler> logger)
+        ILogger<ProcessPaymentWebhookCommandHandler> logger,
+        IPlatformSettingService settings)
     {
         _context = context;
         _paymentService = paymentService;
         _history = history;
         _backgroundJobs = backgroundJobs;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -167,18 +169,21 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
             bool isAdminCoupon = order.DiscountAmount > 0
                                  && string.Equals(order.CouponCreatedByRole, "Admin", StringComparison.OrdinalIgnoreCase);
 
+            var commissionRate = await _settings.GetDecimalAsync(
+                PlatformSettings.MentorCommissionRate, 0.15m, cancellationToken);
+
             if (isAdminCoupon)
             {
                 // Original price before discount
                 var originalPrice = order.AmountTotal + order.DiscountAmount;
-                mentorNet = originalPrice * (1 - MENTOR_COMMISSION_PERCENTAGE);
+                mentorNet = originalPrice * (1 - commissionRate);
                 platformCommission = order.AmountTotal - mentorNet; // may be negative (platform promotional cost)
             }
             else
             {
                 // Standard calculation (mentor coupon or no coupon)
-                mentorNet = order.AmountTotal * (1 - MENTOR_COMMISSION_PERCENTAGE);
-                platformCommission = order.AmountTotal * MENTOR_COMMISSION_PERCENTAGE;
+                mentorNet = order.AmountTotal * (1 - commissionRate);
+                platformCommission = order.AmountTotal * commissionRate;
             }
 
             _context.LedgerEntries.Add(LedgerEntry.Create(

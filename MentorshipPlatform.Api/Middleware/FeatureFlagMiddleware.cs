@@ -17,6 +17,7 @@ public class MaintenanceModeMiddleware
     {
         "/health",
         "/api/feature-flags",     // Public feature flags endpoint (so frontend can detect maintenance)
+        "/api/platform-settings", // Public platform settings endpoint
         "/api/auth/login",        // Admin must be able to login
         "/api/auth/me",           // Auth check
         "/api/admin/",            // All admin endpoints

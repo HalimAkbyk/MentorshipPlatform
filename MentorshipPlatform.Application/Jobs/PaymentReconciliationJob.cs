@@ -12,18 +12,20 @@ public class PaymentReconciliationJob
     private readonly IPaymentService _paymentService;
     private readonly IProcessHistoryService _history;
     private readonly ILogger<PaymentReconciliationJob> _logger;
-    private const decimal MENTOR_COMMISSION_PERCENTAGE = 0.15m;
+    private readonly IPlatformSettingService _settings;
 
     public PaymentReconciliationJob(
         IApplicationDbContext context,
         IPaymentService paymentService,
         IProcessHistoryService history,
-        ILogger<PaymentReconciliationJob> logger)
+        ILogger<PaymentReconciliationJob> logger,
+        IPlatformSettingService settings)
     {
         _context = context;
         _paymentService = paymentService;
         _history = history;
         _logger = logger;
+        _settings = settings;
     }
 
     public async Task Execute()
@@ -89,6 +91,9 @@ public class PaymentReconciliationJob
                                 slot?.MarkAsBooked();
 
                                 // Create ledger entries (coupon-aware split)
+                                var commissionRate = await _settings.GetDecimalAsync(
+                                    PlatformSettings.MentorCommissionRate, 0.15m);
+
                                 decimal mentorNet, platformCommission;
                                 bool isAdminCoupon = order.DiscountAmount > 0
                                     && string.Equals(order.CouponCreatedByRole, "Admin", StringComparison.OrdinalIgnoreCase);
@@ -96,13 +101,13 @@ public class PaymentReconciliationJob
                                 if (isAdminCoupon)
                                 {
                                     var originalPrice = order.AmountTotal + order.DiscountAmount;
-                                    mentorNet = originalPrice * (1 - MENTOR_COMMISSION_PERCENTAGE);
+                                    mentorNet = originalPrice * (1 - commissionRate);
                                     platformCommission = order.AmountTotal - mentorNet;
                                 }
                                 else
                                 {
-                                    mentorNet = order.AmountTotal * (1 - MENTOR_COMMISSION_PERCENTAGE);
-                                    platformCommission = order.AmountTotal * MENTOR_COMMISSION_PERCENTAGE;
+                                    mentorNet = order.AmountTotal * (1 - commissionRate);
+                                    platformCommission = order.AmountTotal * commissionRate;
                                 }
 
                                 _context.LedgerEntries.Add(LedgerEntry.Create(

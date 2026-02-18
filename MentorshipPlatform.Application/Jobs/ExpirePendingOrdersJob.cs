@@ -10,23 +10,27 @@ public class ExpirePendingOrdersJob
     private readonly IApplicationDbContext _context;
     private readonly IProcessHistoryService _history;
     private readonly ILogger<ExpirePendingOrdersJob> _logger;
-    private const int EXPIRY_MINUTES = 30;
+    private readonly IPlatformSettingService _settings;
 
     public ExpirePendingOrdersJob(
         IApplicationDbContext context,
         IProcessHistoryService history,
-        ILogger<ExpirePendingOrdersJob> logger)
+        ILogger<ExpirePendingOrdersJob> logger,
+        IPlatformSettingService settings)
     {
         _context = context;
         _history = history;
         _logger = logger;
+        _settings = settings;
     }
 
     public async Task Execute()
     {
         try
         {
-            var cutoff = DateTime.UtcNow.AddMinutes(-EXPIRY_MINUTES);
+            var expiryMinutes = await _settings.GetIntAsync(
+                PlatformSettings.BookingAutoExpireMinutes, 30);
+            var cutoff = DateTime.UtcNow.AddMinutes(-expiryMinutes);
 
             var expiredOrders = await _context.Orders
                 .Where(o => o.Status == OrderStatus.Pending && o.CreatedAt < cutoff)
@@ -49,8 +53,8 @@ public class ExpirePendingOrdersJob
 
                 var newStatus = isAbandoned ? "Abandoned" : "Failed";
                 var description = isAbandoned
-                    ? $"Kullanıcı ödeme yapmadan vazgeçti ({EXPIRY_MINUTES} dk süre doldu)"
-                    : $"Sipariş {EXPIRY_MINUTES} dakika içinde ödenmedi, otomatik iptal edildi";
+                    ? $"Kullanıcı ödeme yapmadan vazgeçti ({expiryMinutes} dk süre doldu)"
+                    : $"Sipariş {expiryMinutes} dakika içinde ödenmedi, otomatik iptal edildi";
 
                 await _history.LogAsync("Order", order.Id, "StatusChanged",
                     "Pending", newStatus,

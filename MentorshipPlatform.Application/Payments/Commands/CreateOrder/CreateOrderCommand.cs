@@ -32,19 +32,22 @@ public class CreateOrderCommandHandler
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
+    private readonly IPlatformSettingService _settings;
 
     public CreateOrderCommandHandler(
         IApplicationDbContext context,
         IPaymentService paymentService,
         ICurrentUserService currentUser,
         IProcessHistoryService history,
-        ILogger<CreateOrderCommandHandler> logger)
+        ILogger<CreateOrderCommandHandler> logger,
+        IPlatformSettingService settings)
     {
         _context = context;
         _paymentService = paymentService;
         _currentUser = currentUser;
         _history = history;
         _logger = logger;
+        _settings = settings;
     }
 
     public async Task<Result<CreateOrderResponse>> Handle(
@@ -145,7 +148,7 @@ public class CreateOrderCommandHandler
                 currency = enrollment.Course.Currency;
             }
 
-            // Platform fee (7%) - Sadece Booking ve GroupClass için öğrenciye ek ücret yansıtılır.
+            // Platform fee - Sadece Booking ve GroupClass için öğrenciye ek ücret yansıtılır.
             // Kurs satın almalarda öğrenci direk kurs fiyatını öder, komisyon eğitmenden kesilir.
             decimal totalAmount;
             if (orderType == OrderType.Course)
@@ -154,7 +157,9 @@ public class CreateOrderCommandHandler
             }
             else
             {
-                var platformFee = amount * 0.07m;
+                var platformCommissionRate = await _settings.GetDecimalAsync(
+                    PlatformSettings.PlatformCommissionRate, 0.07m, cancellationToken);
+                var platformFee = amount * platformCommissionRate;
                 totalAmount = amount + platformFee;
             }
 

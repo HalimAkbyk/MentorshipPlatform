@@ -30,26 +30,27 @@ public class ProcessRefundCommandValidator : AbstractValidator<ProcessRefundComm
 
 public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand, Result>
 {
-    private const decimal PLATFORM_COMMISSION_RATE = 0.15m;
-
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IPaymentService _paymentService;
     private readonly IProcessHistoryService _processHistory;
     private readonly ILogger<ProcessRefundCommandHandler> _logger;
+    private readonly IPlatformSettingService _settings;
 
     public ProcessRefundCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IPaymentService paymentService,
         IProcessHistoryService processHistory,
-        ILogger<ProcessRefundCommandHandler> logger)
+        ILogger<ProcessRefundCommandHandler> logger,
+        IPlatformSettingService settings)
     {
         _context = context;
         _currentUser = currentUser;
         _paymentService = paymentService;
         _processHistory = processHistory;
         _logger = logger;
+        _settings = settings;
     }
 
     public async Task<Result> Handle(ProcessRefundCommand request, CancellationToken cancellationToken)
@@ -139,6 +140,9 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
         // Create refund ledger entries (coupon-aware reverse split)
         if (mentorUserId.HasValue)
         {
+            var commissionRate = await _settings.GetDecimalAsync(
+                PlatformSettings.MentorCommissionRate, 0.15m, cancellationToken);
+
             decimal mentorRefundPortion, platformRefundPortion;
             bool isAdminCoupon = order.DiscountAmount > 0
                 && string.Equals(order.CouponCreatedByRole, "Admin", StringComparison.OrdinalIgnoreCase);
@@ -148,7 +152,7 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
                 // Admin coupon: mentor was credited based on original price, platform took the hit.
                 // On refund, reverse the same proportions.
                 var originalPrice = order.AmountTotal + order.DiscountAmount;
-                var originalMentorNet = originalPrice * (1 - PLATFORM_COMMISSION_RATE);
+                var originalMentorNet = originalPrice * (1 - commissionRate);
                 var originalPlatformCommission = order.AmountTotal - originalMentorNet;
 
                 // Refund ratio (partial refund support)
@@ -159,8 +163,8 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
             else
             {
                 // Standard split (mentor coupon or no coupon)
-                mentorRefundPortion = refundAmount * (1 - PLATFORM_COMMISSION_RATE);
-                platformRefundPortion = refundAmount * PLATFORM_COMMISSION_RATE;
+                mentorRefundPortion = refundAmount * (1 - commissionRate);
+                platformRefundPortion = refundAmount * commissionRate;
             }
 
             // Determine if mentor funds are in escrow or available

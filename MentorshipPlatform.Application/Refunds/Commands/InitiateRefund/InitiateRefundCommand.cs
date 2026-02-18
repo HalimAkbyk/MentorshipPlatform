@@ -28,26 +28,27 @@ public class InitiateRefundCommandValidator : AbstractValidator<InitiateRefundCo
 
 public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundCommand, Result>
 {
-    private const decimal PLATFORM_COMMISSION_RATE = 0.15m;
-
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IPaymentService _paymentService;
     private readonly IProcessHistoryService _processHistory;
     private readonly ILogger<InitiateRefundCommandHandler> _logger;
+    private readonly IPlatformSettingService _settings;
 
     public InitiateRefundCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IPaymentService paymentService,
         IProcessHistoryService processHistory,
-        ILogger<InitiateRefundCommandHandler> logger)
+        ILogger<InitiateRefundCommandHandler> logger,
+        IPlatformSettingService settings)
     {
         _context = context;
         _currentUser = currentUser;
         _paymentService = paymentService;
         _processHistory = processHistory;
         _logger = logger;
+        _settings = settings;
     }
 
     public async Task<Result> Handle(InitiateRefundCommand request, CancellationToken cancellationToken)
@@ -123,8 +124,10 @@ public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundComman
 
             if (mentorUserId.HasValue)
             {
-                var mentorPortion = request.Amount * (1 - PLATFORM_COMMISSION_RATE);
-                var platformPortion = request.Amount * PLATFORM_COMMISSION_RATE;
+                var commissionRate = await _settings.GetDecimalAsync(
+                    PlatformSettings.MentorCommissionRate, 0.15m, cancellationToken);
+                var mentorPortion = request.Amount * (1 - commissionRate);
+                var platformPortion = request.Amount * commissionRate;
 
                 // Check where mentor funds are
                 var netAvailable = await GetMentorNetAvailable(mentorUserId.Value, order.Id, cancellationToken);
