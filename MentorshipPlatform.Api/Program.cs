@@ -462,6 +462,38 @@ static async Task SeedCmsData(ApplicationDbContext db)
             await db.SaveChangesAsync();
             Log.Information("CMS Static Pages seeded successfully");
         }
+
+        // Seed Categories (only if none exist)
+        if (!await db.Categories.AnyAsync())
+        {
+            db.Categories.AddRange(
+                // Course categories
+                Category.Create("Yazılım & Programlama", "💻", 1, "Course"),
+                Category.Create("Matematik", "📐", 2, "Course"),
+                Category.Create("Fen Bilimleri", "🔬", 3, "Course"),
+                Category.Create("Dil Eğitimi", "🌍", 4, "Course"),
+                Category.Create("Müzik", "🎵", 5, "Course"),
+                Category.Create("Sanat & Tasarım", "🎨", 6, "Course"),
+                Category.Create("İş & Kariyer", "💼", 7, "Course"),
+                Category.Create("Kişisel Gelişim", "🚀", 8, "Course"),
+                Category.Create("Sınava Hazırlık", "📚", 9, "Course"),
+                Category.Create("Spor & Sağlık", "🏃", 10, "Course"),
+                Category.Create("Sosyal Bilimler", "📜", 11, "Course"),
+                Category.Create("Diğer", "📂", 12, "Course"),
+                // GroupClass categories
+                Category.Create("Matematik", "📐", 1, "GroupClass"),
+                Category.Create("Yazılım", "💻", 2, "GroupClass"),
+                Category.Create("Müzik", "🎵", 3, "GroupClass"),
+                Category.Create("Dil", "🌍", 4, "GroupClass"),
+                Category.Create("Sanat", "🎨", 5, "GroupClass"),
+                Category.Create("İş/Kariyer", "💼", 6, "GroupClass"),
+                Category.Create("Bilim", "🔬", 7, "GroupClass"),
+                Category.Create("Spor/Sağlık", "🏃", 8, "GroupClass"),
+                Category.Create("Diğer", "📂", 9, "GroupClass")
+            );
+            await db.SaveChangesAsync();
+            Log.Information("Categories seeded successfully");
+        }
     }
     catch (Exception ex)
     {
