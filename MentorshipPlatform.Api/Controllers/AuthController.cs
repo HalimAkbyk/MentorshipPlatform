@@ -4,6 +4,7 @@ using MentorshipPlatform.Application.Auth.Commands.ExternalLogin;
 using MentorshipPlatform.Application.Auth.Commands.Login;
 using MentorshipPlatform.Application.Auth.Commands.RegisterUser;
 using MentorshipPlatform.Application.Auth.Queries.GetMe;
+using MentorshipPlatform.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,11 +16,13 @@ public class AuthController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly ILogger<AuthController> _logger;
+    private readonly IFeatureFlagService _featureFlags;
 
-    public AuthController(IMediator mediator, ILogger<AuthController> logger)
+    public AuthController(IMediator mediator, ILogger<AuthController> logger, IFeatureFlagService featureFlags)
     {
         _mediator = mediator;
         _logger = logger;
+        _featureFlags = featureFlags;
     }
 
     [HttpPost("signup")]
@@ -27,8 +30,13 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> SignUp([FromBody] RegisterUserCommand command)
     {
+        // Check registration feature flag
+        var registrationEnabled = await _featureFlags.IsEnabledAsync(FeatureFlags.RegistrationEnabled);
+        if (!registrationEnabled)
+            return BadRequest(new { errors = new[] { "Yeni kayitlar gecici olarak durdurulmustur." } });
+
         var result = await _mediator.Send(command);
-        
+
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
 
@@ -59,6 +67,15 @@ public class AuthController : ControllerBase
             return BadRequest(new { errors = result.Errors });
 
         var data = result.Data!;
+
+        // Block new external registrations when registration is disabled
+        // (existing users can still login via external auth)
+        if (data.IsNewUser)
+        {
+            var registrationEnabled = await _featureFlags.IsEnabledAsync(FeatureFlags.RegistrationEnabled);
+            if (!registrationEnabled)
+                return BadRequest(new { errors = new[] { "Yeni kayitlar gecici olarak durdurulmustur." } });
+        }
         _logger.LogWarning(
             "ExternalLogin response: UserId={UserId} HasAccessToken={HasToken} HasPendingToken={HasPending} PendingToken={PT} Roles=[{Roles}] IsNewUser={IsNew}",
             data.UserId,

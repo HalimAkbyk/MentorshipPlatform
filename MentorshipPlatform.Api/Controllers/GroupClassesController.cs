@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Classes.Commands.CreateGroupClass;
 using MentorshipPlatform.Application.Classes.Commands.EnrollInClass;
 using MentorshipPlatform.Application.Classes.Commands.CancelGroupClass;
@@ -18,10 +19,12 @@ namespace MentorshipPlatform.Api.Controllers;
 public class GroupClassesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IFeatureFlagService _featureFlags;
 
-    public GroupClassesController(IMediator mediator)
+    public GroupClassesController(IMediator mediator, IFeatureFlagService featureFlags)
     {
         _mediator = mediator;
+        _featureFlags = featureFlags;
     }
 
     /// <summary>
@@ -33,6 +36,9 @@ public class GroupClassesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateGroupClassCommand command)
     {
+        if (!await _featureFlags.IsEnabledAsync(FeatureFlags.GroupClassesEnabled))
+            return BadRequest(new { errors = new[] { "Grup dersleri gecici olarak devre disi birakilmistir." } });
+
         var result = await _mediator.Send(command);
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Ok(new { id = result.Data });
@@ -91,6 +97,9 @@ public class GroupClassesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Enroll(Guid id)
     {
+        if (!await _featureFlags.IsEnabledAsync(FeatureFlags.GroupClassesEnabled))
+            return BadRequest(new { errors = new[] { "Grup dersleri gecici olarak devre disi birakilmistir." } });
+
         var result = await _mediator.Send(new EnrollInClassCommand(id));
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Ok(new { enrollmentId = result.Data });

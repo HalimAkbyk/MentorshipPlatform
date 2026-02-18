@@ -57,11 +57,16 @@ public class AdminSystemController : ControllerBase
 {
     private readonly IApplicationDbContext _context;
     private readonly IWebHostEnvironment _env;
+    private readonly IFeatureFlagService _featureFlagService;
 
-    public AdminSystemController(IApplicationDbContext context, IWebHostEnvironment env)
+    public AdminSystemController(
+        IApplicationDbContext context,
+        IWebHostEnvironment env,
+        IFeatureFlagService featureFlagService)
     {
         _context = context;
         _env = env;
+        _featureFlagService = featureFlagService;
     }
 
     /// <summary>
@@ -225,6 +230,9 @@ public class AdminSystemController : ControllerBase
         }
 
         await _context.SaveChangesAsync(ct);
+
+        // Invalidate the feature flag cache so changes take effect immediately
+        _featureFlagService.InvalidateCache();
 
         return Ok(new FeatureFlagDto
         {

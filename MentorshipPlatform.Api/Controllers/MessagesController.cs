@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Messages.Commands.MarkMessagesAsRead;
 using MentorshipPlatform.Application.Messages.Commands.ReportMessage;
 using MentorshipPlatform.Application.Messages.Commands.SendMessage;
@@ -16,16 +17,21 @@ namespace MentorshipPlatform.Api.Controllers;
 public class MessagesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IFeatureFlagService _featureFlags;
 
-    public MessagesController(IMediator mediator)
+    public MessagesController(IMediator mediator, IFeatureFlagService featureFlags)
     {
         _mediator = mediator;
+        _featureFlags = featureFlags;
     }
 
     /// <summary>Send a message in a booking conversation</summary>
     [HttpPost]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageCommand command)
     {
+        if (!await _featureFlags.IsEnabledAsync(FeatureFlags.ChatEnabled))
+            return BadRequest(new { errors = new[] { "Mesajlasma ozelligi gecici olarak devre disi birakilmistir." } });
+
         var result = await _mediator.Send(command);
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });

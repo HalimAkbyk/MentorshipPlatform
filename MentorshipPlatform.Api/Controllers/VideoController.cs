@@ -17,16 +17,21 @@ public class VideoController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IVideoService _videoService;
+    private readonly IFeatureFlagService _featureFlags;
 
-    public VideoController(IMediator mediator, IVideoService videoService)
+    public VideoController(IMediator mediator, IVideoService videoService, IFeatureFlagService featureFlags)
     {
         _mediator = mediator;
         _videoService = videoService;
+        _featureFlags = featureFlags;
     }
 
     [HttpPost("session")]
     public async Task<IActionResult> CreateSession([FromBody] CreateVideoSessionCommand command)
     {
+        if (!await _featureFlags.IsEnabledAsync(FeatureFlags.VideoEnabled))
+            return BadRequest(new { errors = new[] { "Video gorusme ozelligi gecici olarak devre disi birakilmistir." } });
+
         var result = await _mediator.Send(command);
 
         if (!result.IsSuccess)
@@ -39,6 +44,9 @@ public class VideoController : ControllerBase
     [ProducesResponseType(typeof(VideoTokenDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GenerateToken([FromBody] GenerateVideoTokenCommand command)
     {
+        if (!await _featureFlags.IsEnabledAsync(FeatureFlags.VideoEnabled))
+            return BadRequest(new { errors = new[] { "Video gorusme ozelligi gecici olarak devre disi birakilmistir." } });
+
         var result = await _mediator.Send(command);
 
         if (!result.IsSuccess)
@@ -47,7 +55,7 @@ public class VideoController : ControllerBase
         return Ok(result.Data);
     }
     [HttpGet("room/{roomName}/status")]
-    [AllowAnonymous] // Öğrenci kontrol edebilmeli
+    [AllowAnonymous]
     [ProducesResponseType(typeof(RoomStatusDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetRoomStatus(string roomName)
     {

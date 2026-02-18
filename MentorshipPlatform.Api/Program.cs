@@ -246,6 +246,9 @@ else
 // Process History (Audit Log)
 builder.Services.AddScoped<IProcessHistoryService, ProcessHistoryService>();
 
+// Feature Flags
+builder.Services.AddScoped<IFeatureFlagService, FeatureFlagService>();
+
 // Hangfire
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -312,6 +315,7 @@ app.UseCors("DevCors");
 app.UseExceptionHandling(); // ✅ CORS'tan sonra, auth'dan önce - hata durumunda da CORS header'ları korunur
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMaintenanceMode(); // Feature flag: maintenance_mode → 503 for non-admin users
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = new[] { new HangfireAuthorizationFilter() }

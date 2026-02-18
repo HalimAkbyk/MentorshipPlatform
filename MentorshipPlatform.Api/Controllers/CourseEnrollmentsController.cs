@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Courses.Commands.EnrollInCourse;
 using MentorshipPlatform.Application.Courses.Commands.UpdateLectureProgress;
 using MentorshipPlatform.Application.Courses.Commands.CompleteLecture;
@@ -16,16 +17,21 @@ namespace MentorshipPlatform.Api.Controllers;
 public class CourseEnrollmentsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IFeatureFlagService _featureFlags;
 
-    public CourseEnrollmentsController(IMediator mediator)
+    public CourseEnrollmentsController(IMediator mediator, IFeatureFlagService featureFlags)
     {
         _mediator = mediator;
+        _featureFlags = featureFlags;
     }
 
     /// <summary>Kursa kayıt ol</summary>
     [HttpPost("{courseId:guid}")]
     public async Task<IActionResult> Enroll(Guid courseId, CancellationToken ct)
     {
+        if (!await _featureFlags.IsEnabledAsync(FeatureFlags.CourseSalesEnabled, ct))
+            return BadRequest(new { errors = new[] { "Kurs satislari gecici olarak durdurulmustur." } });
+
         var result = await _mediator.Send(new EnrollInCourseCommand(courseId), ct);
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Created($"/api/course-enrollments/{courseId}", new { enrollmentId = result.Data });
