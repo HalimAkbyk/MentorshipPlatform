@@ -35,6 +35,7 @@ public class ToggleLectureActiveCommandHandler : IRequestHandler<ToggleLectureAc
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
     private readonly INotificationService _notification;
+    private readonly IChatNotificationService _chatNotification;
     private readonly ILogger<ToggleLectureActiveCommandHandler> _logger;
 
     public ToggleLectureActiveCommandHandler(
@@ -42,12 +43,14 @@ public class ToggleLectureActiveCommandHandler : IRequestHandler<ToggleLectureAc
         ICurrentUserService currentUser,
         IProcessHistoryService history,
         INotificationService notification,
+        IChatNotificationService chatNotification,
         ILogger<ToggleLectureActiveCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
         _notification = notification;
+        _chatNotification = chatNotification;
         _logger = logger;
     }
 
@@ -124,6 +127,11 @@ public class ToggleLectureActiveCommandHandler : IRequestHandler<ToggleLectureAc
                 $"course-moderation-{course.Id}");
             _context.UserNotifications.Add(userNotification);
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Push real-time notification count via SignalR
+            var unreadCount = await _context.UserNotifications
+                .CountAsync(n => n.UserId == course.MentorUserId && !n.IsRead, cancellationToken);
+            await _chatNotification.NotifyNotificationCountUpdated(course.MentorUserId, unreadCount);
         }
         catch (Exception ex)
         {

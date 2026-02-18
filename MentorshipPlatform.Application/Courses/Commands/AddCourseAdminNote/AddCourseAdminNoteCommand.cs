@@ -31,6 +31,7 @@ public class AddCourseAdminNoteCommandHandler : IRequestHandler<AddCourseAdminNo
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
     private readonly INotificationService _notification;
+    private readonly IChatNotificationService _chatNotification;
     private readonly ILogger<AddCourseAdminNoteCommandHandler> _logger;
 
     public AddCourseAdminNoteCommandHandler(
@@ -38,12 +39,14 @@ public class AddCourseAdminNoteCommandHandler : IRequestHandler<AddCourseAdminNo
         ICurrentUserService currentUser,
         IProcessHistoryService history,
         INotificationService notification,
+        IChatNotificationService chatNotification,
         ILogger<AddCourseAdminNoteCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
         _notification = notification;
+        _chatNotification = chatNotification;
         _logger = logger;
     }
 
@@ -122,6 +125,11 @@ public class AddCourseAdminNoteCommandHandler : IRequestHandler<AddCourseAdminNo
                 $"course-moderation-{course.Id}");
             _context.UserNotifications.Add(userNotification);
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Push real-time notification count via SignalR
+            var unreadCount = await _context.UserNotifications
+                .CountAsync(n => n.UserId == course.MentorUserId && !n.IsRead, cancellationToken);
+            await _chatNotification.NotifyNotificationCountUpdated(course.MentorUserId, unreadCount);
         }
         catch (Exception ex)
         {

@@ -34,6 +34,13 @@ public class ChatNotificationService : IChatNotificationService
             .SendAsync("MessageDelivered", new { messageId });
     }
 
+    public async Task NotifyNotificationCountUpdated(Guid userId, int unreadCount)
+    {
+        await _hubContext.Clients
+            .Group(userId.ToString())
+            .SendAsync("NotificationCountUpdated", new { unreadCount });
+    }
+
     public bool IsUserOnline(Guid userId)
     {
         return ChatHub.OnlineUsers.ContainsKey(userId);
