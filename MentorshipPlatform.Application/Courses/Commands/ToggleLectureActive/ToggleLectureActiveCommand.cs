@@ -107,6 +107,29 @@ public class ToggleLectureActiveCommandHandler : IRequestHandler<ToggleLectureAc
             $"Ders '{lecture.Title}' {(request.IsActive ? "aktife" : "pasife")} alındı. Kurs: {course.Title}",
             adminId, "Admin", ct: cancellationToken);
 
+        // Create user notification for mentor
+        try
+        {
+            var notifAction = request.IsActive ? "aktife alındı" : "pasife alındı";
+            var notifMessage = $"\"{course.Title}\" adlı kursunuzdaki \"{lecture.Title}\" dersi admin tarafından {notifAction}.";
+            if (!string.IsNullOrEmpty(request.Reason))
+                notifMessage += $" Neden: {request.Reason}";
+
+            var userNotification = UserNotification.Create(
+                course.MentorUserId,
+                "CourseModeration",
+                $"Ders {(request.IsActive ? "Aktife Alındı" : "Pasife Alındı")}: {lecture.Title}",
+                notifMessage,
+                "Course", course.Id,
+                $"course-moderation-{course.Id}");
+            _context.UserNotifications.Add(userNotification);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create user notification for lecture toggle {LectureId}", lecture.Id);
+        }
+
         try
         {
             var mentor = await _context.Users

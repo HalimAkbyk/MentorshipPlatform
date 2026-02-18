@@ -252,6 +252,9 @@ builder.Services.AddScoped<IFeatureFlagService, FeatureFlagService>();
 // Platform Settings
 builder.Services.AddScoped<IPlatformSettingService, PlatformSettingService>();
 
+// Admin Notification Service (grouped notifications)
+builder.Services.AddScoped<IAdminNotificationService, AdminNotificationService>();
+
 // Hangfire
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

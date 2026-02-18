@@ -1,9 +1,19 @@
 using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
+using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Courses.Queries.GetCourseForEdit;
+
+public record CourseAdminNoteEditDto(
+    Guid Id,
+    string NoteType,
+    string? Flag,
+    string Content,
+    Guid? LectureId,
+    string? LectureTitle,
+    DateTime CreatedAt);
 
 public record LectureEditDto(
     Guid Id,
@@ -14,7 +24,8 @@ public record LectureEditDto(
     int SortOrder,
     bool IsPreview,
     string Type,
-    string? TextContent);
+    string? TextContent,
+    bool IsActive);
 
 public record SectionEditDto(
     Guid Id,
@@ -43,7 +54,8 @@ public record CourseEditDto(
     int TotalLectures,
     int TotalDurationSec,
     int EnrollmentCount,
-    List<SectionEditDto> Sections);
+    List<SectionEditDto> Sections,
+    List<CourseAdminNoteEditDto> AdminNotes);
 
 public record GetCourseForEditQuery(Guid CourseId) : IRequest<Result<CourseEditDto>>;
 
@@ -72,6 +84,22 @@ public class GetCourseForEditQueryHandler : IRequestHandler<GetCourseForEditQuer
         if (course == null) return Result<CourseEditDto>.Failure("Course not found");
         if (course.MentorUserId != _currentUser.UserId.Value) return Result<CourseEditDto>.Failure("Not authorized");
 
+        // Load admin notes for this course (last 50)
+        var adminNotes = await _context.CourseAdminNotes
+            .AsNoTracking()
+            .Where(n => n.CourseId == course.Id)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(50)
+            .Select(n => new CourseAdminNoteEditDto(
+                n.Id,
+                n.NoteType.ToString(),
+                n.Flag != null ? n.Flag.ToString() : null,
+                n.Content,
+                n.LectureId,
+                n.LectureTitle,
+                n.CreatedAt))
+            .ToListAsync(cancellationToken);
+
         var dto = new CourseEditDto(
             course.Id, course.Title, course.ShortDescription, course.Description,
             course.Price, course.Currency, course.Status.ToString(), course.Level.ToString(),
@@ -82,9 +110,10 @@ public class GetCourseForEditQueryHandler : IRequestHandler<GetCourseForEditQuer
                 s.Id, s.Title, s.SortOrder,
                 s.Lectures.Select(l => new LectureEditDto(
                     l.Id, l.Title, l.Description, l.VideoKey, l.DurationSec,
-                    l.SortOrder, l.IsPreview, l.Type.ToString(), l.TextContent
+                    l.SortOrder, l.IsPreview, l.Type.ToString(), l.TextContent, l.IsActive
                 )).ToList()
-            )).ToList());
+            )).ToList(),
+            adminNotes);
 
         return Result<CourseEditDto>.Success(dto);
     }

@@ -39,7 +39,7 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
     public async Task<Result<CoursePlayerDto>> Handle(GetCoursePlayerQuery request, CancellationToken cancellationToken)
     {
         if (!_currentUser.UserId.HasValue) return Result<CoursePlayerDto>.Failure("User not authenticated");
-        var studentId = _currentUser.UserId.Value;
+        var userId = _currentUser.UserId.Value;
 
         var course = await _context.Courses
             .AsNoTracking()
@@ -49,14 +49,17 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
 
         if (course == null) return Result<CoursePlayerDto>.Failure("Course not found");
 
-        // Block access to suspended courses
-        if (course.Status == CourseStatus.Suspended)
+        // Check if the user is the course mentor (mentors can view inactive lectures)
+        var isMentor = course.MentorUserId == userId;
+
+        // Block access to suspended courses (except for mentor)
+        if (course.Status == CourseStatus.Suspended && !isMentor)
             return Result<CoursePlayerDto>.Failure("Bu kurs şu anda askıda. Lütfen daha sonra tekrar deneyin.");
 
         var enrollment = await _context.CourseEnrollments
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.CourseId == request.CourseId
-                && e.StudentUserId == studentId
+                && e.StudentUserId == userId
                 && e.Status == CourseEnrollmentStatus.Active, cancellationToken);
 
         // Get all lectures flat
@@ -69,16 +72,16 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
 
         if (currentLecture == null) return Result<CoursePlayerDto>.Failure("No lectures found");
 
-        // If requested lecture is inactive, auto-skip to next active lecture
-        if (!currentLecture.IsActive)
+        // If requested lecture is inactive and user is NOT the mentor, auto-skip to next active lecture
+        if (!currentLecture.IsActive && !isMentor)
         {
             var activeLectures = allLectures.Where(l => l.IsActive).ToList();
             if (activeLectures.Count == 0) return Result<CoursePlayerDto>.Failure("Bu kursta aktif ders bulunmuyor");
             currentLecture = activeLectures.First();
         }
 
-        // Check access: must have enrollment OR lecture is preview
-        if (enrollment == null && !currentLecture.IsPreview)
+        // Check access: must have enrollment OR lecture is preview OR user is the course mentor
+        if (enrollment == null && !currentLecture.IsPreview && !isMentor)
             return Result<CoursePlayerDto>.Failure("Bu kursa erişmek için satın almanız gerekiyor");
 
         // Get progress data

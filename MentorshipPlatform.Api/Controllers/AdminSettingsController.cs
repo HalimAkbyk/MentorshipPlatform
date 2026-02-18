@@ -1,5 +1,6 @@
 namespace MentorshipPlatform.Api.Controllers;
 
+using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Persistence;
@@ -59,14 +60,17 @@ public class AdminSettingsController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IPlatformSettingService _settingsService;
+    private readonly IMediator _mediator;
 
     public AdminSettingsController(
         ApplicationDbContext db,
         ICurrentUserService currentUser,
-        IPlatformSettingService settingsService)
+        IPlatformSettingService settingsService,
+        IMediator mediator)
     {
         _db = db;
         _currentUser = currentUser;
+        _mediator = mediator;
         _settingsService = settingsService;
     }
 
@@ -393,6 +397,18 @@ public class AdminSettingsController : ControllerBase
             .ToListAsync();
 
         return Ok(new { users, courses, groupClasses, orders });
+    }
+
+    // ========================================
+    // ADMIN PENDING COUNTS
+    // ========================================
+
+    [HttpGet("/api/admin/pending-counts")]
+    public async Task<IActionResult> GetPendingCounts(CancellationToken ct)
+    {
+        var result = await _mediator.Send(new Application.Admin.Queries.GetAdminPendingCounts.GetAdminPendingCountsQuery(), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
     }
 
     // ========================================

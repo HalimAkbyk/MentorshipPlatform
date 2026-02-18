@@ -78,5 +78,8 @@ public interface IApplicationDbContext
     // Admin notification entities
     DbSet<AdminNotification> AdminNotifications { get; }
 
+    // User notification entities
+    DbSet<UserNotification> UserNotifications { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

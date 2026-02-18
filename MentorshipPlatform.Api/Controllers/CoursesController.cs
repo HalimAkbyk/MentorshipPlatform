@@ -115,6 +115,16 @@ public class CoursesController : ControllerBase
         return Ok(result.Data);
     }
 
+    /// <summary>Kursun admin moderasyon notlarını getir (mentor)</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpGet("{id:guid}/admin-notes")]
+    public async Task<IActionResult> GetAdminNotes(Guid id, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new Application.Courses.Queries.GetMyCourseAdminNotes.GetMyCourseAdminNotesQuery(id), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(result.Data);
+    }
+
     /// <summary>Kursu tekrar onaya gönder (revizyon sonrası)</summary>
     [Authorize(Roles = "Mentor")]
     [HttpPost("{id:guid}/resubmit")]

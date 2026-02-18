@@ -93,6 +93,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     // Admin notification entities
     public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
 
+    // User notification entities
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

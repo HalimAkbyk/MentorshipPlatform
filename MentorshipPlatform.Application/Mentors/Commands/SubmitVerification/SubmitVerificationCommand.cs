@@ -29,23 +29,26 @@ public class SubmitVerificationCommandValidator : AbstractValidator<SubmitVerifi
     }
 }
 
-public class SubmitVerificationCommandHandler 
+public class SubmitVerificationCommandHandler
     : IRequestHandler<SubmitVerificationCommand, Result<Guid>>
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IStorageService _storageService;
+    private readonly IAdminNotificationService _adminNotification;
     private readonly ILogger<SubmitVerificationCommandHandler> _logger;
 
     public SubmitVerificationCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IStorageService storageService,
+        IAdminNotificationService adminNotification,
         ILogger<SubmitVerificationCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _storageService = storageService;
+        _adminNotification = adminNotification;
         _logger = logger;
     }
 
@@ -120,10 +123,18 @@ public class SubmitVerificationCommandHandler
         _context.MentorVerifications.Add(verification);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("✅ Verification created - Id: {Id}, Type: {Type}, MentorUserId: {UserId}", 
-            verification.Id, 
+        _logger.LogInformation("✅ Verification created - Id: {Id}, Type: {Type}, MentorUserId: {UserId}",
+            verification.Id,
             verificationType,
             mentorUserId);
+
+        // Create grouped admin notification for pending mentor verification
+        await _adminNotification.CreateOrUpdateGroupedAsync(
+            "MentorVerification",
+            "pending-mentor-verifications",
+            count => ("Mentor Onayları", $"Bekleyen {count} mentor onayınız var"),
+            "MentorVerification", verification.Id,
+            cancellationToken);
 
         return Result<Guid>.Success(verification.Id);
     }

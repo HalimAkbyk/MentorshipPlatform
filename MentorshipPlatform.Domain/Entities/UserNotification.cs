@@ -2,8 +2,9 @@ using MentorshipPlatform.Domain.Common;
 
 namespace MentorshipPlatform.Domain.Entities;
 
-public class AdminNotification : BaseEntity
+public class UserNotification : BaseEntity
 {
+    public Guid UserId { get; private set; }
     public string Type { get; private set; } = string.Empty;
     public string Title { get; private set; } = string.Empty;
     public string Message { get; private set; } = string.Empty;
@@ -11,14 +12,19 @@ public class AdminNotification : BaseEntity
     public string? ReferenceType { get; private set; }
     public Guid? ReferenceId { get; private set; }
     public string? GroupKey { get; private set; }
-    public int Count { get; private set; } = 1;
 
-    private AdminNotification() { }
+    // Navigation
+    public User User { get; private set; } = null!;
 
-    public static AdminNotification Create(string type, string title, string message, string? referenceType = null, Guid? referenceId = null, string? groupKey = null)
+    private UserNotification() { }
+
+    public static UserNotification Create(
+        Guid userId, string type, string title, string message,
+        string? referenceType = null, Guid? referenceId = null, string? groupKey = null)
     {
-        return new AdminNotification
+        return new UserNotification
         {
+            UserId = userId,
             Type = type,
             Title = title,
             Message = message,
@@ -26,22 +32,12 @@ public class AdminNotification : BaseEntity
             ReferenceType = referenceType,
             ReferenceId = referenceId,
             GroupKey = groupKey,
-            Count = 1,
         };
     }
 
     public void MarkAsRead()
     {
         IsRead = true;
-        UpdatedAt = DateTime.UtcNow;
-    }
-
-    public void UpdateGroupedMessage(string newTitle, string newMessage, int newCount)
-    {
-        Title = newTitle;
-        Message = newMessage;
-        Count = newCount;
-        IsRead = false;
         UpdatedAt = DateTime.UtcNow;
     }
 }

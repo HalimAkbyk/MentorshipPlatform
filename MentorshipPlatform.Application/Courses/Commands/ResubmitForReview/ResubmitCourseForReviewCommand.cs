@@ -23,15 +23,18 @@ public class ResubmitCourseForReviewCommandHandler : IRequestHandler<ResubmitCou
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
+    private readonly IAdminNotificationService _adminNotification;
 
     public ResubmitCourseForReviewCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService history)
+        IProcessHistoryService history,
+        IAdminNotificationService adminNotification)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
+        _adminNotification = adminNotification;
     }
 
     public async Task<Result> Handle(ResubmitCourseForReviewCommand request, CancellationToken cancellationToken)
@@ -97,6 +100,14 @@ public class ResubmitCourseForReviewCommandHandler : IRequestHandler<ResubmitCou
             oldStatus, CourseStatus.PendingReview.ToString(),
             $"Kurs tekrar incelemeye gönderildi (Round {round.RoundNumber})",
             userId, "Mentor", ct: cancellationToken);
+
+        // Create grouped admin notification for pending course review
+        await _adminNotification.CreateOrUpdateGroupedAsync(
+            "CourseReview",
+            "pending-course-reviews",
+            count => ("Kurs İncelemeleri", $"Bekleyen {count} kurs incelemeniz var"),
+            "CourseReview", course.Id,
+            cancellationToken);
 
         return Result.Success();
     }

@@ -28,15 +28,18 @@ public class PublishCourseCommandHandler : IRequestHandler<PublishCourseCommand,
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
+    private readonly IAdminNotificationService _adminNotification;
 
     public PublishCourseCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService history)
+        IProcessHistoryService history,
+        IAdminNotificationService adminNotification)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
+        _adminNotification = adminNotification;
     }
 
     public async Task<Result> Handle(PublishCourseCommand request, CancellationToken cancellationToken)
@@ -132,6 +135,14 @@ public class PublishCourseCommandHandler : IRequestHandler<PublishCourseCommand,
             $"Kurs inceleme için gönderildi. Round: {round.RoundNumber}",
             _currentUser.UserId.Value, "Mentor",
             ct: cancellationToken);
+
+        // Create grouped admin notification for pending course review
+        await _adminNotification.CreateOrUpdateGroupedAsync(
+            "CourseReview",
+            "pending-course-reviews",
+            count => ("Kurs İncelemeleri", $"Bekleyen {count} kurs incelemeniz var"),
+            "CourseReview", course.Id,
+            cancellationToken);
 
         return Result.Success();
     }

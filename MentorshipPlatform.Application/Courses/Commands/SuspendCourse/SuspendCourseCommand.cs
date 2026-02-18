@@ -76,6 +76,24 @@ public class SuspendCourseCommandHandler : IRequestHandler<SuspendCourseCommand,
             $"Kurs askıya alındı: {request.Reason}",
             adminId, "Admin", ct: cancellationToken);
 
+        // Create user notification for mentor
+        try
+        {
+            var userNotification = UserNotification.Create(
+                course.MentorUserId,
+                "CourseModeration",
+                $"Kursunuz Askıya Alındı: {course.Title}",
+                $"\"{course.Title}\" adlı kursunuz admin tarafından askıya alındı. Neden: {request.Reason}",
+                "Course", course.Id,
+                $"course-moderation-{course.Id}");
+            _context.UserNotifications.Add(userNotification);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create user notification for course suspend {CourseId}", course.Id);
+        }
+
         try
         {
             var mentor = await _context.Users

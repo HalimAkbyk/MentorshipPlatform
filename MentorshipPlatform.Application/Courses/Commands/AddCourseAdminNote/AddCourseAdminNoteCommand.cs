@@ -98,6 +98,36 @@ public class AddCourseAdminNoteCommandHandler : IRequestHandler<AddCourseAdminNo
                 : $"Kurs '{course.Title}' için admin notu eklendi",
             adminId, "Admin", ct: cancellationToken);
 
+        // Create user notification for mentor
+        try
+        {
+            string notifTitle, notifMessage;
+            if (request.LectureId.HasValue && request.Flag.HasValue)
+            {
+                notifTitle = $"Ders İşaretlendi: {lectureTitle}";
+                notifMessage = $"\"{course.Title}\" adlı kursunuzdaki \"{lectureTitle}\" dersi admin tarafından '{request.Flag}' olarak işaretlendi. Yorum: {request.Content}";
+            }
+            else
+            {
+                notifTitle = $"Kursunuz Hakkında Admin Notu: {course.Title}";
+                notifMessage = $"\"{course.Title}\" adlı kursunuz hakkında admin tarafından yorum bırakıldı. Yorum: {request.Content}";
+            }
+
+            var userNotification = UserNotification.Create(
+                course.MentorUserId,
+                "CourseModeration",
+                notifTitle,
+                notifMessage,
+                "Course", course.Id,
+                $"course-moderation-{course.Id}");
+            _context.UserNotifications.Add(userNotification);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create user notification for admin note {CourseId}", course.Id);
+        }
+
         try
         {
             var mentor = await _context.Users
