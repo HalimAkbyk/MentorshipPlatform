@@ -69,13 +69,17 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
 
         if (currentLecture == null) return Result<CoursePlayerDto>.Failure("No lectures found");
 
+        // If requested lecture is inactive, auto-skip to next active lecture
+        if (!currentLecture.IsActive)
+        {
+            var activeLectures = allLectures.Where(l => l.IsActive).ToList();
+            if (activeLectures.Count == 0) return Result<CoursePlayerDto>.Failure("Bu kursta aktif ders bulunmuyor");
+            currentLecture = activeLectures.First();
+        }
+
         // Check access: must have enrollment OR lecture is preview
         if (enrollment == null && !currentLecture.IsPreview)
             return Result<CoursePlayerDto>.Failure("Bu kursa erişmek için satın almanız gerekiyor");
-
-        // Block access to inactive lectures
-        if (!currentLecture.IsActive)
-            return Result<CoursePlayerDto>.Failure("Bu ders şu anda aktif değil");
 
         // Get progress data
         var progressList = enrollment != null
