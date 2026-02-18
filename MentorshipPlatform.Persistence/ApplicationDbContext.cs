@@ -50,6 +50,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<LectureNote> LectureNotes => Set<LectureNote>();
     public DbSet<CourseReviewRound> CourseReviewRounds => Set<CourseReviewRound>();
     public DbSet<LectureReviewComment> LectureReviewComments => Set<LectureReviewComment>();
+    public DbSet<CourseAdminNote> CourseAdminNotes => Set<CourseAdminNote>();
 
     // Refund entities
     public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();

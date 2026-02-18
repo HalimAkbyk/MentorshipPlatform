@@ -7,5 +7,6 @@ public enum CourseStatus
     RevisionRequested,
     Rejected,
     Published,
+    Suspended,
     Archived
 }

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Courses.Queries.GetCoursePlayer;
 
-public record PlayerLectureDto(Guid Id, string Title, int DurationSec, bool IsPreview, string Type, bool IsCompleted);
+public record PlayerLectureDto(Guid Id, string Title, int DurationSec, bool IsPreview, string Type, bool IsCompleted, bool IsActive);
 public record PlayerSectionDto(Guid Id, string Title, List<PlayerLectureDto> Lectures);
 
 public record CoursePlayerDto(
@@ -49,6 +49,10 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
 
         if (course == null) return Result<CoursePlayerDto>.Failure("Course not found");
 
+        // Block access to suspended courses
+        if (course.Status == CourseStatus.Suspended)
+            return Result<CoursePlayerDto>.Failure("Bu kurs şu anda askıda. Lütfen daha sonra tekrar deneyin.");
+
         var enrollment = await _context.CourseEnrollments
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.CourseId == request.CourseId
@@ -68,6 +72,10 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
         // Check access: must have enrollment OR lecture is preview
         if (enrollment == null && !currentLecture.IsPreview)
             return Result<CoursePlayerDto>.Failure("Bu kursa erişmek için satın almanız gerekiyor");
+
+        // Block access to inactive lectures
+        if (!currentLecture.IsActive)
+            return Result<CoursePlayerDto>.Failure("Bu ders şu anda aktif değil");
 
         // Get progress data
         var progressList = enrollment != null
@@ -90,7 +98,8 @@ public class GetCoursePlayerQueryHandler : IRequestHandler<GetCoursePlayerQuery,
             s.Id, s.Title,
             s.Lectures.Select(l => new PlayerLectureDto(
                 l.Id, l.Title, l.DurationSec, l.IsPreview, l.Type.ToString(),
-                progressList.Any(p => p.LectureId == l.Id && p.IsCompleted)
+                progressList.Any(p => p.LectureId == l.Id && p.IsCompleted),
+                l.IsActive
             )).ToList()
         )).ToList();
 

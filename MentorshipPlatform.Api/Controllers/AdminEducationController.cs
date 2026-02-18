@@ -1,6 +1,13 @@
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MentorshipPlatform.Application.Common.Interfaces;
+using MentorshipPlatform.Application.Courses.Commands.AddCourseAdminNote;
+using MentorshipPlatform.Application.Courses.Commands.SuspendCourse;
+using MentorshipPlatform.Application.Courses.Commands.ToggleLectureActive;
+using MentorshipPlatform.Application.Courses.Commands.UnsuspendCourse;
+using MentorshipPlatform.Application.Courses.Queries.GetCourseAdminNotes;
 using MentorshipPlatform.Domain.Enums;
 using MentorshipPlatform.Persistence;
 
@@ -12,7 +19,15 @@ namespace MentorshipPlatform.Api.Controllers;
 public class AdminEducationController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
-    public AdminEducationController(ApplicationDbContext db) => _db = db;
+    private readonly IMediator _mediator;
+    private readonly IStorageService _storage;
+
+    public AdminEducationController(ApplicationDbContext db, IMediator mediator, IStorageService storage)
+    {
+        _db = db;
+        _mediator = mediator;
+        _storage = storage;
+    }
 
     // GET /api/admin/education/bookings - All bookings (paginated, filtered)
     [HttpGet("bookings")]
@@ -507,6 +522,61 @@ public class AdminEducationController : ControllerBase
                 && o.Status == Domain.Enums.OrderStatus.Paid)
             .SumAsync(o => o.AmountTotal);
 
+        // Generate presigned video URLs for admin viewing
+        var sectionsWithUrls = new List<object>();
+        foreach (var section in course.Sections)
+        {
+            var lecturesWithUrls = new List<object>();
+            foreach (var lecture in section.Lectures)
+            {
+                string? videoUrl = null;
+                if (!string.IsNullOrEmpty(lecture.VideoKey))
+                {
+                    try { videoUrl = await _storage.GetPresignedUrlAsync(lecture.VideoKey, TimeSpan.FromHours(2)); }
+                    catch { /* ignore storage errors */ }
+                }
+
+                lecturesWithUrls.Add(new
+                {
+                    lecture.Id,
+                    lecture.Title,
+                    lecture.DurationSec,
+                    lecture.IsPreview,
+                    lecture.IsActive,
+                    lecture.SortOrder,
+                    lecture.VideoKey,
+                    VideoUrl = videoUrl,
+                });
+            }
+
+            sectionsWithUrls.Add(new
+            {
+                section.Id,
+                section.Title,
+                section.SortOrder,
+                Lectures = lecturesWithUrls,
+            });
+        }
+
+        // Get admin notes (latest 50)
+        var adminNotes = await _db.CourseAdminNotes
+            .Where(n => n.CourseId == id)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(50)
+            .Select(n => new
+            {
+                n.Id,
+                n.LectureId,
+                n.AdminUserId,
+                AdminName = n.AdminUser.DisplayName ?? "Admin",
+                NoteType = n.NoteType.ToString(),
+                Flag = n.Flag.HasValue ? n.Flag.Value.ToString() : (string?)null,
+                n.Content,
+                n.LectureTitle,
+                n.CreatedAt,
+            })
+            .ToListAsync();
+
         var result = new
         {
             course.Id,
@@ -531,20 +601,7 @@ public class AdminEducationController : ControllerBase
             MentorName = course.MentorUser?.DisplayName ?? "?",
             MentorEmail = course.MentorUser?.Email ?? "",
             TotalRevenue = totalRevenue,
-            Sections = course.Sections.Select(s => new
-            {
-                s.Id,
-                s.Title,
-                s.SortOrder,
-                Lectures = s.Lectures.Select(l => new
-                {
-                    l.Id,
-                    l.Title,
-                    l.DurationSec,
-                    l.IsPreview,
-                    l.SortOrder,
-                })
-            }),
+            Sections = sectionsWithUrls,
             Enrollments = enrollments.Select(e => new
             {
                 e.Id,
@@ -555,8 +612,63 @@ public class AdminEducationController : ControllerBase
                 e.Progress,
                 e.CreatedAt,
             }),
+            AdminNotes = adminNotes,
         };
 
         return Ok(result);
     }
+
+    // ========================================================================
+    // Course Content Moderation Endpoints
+    // ========================================================================
+
+    // POST /api/admin/education/courses/{courseId}/suspend
+    [HttpPost("courses/{courseId:guid}/suspend")]
+    public async Task<IActionResult> SuspendCourse(Guid courseId, [FromBody] SuspendCourseRequest body)
+    {
+        var result = await _mediator.Send(new SuspendCourseCommand(courseId, body.Reason));
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
+    // POST /api/admin/education/courses/{courseId}/unsuspend
+    [HttpPost("courses/{courseId:guid}/unsuspend")]
+    public async Task<IActionResult> UnsuspendCourse(Guid courseId, [FromBody] UnsuspendCourseRequest? body)
+    {
+        var result = await _mediator.Send(new UnsuspendCourseCommand(courseId, body?.Note));
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
+    // POST /api/admin/education/courses/{courseId}/lectures/{lectureId}/toggle-active
+    [HttpPost("courses/{courseId:guid}/lectures/{lectureId:guid}/toggle-active")]
+    public async Task<IActionResult> ToggleLectureActive(Guid courseId, Guid lectureId, [FromBody] ToggleLectureActiveRequest body)
+    {
+        var result = await _mediator.Send(new ToggleLectureActiveCommand(courseId, lectureId, body.IsActive, body.Reason));
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
+    // POST /api/admin/education/courses/{courseId}/notes
+    [HttpPost("courses/{courseId:guid}/notes")]
+    public async Task<IActionResult> AddCourseAdminNote(Guid courseId, [FromBody] AddCourseAdminNoteRequest body)
+    {
+        LectureReviewFlag? flag = null;
+        if (!string.IsNullOrEmpty(body.Flag) && Enum.TryParse<LectureReviewFlag>(body.Flag, true, out var parsed))
+            flag = parsed;
+
+        var result = await _mediator.Send(new AddCourseAdminNoteCommand(courseId, body.LectureId, flag, body.Content));
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
+    // GET /api/admin/education/courses/{courseId}/notes
+    [HttpGet("courses/{courseId:guid}/notes")]
+    public async Task<IActionResult> GetCourseAdminNotes(Guid courseId)
+    {
+        var result = await _mediator.Send(new GetCourseAdminNotesQuery(courseId));
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
+
+    // Request DTOs
+    public record SuspendCourseRequest(string Reason);
+    public record UnsuspendCourseRequest(string? Note);
+    public record ToggleLectureActiveRequest(bool IsActive, string? Reason);
+    public record AddCourseAdminNoteRequest(Guid? LectureId, string? Flag, string Content);
 }

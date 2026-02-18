@@ -14,6 +14,7 @@ public class CourseLecture : BaseEntity
     public bool IsPreview { get; private set; }
     public LectureType Type { get; private set; }
     public string? TextContent { get; private set; }
+    public bool IsActive { get; private set; } = true;
 
     // Navigation
     public CourseSection Section { get; private set; } = null!;
@@ -71,4 +72,16 @@ public class CourseLecture : BaseEntity
 
     public void MarkAsPreview() => IsPreview = true;
     public void UnmarkAsPreview() => IsPreview = false;
+
+    public void Deactivate()
+    {
+        IsActive = false;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void Activate()
+    {
+        IsActive = true;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }

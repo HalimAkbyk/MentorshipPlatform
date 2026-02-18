@@ -35,6 +35,7 @@ public interface IApplicationDbContext
     DbSet<LectureNote> LectureNotes { get; }
     DbSet<CourseReviewRound> CourseReviewRounds { get; }
     DbSet<LectureReviewComment> LectureReviewComments { get; }
+    DbSet<CourseAdminNote> CourseAdminNotes { get; }
 
     // Refund entities
     DbSet<RefundRequest> RefundRequests { get; }

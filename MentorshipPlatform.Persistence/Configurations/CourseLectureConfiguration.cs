@@ -20,6 +20,8 @@ public class CourseLectureConfiguration : IEntityTypeConfiguration<CourseLecture
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        builder.Property(x => x.IsActive).HasDefaultValue(true);
+
         builder.HasIndex(x => new { x.SectionId, x.SortOrder });
     }
 }

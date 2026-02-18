@@ -149,6 +149,18 @@ public class Course : BaseEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void Suspend()
+    {
+        Status = CourseStatus.Suspended;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void Unsuspend()
+    {
+        Status = CourseStatus.Published;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void UpdateStats(int totalDurationSec, int totalLectures)
     {
         TotalDurationSec = totalDurationSec;
