@@ -33,6 +33,8 @@ public interface IApplicationDbContext
     DbSet<CourseEnrollment> CourseEnrollments { get; }
     DbSet<LectureProgress> LectureProgresses { get; }
     DbSet<LectureNote> LectureNotes { get; }
+    DbSet<CourseReviewRound> CourseReviewRounds { get; }
+    DbSet<LectureReviewComment> LectureReviewComments { get; }
 
     // Refund entities
     DbSet<RefundRequest> RefundRequests { get; }

@@ -62,6 +62,13 @@ public class CourseLecture : BaseEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void ReplaceVideo(string newVideoKey, int durationSec)
+    {
+        VideoKey = newVideoKey;
+        DurationSec = durationSec;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void MarkAsPreview() => IsPreview = true;
     public void UnmarkAsPreview() => IsPreview = false;
 }

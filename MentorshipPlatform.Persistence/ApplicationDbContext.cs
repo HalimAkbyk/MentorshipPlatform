@@ -48,6 +48,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
     public DbSet<LectureProgress> LectureProgresses => Set<LectureProgress>();
     public DbSet<LectureNote> LectureNotes => Set<LectureNote>();
+    public DbSet<CourseReviewRound> CourseReviewRounds => Set<CourseReviewRound>();
+    public DbSet<LectureReviewComment> LectureReviewComments => Set<LectureReviewComment>();
 
     // Refund entities
     public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();

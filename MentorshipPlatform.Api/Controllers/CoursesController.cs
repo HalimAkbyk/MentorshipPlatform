@@ -3,6 +3,7 @@ using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Courses.Commands.CreateCourse;
 using MentorshipPlatform.Application.Courses.Commands.UpdateCourse;
 using MentorshipPlatform.Application.Courses.Commands.PublishCourse;
+using MentorshipPlatform.Application.Courses.Commands.ResubmitForReview;
 using MentorshipPlatform.Application.Courses.Commands.ArchiveCourse;
 using MentorshipPlatform.Application.Courses.Commands.DeleteCourse;
 using MentorshipPlatform.Application.Courses.Queries.GetMyCourses;
@@ -10,6 +11,7 @@ using MentorshipPlatform.Application.Courses.Queries.GetCourseForEdit;
 using MentorshipPlatform.Application.Courses.Queries.GetPublicCourses;
 using MentorshipPlatform.Application.Courses.Queries.GetCourseDetail;
 using MentorshipPlatform.Application.Courses.Queries.GetPreviewLecture;
+using MentorshipPlatform.Application.Courses.Queries.GetMyCourseReviewStatus;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -93,12 +95,32 @@ public class CoursesController : ControllerBase
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
     }
 
-    /// <summary>Kursu yayınla</summary>
+    /// <summary>Kursu onaya gönder (yayınla → inceleme akışına gider)</summary>
     [Authorize(Roles = "Mentor")]
     [HttpPost("{id:guid}/publish")]
-    public async Task<IActionResult> Publish(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Publish(Guid id, [FromBody] PublishCourseRequest? body, CancellationToken ct)
     {
-        var result = await _mediator.Send(new PublishCourseCommand(id), ct);
+        var result = await _mediator.Send(new PublishCourseCommand(id, body?.MentorNotes), ct);
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
+    /// <summary>Kurs inceleme durumunu getir (mentor)</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpGet("{id:guid}/review-status")]
+    public async Task<IActionResult> GetReviewStatus(Guid id, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetMyCourseReviewStatusQuery(id), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        if (result.Data == null) return NotFound();
+        return Ok(result.Data);
+    }
+
+    /// <summary>Kursu tekrar onaya gönder (revizyon sonrası)</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpPost("{id:guid}/resubmit")]
+    public async Task<IActionResult> Resubmit(Guid id, [FromBody] ResubmitCourseRequest? body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new ResubmitCourseForReviewCommand(id, body?.MentorNotes), ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
     }
 
@@ -218,6 +240,10 @@ public class CoursesController : ControllerBase
 }
 
 // Request DTOs
+public record PublishCourseRequest(string? MentorNotes);
+
+public record ResubmitCourseRequest(string? MentorNotes);
+
 public record UpdateCourseRequest(
     string Title,
     string? ShortDescription,

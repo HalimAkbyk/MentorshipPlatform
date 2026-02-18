@@ -41,6 +41,12 @@ public class CourseConfiguration : IEntityTypeConfiguration<Course>
             .HasForeignKey(s => s.CourseId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Navigation: Course -> ReviewRounds
+        builder.HasMany(x => x.ReviewRounds)
+            .WithOne(r => r.Course)
+            .HasForeignKey(r => r.CourseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Navigation: Course -> MentorUser
         builder.HasOne(x => x.MentorUser)
             .WithMany()

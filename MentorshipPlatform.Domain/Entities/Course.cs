@@ -37,6 +37,8 @@ public class Course : BaseEntity
     public User MentorUser { get; private set; } = null!;
     private readonly List<CourseSection> _sections = new();
     public IReadOnlyCollection<CourseSection> Sections => _sections.AsReadOnly();
+    private readonly List<CourseReviewRound> _reviewRounds = new();
+    public IReadOnlyCollection<CourseReviewRound> ReviewRounds => _reviewRounds.AsReadOnly();
 
     private Course() { }
 
@@ -102,6 +104,37 @@ public class Course : BaseEntity
         if (Status == CourseStatus.Published) return;
         Status = CourseStatus.Published;
         AddDomainEvent(new CoursePublishedEvent(Id, MentorUserId, Title));
+    }
+
+    public void SubmitForReview()
+    {
+        Status = CourseStatus.PendingReview;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ApproveReview()
+    {
+        Status = CourseStatus.Published;
+        UpdatedAt = DateTime.UtcNow;
+        AddDomainEvent(new CoursePublishedEvent(Id, MentorUserId, Title));
+    }
+
+    public void RejectReview()
+    {
+        Status = CourseStatus.Rejected;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void RequestRevision()
+    {
+        Status = CourseStatus.RevisionRequested;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ResubmitForReview()
+    {
+        Status = CourseStatus.PendingReview;
+        UpdatedAt = DateTime.UtcNow;
     }
 
     public void Archive()
