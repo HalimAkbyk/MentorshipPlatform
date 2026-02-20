@@ -34,6 +34,7 @@ public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundComman
     private readonly IProcessHistoryService _processHistory;
     private readonly ILogger<InitiateRefundCommandHandler> _logger;
     private readonly IPlatformSettingService _settings;
+    private readonly IChatNotificationService _chatNotification;
 
     public InitiateRefundCommandHandler(
         IApplicationDbContext context,
@@ -41,7 +42,8 @@ public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundComman
         IPaymentService paymentService,
         IProcessHistoryService processHistory,
         ILogger<InitiateRefundCommandHandler> logger,
-        IPlatformSettingService settings)
+        IPlatformSettingService settings,
+        IChatNotificationService chatNotification)
     {
         _context = context;
         _currentUser = currentUser;
@@ -49,6 +51,7 @@ public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundComman
         _processHistory = processHistory;
         _logger = logger;
         _settings = settings;
+        _chatNotification = chatNotification;
     }
 
     public async Task<Result> Handle(InitiateRefundCommand request, CancellationToken cancellationToken)
@@ -163,7 +166,21 @@ public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundComman
         // Update order
         order.MarkAsPartiallyRefunded(request.Amount);
 
+        // Notify student about admin-initiated refund
+        var studentNotif = UserNotification.Create(
+            order.BuyerUserId,
+            "RefundApproved",
+            "İade Yapıldı",
+            $"{request.Amount:F2} TL tutarında iade yapıldı. Ödeme yönteminize iade aktarılacaktır.",
+            "Order", order.Id);
+        _context.UserNotifications.Add(studentNotif);
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Push real-time notification count
+        var unreadCount = await _context.UserNotifications
+            .CountAsync(n => n.UserId == order.BuyerUserId && !n.IsRead, cancellationToken);
+        await _chatNotification.NotifyNotificationCountUpdated(order.BuyerUserId, unreadCount);
 
         await _processHistory.LogAsync(
             "RefundRequest", refundRequest.Id, "AdminInitiated",

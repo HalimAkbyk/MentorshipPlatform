@@ -36,6 +36,7 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
     private readonly IProcessHistoryService _processHistory;
     private readonly ILogger<ProcessRefundCommandHandler> _logger;
     private readonly IPlatformSettingService _settings;
+    private readonly IChatNotificationService _chatNotification;
 
     public ProcessRefundCommandHandler(
         IApplicationDbContext context,
@@ -43,7 +44,8 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
         IPaymentService paymentService,
         IProcessHistoryService processHistory,
         ILogger<ProcessRefundCommandHandler> logger,
-        IPlatformSettingService settings)
+        IPlatformSettingService settings,
+        IChatNotificationService chatNotification)
     {
         _context = context;
         _currentUser = currentUser;
@@ -51,6 +53,7 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
         _processHistory = processHistory;
         _logger = logger;
         _settings = settings;
+        _chatNotification = chatNotification;
     }
 
     public async Task<Result> Handle(ProcessRefundCommand request, CancellationToken cancellationToken)
@@ -76,7 +79,22 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
         if (!request.IsApproved)
         {
             refundRequest.Reject(request.AdminNotes, adminId);
+
+            // Notify student about rejection
+            var rejectNotif = UserNotification.Create(
+                order.BuyerUserId,
+                "RefundRejected",
+                "İade Talebiniz Reddedildi",
+                $"Sipariş için iade talebiniz reddedildi.{(string.IsNullOrEmpty(request.AdminNotes) ? "" : $" Not: {request.AdminNotes}")}",
+                "Order", order.Id);
+            _context.UserNotifications.Add(rejectNotif);
+
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Push real-time notification count
+            var rejectUnread = await _context.UserNotifications
+                .CountAsync(n => n.UserId == order.BuyerUserId && !n.IsRead, cancellationToken);
+            await _chatNotification.NotifyNotificationCountUpdated(order.BuyerUserId, rejectUnread);
 
             await _processHistory.LogAsync(
                 "RefundRequest", refundRequest.Id, "Rejected",
@@ -211,7 +229,21 @@ public class ProcessRefundCommandHandler : IRequestHandler<ProcessRefundCommand,
         // Approve refund request
         refundRequest.Approve(refundAmount, request.AdminNotes, adminId);
 
+        // Notify student about approval
+        var approveNotif = UserNotification.Create(
+            order.BuyerUserId,
+            "RefundApproved",
+            "İade Talebiniz Onaylandı",
+            $"{refundAmount:F2} TL tutarında iade talebiniz onaylandı. Ödeme yönteminize iade yapılacaktır.",
+            "Order", order.Id);
+        _context.UserNotifications.Add(approveNotif);
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Push real-time notification count
+        var approveUnread = await _context.UserNotifications
+            .CountAsync(n => n.UserId == order.BuyerUserId && !n.IsRead, cancellationToken);
+        await _chatNotification.NotifyNotificationCountUpdated(order.BuyerUserId, approveUnread);
 
         await _processHistory.LogAsync(
             "RefundRequest", refundRequest.Id, "Approved",
