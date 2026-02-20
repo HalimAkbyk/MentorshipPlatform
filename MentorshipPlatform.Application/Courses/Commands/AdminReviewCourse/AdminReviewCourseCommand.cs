@@ -42,6 +42,7 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
     private readonly INotificationService _notification;
+    private readonly IChatNotificationService _chatNotification;
     private readonly ILogger<AdminReviewCourseCommandHandler> _logger;
 
     public AdminReviewCourseCommandHandler(
@@ -49,12 +50,14 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
         ICurrentUserService currentUser,
         IProcessHistoryService history,
         INotificationService notification,
+        IChatNotificationService chatNotification,
         ILogger<AdminReviewCourseCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
         _notification = notification;
+        _chatNotification = chatNotification;
         _logger = logger;
     }
 
@@ -146,6 +149,29 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
             $"Kurs incelemesi tamamlandı: {request.Outcome} (Round {activeRound.RoundNumber})",
             adminId, "Admin", ct: cancellationToken);
 
+        // Create user notification + SignalR push for mentor
+        try
+        {
+            var (notifTitle, notifMessage) = BuildNotificationContent(course.Title, request.Outcome, request.GeneralNotes);
+            var userNotification = UserNotification.Create(
+                course.MentorUserId,
+                "CourseModeration",
+                notifTitle,
+                notifMessage,
+                "Course", course.Id,
+                $"course-review-{course.Id}");
+            _context.UserNotifications.Add(userNotification);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var unreadCount = await _context.UserNotifications
+                .CountAsync(n => n.UserId == course.MentorUserId && !n.IsRead, cancellationToken);
+            await _chatNotification.NotifyNotificationCountUpdated(course.MentorUserId, unreadCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create user notification for review {CourseId}", course.Id);
+        }
+
         // Send notification email to mentor (try/catch, don't fail if email fails)
         try
         {
@@ -164,6 +190,26 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
         }
 
         return Result.Success();
+    }
+
+    private static (string Title, string Message) BuildNotificationContent(
+        string courseTitle, ReviewOutcome outcome, string? notes)
+    {
+        return outcome switch
+        {
+            ReviewOutcome.Approved => (
+                $"Kursunuz Onaylandı: {courseTitle}",
+                $"\"{courseTitle}\" adlı kursunuz onaylandı ve yayınlandı."),
+            ReviewOutcome.Rejected => (
+                $"Kursunuz Reddedildi: {courseTitle}",
+                $"\"{courseTitle}\" adlı kursunuz reddedildi." + (string.IsNullOrEmpty(notes) ? "" : $" Not: {notes}")),
+            ReviewOutcome.RevisionRequested => (
+                $"Revizyon İstendi: {courseTitle}",
+                $"\"{courseTitle}\" adlı kursunuz için revizyon talep edildi. Admin yorumlarını inceleyip düzenlemeleri yapın."),
+            _ => (
+                $"Kurs İnceleme Sonucu: {courseTitle}",
+                $"\"{courseTitle}\" adlı kursunuzun incelemesi tamamlandı.")
+        };
     }
 
     private static (string Subject, string Body) BuildEmailContent(
