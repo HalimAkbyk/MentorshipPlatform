@@ -347,6 +347,9 @@ try
 
     RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.SendUnreadMessageNotificationJob>(
         "send-unread-message-notifications", job => job.Execute(), "*/2 * * * *"); // Every 2 minutes
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.AutoCompleteGroupClassesJob>(
+        "auto-complete-group-classes", job => job.Execute(), "*/10 * * * *"); // Every 10 minutes
 }
 catch (Exception ex)
 {

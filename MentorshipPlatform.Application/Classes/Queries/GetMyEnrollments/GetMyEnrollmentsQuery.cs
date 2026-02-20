@@ -71,9 +71,14 @@ public class GetMyEnrollmentsQueryHandler
             .Select(u => new { u.Id, u.DisplayName, u.AvatarUrl })
             .ToDictionaryAsync(u => u.Id, cancellationToken);
 
+        var now = DateTime.UtcNow;
         var items = enrollments.Select(e =>
         {
             var mentor = mentors.GetValueOrDefault(e.Class.MentorUserId);
+            // Virtual status: if Published but end time passed → "Expired"
+            var classStatus = e.Class.Status == ClassStatus.Published && e.Class.EndAt < now
+                ? "Expired"
+                : e.Class.Status.ToString();
             return new MyEnrollmentDto(
                 e.Id,
                 e.ClassId,
@@ -85,7 +90,7 @@ public class GetMyEnrollmentsQueryHandler
                 e.Class.EndAt,
                 e.Class.PricePerSeat,
                 e.Class.Currency,
-                e.Class.Status.ToString(),
+                classStatus,
                 e.Status.ToString(),
                 mentor?.DisplayName ?? "Mentor",
                 mentor?.AvatarUrl,

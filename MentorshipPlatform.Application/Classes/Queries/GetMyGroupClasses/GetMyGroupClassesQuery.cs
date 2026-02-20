@@ -62,6 +62,8 @@ public class GetMyGroupClassesQueryHandler
 
         var totalCount = await query.CountAsync(cancellationToken);
 
+        var now = DateTime.UtcNow;
+
         var classes = await query
             .OrderByDescending(c => c.StartAt)
             .Skip((page - 1) * pageSize)
@@ -80,7 +82,10 @@ public class GetMyGroupClassesQueryHandler
                     e.Status == EnrollmentStatus.Attended),
                 c.PricePerSeat,
                 c.Currency,
-                c.Status.ToString()))
+                // Virtual status: if Published but end time passed → "Expired"
+                c.Status == ClassStatus.Published && c.EndAt < now
+                    ? "Expired"
+                    : c.Status.ToString()))
             .ToListAsync(cancellationToken);
 
         return Result<PaginatedList<MyGroupClassDto>>.Success(

@@ -100,6 +100,11 @@ public class GetGroupClassByIdQueryHandler
                 .ToList();
         }
 
+        // Virtual status: if Published but end time passed → "Expired"
+        var displayStatus = groupClass.Status == ClassStatus.Published && groupClass.EndAt < DateTime.UtcNow
+            ? "Expired"
+            : groupClass.Status.ToString();
+
         return Result<GroupClassDetailDto>.Success(new GroupClassDetailDto(
             groupClass.Id,
             groupClass.Title,
@@ -112,7 +117,7 @@ public class GetGroupClassByIdQueryHandler
             enrolledCount,
             groupClass.PricePerSeat,
             groupClass.Currency,
-            groupClass.Status.ToString(),
+            displayStatus,
             mentor?.DisplayName ?? "Mentor",
             mentor?.AvatarUrl,
             groupClass.MentorUserId,
