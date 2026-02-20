@@ -20,13 +20,17 @@ public class CreateGroupClassCommandValidator : AbstractValidator<CreateGroupCla
 {
     public CreateGroupClassCommandValidator()
     {
-        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Title).NotEmpty().WithMessage("Başlık zorunludur.").MaximumLength(200);
         RuleFor(x => x.Description).MaximumLength(2000);
-        RuleFor(x => x.Category).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.StartAt).GreaterThan(DateTime.UtcNow.AddHours(24));
-        RuleFor(x => x.EndAt).GreaterThan(x => x.StartAt);
-        RuleFor(x => x.Capacity).InclusiveBetween(2, 100);
-        RuleFor(x => x.PricePerSeat).GreaterThan(0);
+        RuleFor(x => x.Category).NotEmpty().WithMessage("Kategori zorunludur.").MaximumLength(100);
+        RuleFor(x => x.StartAt)
+            .GreaterThan(DateTime.UtcNow.AddHours(1))
+            .WithMessage("Ders başlangıç saati en az 1 saat sonrası olmalıdır.");
+        RuleFor(x => x.EndAt)
+            .GreaterThan(x => x.StartAt)
+            .WithMessage("Bitiş saati başlangıç saatinden sonra olmalıdır.");
+        RuleFor(x => x.Capacity).InclusiveBetween(2, 100).WithMessage("Kontenjan 2-100 arasında olmalıdır.");
+        RuleFor(x => x.PricePerSeat).GreaterThan(0).WithMessage("Ücret 0'dan büyük olmalıdır.");
     }
 }
 
