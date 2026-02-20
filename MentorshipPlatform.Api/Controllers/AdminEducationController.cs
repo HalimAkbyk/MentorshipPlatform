@@ -619,6 +619,195 @@ public class AdminEducationController : ControllerBase
     }
 
     // ========================================================================
+    // Session Reports
+    // ========================================================================
+
+    private record BookingInfo(Guid StudentUserId, Guid MentorUserId, DateTime StartAt, DateTime? EndAt, int DurationMin);
+    private record GroupClassInfo(string Title, Guid MentorUserId, DateTime StartAt, DateTime EndAt);
+
+    // GET /api/admin/education/session-reports
+    [HttpGet("session-reports")]
+    public async Task<IActionResult> GetSessionReports(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? type = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? from = null,
+        [FromQuery] string? to = null)
+    {
+        var query = _db.VideoSessions
+            .Include(vs => vs.Participants)
+            .AsQueryable();
+
+        // Type filter
+        if (!string.IsNullOrEmpty(type) && type != "all")
+        {
+            if (type == "booking") query = query.Where(vs => vs.ResourceType == "Booking");
+            else if (type == "group-class") query = query.Where(vs => vs.ResourceType == "GroupClass");
+        }
+
+        // Status filter
+        if (!string.IsNullOrEmpty(status) && status != "all")
+        {
+            if (Enum.TryParse<VideoSessionStatus>(status, true, out var ss))
+                query = query.Where(vs => vs.Status == ss);
+        }
+
+        // Date range filter
+        if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var fromDate))
+            query = query.Where(vs => vs.CreatedAt >= fromDate.ToUniversalTime());
+        if (!string.IsNullOrEmpty(to) && DateTime.TryParse(to, out var toDate))
+            query = query.Where(vs => vs.CreatedAt <= toDate.ToUniversalTime());
+
+        var totalCount = await query.CountAsync();
+
+        var sessions = await query
+            .OrderByDescending(vs => vs.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        // Collect resource IDs by type
+        var bookingIds = sessions
+            .Where(s => s.ResourceType == "Booking" && s.ResourceId != Guid.Empty)
+            .Select(s => s.ResourceId).Distinct().ToList();
+
+        var gcIds = sessions
+            .Where(s => s.ResourceType == "GroupClass")
+            .Select(s => s.RoomName.Replace("group-class-", ""))
+            .Where(id => Guid.TryParse(id, out _))
+            .Select(id => Guid.Parse(id))
+            .Distinct().ToList();
+
+        // Fetch bookings
+        var bookings = bookingIds.Count > 0
+            ? await _db.Bookings
+                .Where(b => bookingIds.Contains(b.Id))
+                .ToDictionaryAsync(
+                    b => b.Id,
+                    b => new BookingInfo(b.StudentUserId, b.MentorUserId, b.StartAt, b.EndAt, b.DurationMin))
+            : new Dictionary<Guid, BookingInfo>();
+
+        // Fetch group classes
+        var groupClasses = gcIds.Count > 0
+            ? await _db.GroupClasses
+                .Where(gc => gcIds.Contains(gc.Id))
+                .ToDictionaryAsync(
+                    gc => gc.Id,
+                    gc => new GroupClassInfo(gc.Title, gc.MentorUserId, gc.StartAt, gc.EndAt))
+            : new Dictionary<Guid, GroupClassInfo>();
+
+        // Collect all user IDs for name resolution
+        var allUserIds = new HashSet<Guid>();
+        foreach (var s in sessions)
+            foreach (var p in s.Participants)
+                allUserIds.Add(p.UserId);
+        foreach (var b in bookings.Values)
+        {
+            allUserIds.Add(b.StudentUserId);
+            allUserIds.Add(b.MentorUserId);
+        }
+        foreach (var gc in groupClasses.Values)
+            allUserIds.Add(gc.MentorUserId);
+
+        var userNames = allUserIds.Count > 0
+            ? await _db.Users
+                .Where(u => allUserIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.DisplayName })
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName)
+            : new Dictionary<Guid, string>();
+
+        // Build result items
+        var items = sessions.Select(s =>
+        {
+            string title = s.RoomName;
+            string mentorName = "?";
+            var mentorUserId = Guid.Empty;
+            DateTime? scheduledStart = null;
+            DateTime? scheduledEnd = null;
+
+            if (s.ResourceType == "Booking" && s.ResourceId != Guid.Empty && bookings.TryGetValue(s.ResourceId, out var bk))
+            {
+                var studentName = userNames.GetValueOrDefault(bk.StudentUserId, "?");
+                mentorName = userNames.GetValueOrDefault(bk.MentorUserId, "?");
+                mentorUserId = bk.MentorUserId;
+                title = $"1:1 Ders - {studentName} & {mentorName}";
+                scheduledStart = bk.StartAt;
+                scheduledEnd = bk.EndAt;
+            }
+            else if (s.ResourceType == "GroupClass")
+            {
+                var gcIdStr = s.RoomName.Replace("group-class-", "");
+                if (Guid.TryParse(gcIdStr, out var gcId) && groupClasses.TryGetValue(gcId, out var gc))
+                {
+                    title = gc.Title;
+                    mentorName = userNames.GetValueOrDefault(gc.MentorUserId, "?");
+                    mentorUserId = gc.MentorUserId;
+                    scheduledStart = gc.StartAt;
+                    scheduledEnd = gc.EndAt;
+                }
+            }
+
+            var participants = s.Participants.Select(p =>
+            {
+                var dur = p.DurationSec;
+                var mins = dur / 60;
+                var secs = dur % 60;
+                var isMentor = p.UserId == mentorUserId;
+                return new
+                {
+                    p.UserId,
+                    DisplayName = userNames.GetValueOrDefault(p.UserId, "?"),
+                    Role = isMentor ? "Mentor" : "Student",
+                    p.JoinedAt,
+                    LeftAt = p.LeftAt.HasValue ? (DateTime?)p.LeftAt.Value : null,
+                    p.DurationSec,
+                    DurationFormatted = $"{mins:D2}:{secs:D2}"
+                };
+            }).OrderByDescending(p => p.Role == "Mentor").ThenBy(p => p.JoinedAt).ToList();
+
+            return new
+            {
+                SessionId = s.Id,
+                s.ResourceType,
+                s.ResourceId,
+                s.RoomName,
+                SessionStatus = s.Status.ToString(),
+                SessionCreatedAt = s.CreatedAt,
+                Title = title,
+                MentorName = mentorName,
+                ScheduledStart = scheduledStart,
+                ScheduledEnd = scheduledEnd,
+                ParticipantCount = participants.Count,
+                TotalDurationSec = s.GetTotalDurationSeconds(),
+                Participants = participants
+            };
+        }).ToList();
+
+        // Apply search filter (post-fetch, on resolved names)
+        if (!string.IsNullOrEmpty(search))
+        {
+            var lowerSearch = search.ToLower();
+            items = items.Where(i =>
+                i.Title.ToLower().Contains(lowerSearch) ||
+                i.MentorName.ToLower().Contains(lowerSearch) ||
+                i.Participants.Any(p => p.DisplayName.ToLower().Contains(lowerSearch))
+            ).ToList();
+            totalCount = items.Count;
+        }
+
+        return Ok(new
+        {
+            items,
+            totalCount,
+            page,
+            pageSize,
+            totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+        });
+    }
+
+    // ========================================================================
     // Course Content Moderation Endpoints
     // ========================================================================
 
