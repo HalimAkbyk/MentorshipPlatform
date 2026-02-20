@@ -21,6 +21,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ILogger<ProcessPaymentWebhookCommandHandler> _logger;
     private readonly IPlatformSettingService _settings;
+    private readonly IAdminNotificationService _adminNotification;
 
     public ProcessPaymentWebhookCommandHandler(
         IApplicationDbContext context,
@@ -28,7 +29,8 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
         IProcessHistoryService history,
         IBackgroundJobClient backgroundJobs,
         ILogger<ProcessPaymentWebhookCommandHandler> logger,
-        IPlatformSettingService settings)
+        IPlatformSettingService settings,
+        IAdminNotificationService adminNotification)
     {
         _context = context;
         _paymentService = paymentService;
@@ -36,6 +38,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
         _backgroundJobs = backgroundJobs;
         _settings = settings;
         _logger = logger;
+        _adminNotification = adminNotification;
     }
 
     public async Task<Result> Handle(
@@ -237,6 +240,18 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                         performedByRole: "System",
                         metadata: $"{{\"exception\":\"{ex.GetType().Name}\",\"message\":\"{ex.Message.Replace("\"", "'")}\"}}",
                         ct: cancellationToken);
+
+                    // Admin notification for payment failure
+                    try
+                    {
+                        await _adminNotification.CreateOrUpdateGroupedAsync(
+                            "PaymentFailed",
+                            "payment-failures",
+                            count => ("Ödeme Hataları", $"{count} başarısız ödeme işlemi var"),
+                            "Order", order.Id,
+                            cancellationToken);
+                    }
+                    catch { /* don't fail the main flow for notification errors */ }
                 }
                 catch (Exception innerEx)
                 {

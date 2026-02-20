@@ -36,15 +36,18 @@ public class RequestRefundCommandHandler
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _processHistory;
+    private readonly IAdminNotificationService _adminNotification;
 
     public RequestRefundCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService processHistory)
+        IProcessHistoryService processHistory,
+        IAdminNotificationService adminNotification)
     {
         _context = context;
         _currentUser = currentUser;
         _processHistory = processHistory;
+        _adminNotification = adminNotification;
     }
 
     public async Task<Result<RefundRequestDto>> Handle(
@@ -156,6 +159,14 @@ public class RequestRefundCommandHandler
             $"Student requested refund of {eligibleAmount:F2} for order {order.Id}",
             userId, "Student",
             ct: cancellationToken);
+
+        // Admin notification
+        await _adminNotification.CreateOrUpdateGroupedAsync(
+            "RefundRequest",
+            "pending-refund-requests",
+            count => ("İade Talepleri", $"Bekleyen {count} iade talebiniz var"),
+            "RefundRequest", refundRequest.Id,
+            cancellationToken);
 
         return Result<RefundRequestDto>.Success(new RefundRequestDto(
             refundRequest.Id,

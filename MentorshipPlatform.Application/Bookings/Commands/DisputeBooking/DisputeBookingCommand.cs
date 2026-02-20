@@ -23,15 +23,18 @@ public class DisputeBookingCommandHandler : IRequestHandler<DisputeBookingComman
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
+    private readonly IAdminNotificationService _adminNotification;
 
     public DisputeBookingCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService history)
+        IProcessHistoryService history,
+        IAdminNotificationService adminNotification)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
+        _adminNotification = adminNotification;
     }
 
     public async Task<Result> Handle(DisputeBookingCommand request, CancellationToken cancellationToken)
@@ -61,6 +64,14 @@ public class DisputeBookingCommandHandler : IRequestHandler<DisputeBookingComman
                 oldStatus, "Disputed",
                 $"Öğrenci dispute açtı: {request.Reason}",
                 userId, "Student", ct: cancellationToken);
+
+            // Admin notification
+            await _adminNotification.CreateOrUpdateGroupedAsync(
+                "Dispute",
+                "pending-disputes",
+                count => ("İtirazlar", $"Bekleyen {count} itiraz var"),
+                "Dispute", booking.Id,
+                cancellationToken);
 
             return Result.Success();
         }
