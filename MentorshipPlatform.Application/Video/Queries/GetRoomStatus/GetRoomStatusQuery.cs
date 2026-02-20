@@ -14,7 +14,7 @@ public record RoomStatusDto(
     bool HostConnected,
     int ParticipantCount);
 
-public class GetRoomStatusQueryHandler 
+public class GetRoomStatusQueryHandler
     : IRequestHandler<GetRoomStatusQuery, Result<RoomStatusDto>>
 {
     private readonly IApplicationDbContext _context;
@@ -48,10 +48,58 @@ public class GetRoomStatusQueryHandler
         var isActive = session.Status == VideoSessionStatus.Live;
         var participantCount = session.Participants.Count(p => !p.LeftAt.HasValue);
 
+        // Determine if host (mentor) is actually connected right now
+        // by checking if the mentor has an active participant record (no LeftAt)
+        var hostConnected = false;
+        if (isActive)
+        {
+            // Resolve mentor UserId based on resource type
+            Guid? mentorUserId = null;
+
+            if (session.ResourceType == "Booking")
+            {
+                var booking = await _context.Bookings
+                    .FirstOrDefaultAsync(b => b.Id == session.ResourceId, cancellationToken);
+                mentorUserId = booking?.MentorUserId;
+            }
+            else if (session.ResourceType == "GroupClass")
+            {
+                var groupClass = await _context.GroupClasses
+                    .FirstOrDefaultAsync(g => g.Id == session.ResourceId, cancellationToken);
+                // If ResourceId is Guid.Empty (legacy), try to resolve from room name
+                if (groupClass != null)
+                {
+                    mentorUserId = groupClass.MentorUserId;
+                }
+                else
+                {
+                    // For group-class-{classId} format rooms where ResourceId was empty
+                    var roomName = request.RoomName;
+                    if (roomName.StartsWith("group-class-"))
+                    {
+                        var classIdStr = roomName.Replace("group-class-", "");
+                        if (Guid.TryParse(classIdStr, out var classId))
+                        {
+                            var gc = await _context.GroupClasses
+                                .FirstOrDefaultAsync(g => g.Id == classId, cancellationToken);
+                            mentorUserId = gc?.MentorUserId;
+                        }
+                    }
+                }
+            }
+
+            if (mentorUserId.HasValue)
+            {
+                // Check if mentor has an active participant record (joined but not left)
+                hostConnected = session.Participants
+                    .Any(p => p.UserId == mentorUserId.Value && !p.LeftAt.HasValue);
+            }
+        }
+
         var dto = new RoomStatusDto(
             request.RoomName,
             IsActive: isActive,
-            HostConnected: isActive, // If Live, host has connected
+            HostConnected: hostConnected,
             ParticipantCount: participantCount
         );
 
