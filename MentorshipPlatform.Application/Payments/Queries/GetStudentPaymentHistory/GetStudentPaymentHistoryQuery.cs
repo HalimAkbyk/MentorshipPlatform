@@ -19,7 +19,9 @@ public record StudentPaymentDto(
     string? ResourceTitle,
     string? MentorName,
     Guid ResourceId,
-    decimal? RefundedAmount);
+    decimal? RefundedAmount,
+    decimal RefundPercentage,
+    string? RefundIneligibleReason);
 
 public record GetStudentPaymentHistoryQuery(
     int Page = 1,
@@ -100,6 +102,13 @@ public class GetStudentPaymentHistoryQueryHandler
             .Where(e => courseResourceIds.Contains(e.Id))
             .ToListAsync(cancellationToken);
 
+        // Get group class enrollment details
+        var classEnrollments = await _context.ClassEnrollments
+            .AsNoTracking()
+            .Include(e => e.Class)
+            .Where(e => classResourceIds.Contains(e.Id))
+            .ToListAsync(cancellationToken);
+
         // Get course mentor names
         var courseMentorIds = courseEnrollments
             .Select(e => e.Course.MentorUserId)
@@ -110,10 +119,20 @@ public class GetStudentPaymentHistoryQueryHandler
             .Where(u => courseMentorIds.Contains(u.Id))
             .ToListAsync(cancellationToken);
 
+        // Get pending refund requests for this user's orders
+        var orderIds = paginatedOrders.Items.Select(o => o.Id).ToList();
+        var pendingRefundOrderIds = await _context.RefundRequests
+            .AsNoTracking()
+            .Where(r => orderIds.Contains(r.OrderId) && r.Status == RefundRequestStatus.Pending)
+            .Select(r => r.OrderId)
+            .ToListAsync(cancellationToken);
+
         var dtos = paginatedOrders.Items.Select(o =>
         {
             string? resourceTitle = null;
             string? mentorName = null;
+            decimal refundPercentage = 0m;
+            string? refundIneligibleReason = null;
 
             if (o.Type == OrderType.Booking)
             {
@@ -122,6 +141,7 @@ public class GetStudentPaymentHistoryQueryHandler
                 {
                     resourceTitle = booking.Offering?.Title;
                     mentorName = booking.Mentor?.DisplayName;
+                    refundPercentage = booking.CalculateRefundPercentage();
                 }
             }
             else if (o.Type == OrderType.Course)
@@ -132,7 +152,39 @@ public class GetStudentPaymentHistoryQueryHandler
                     resourceTitle = enrollment.Course?.Title;
                     var mentor = courseMentors.FirstOrDefault(u => u.Id == enrollment.Course.MentorUserId);
                     mentorName = mentor?.DisplayName;
+                    refundPercentage = enrollment.CalculateCourseRefundPercentage();
                 }
+            }
+            else if (o.Type == OrderType.GroupClass)
+            {
+                var classEnrollment = classEnrollments.FirstOrDefault(e => e.Id == o.ResourceId);
+                if (classEnrollment?.Class != null)
+                {
+                    resourceTitle = classEnrollment.Class.Title;
+                    refundPercentage = classEnrollment.Class.CalculateRefundPercentage();
+                }
+            }
+
+            // Determine refund ineligibility reason
+            if (o.Status != OrderStatus.Paid && o.Status != OrderStatus.PartiallyRefunded)
+            {
+                refundPercentage = 0m;
+            }
+            else if (pendingRefundOrderIds.Contains(o.Id))
+            {
+                refundIneligibleReason = "Bu sipariş için zaten bekleyen bir iade talebi var.";
+            }
+            else if (refundPercentage <= 0m)
+            {
+                if (o.Type == OrderType.Booking || o.Type == OrderType.GroupClass)
+                    refundIneligibleReason = "Derse 2 saatten az kaldığı için iade talep edilemez.";
+                else if (o.Type == OrderType.Course)
+                    refundIneligibleReason = "İade süresi dolmuş veya kurs ilerleme oranı iade limitini aşmış.";
+            }
+            else if (o.RefundedAmount >= o.AmountTotal)
+            {
+                refundPercentage = 0m;
+                refundIneligibleReason = "Bu siparişin tamamı zaten iade edilmiş.";
             }
 
             DateTime? paidAt = o.Status == OrderStatus.Paid
@@ -151,7 +203,9 @@ public class GetStudentPaymentHistoryQueryHandler
                 resourceTitle,
                 mentorName,
                 o.ResourceId,
-                null); // RefundedAmount will be added in Faz 3
+                o.RefundedAmount > 0 ? o.RefundedAmount : null,
+                refundPercentage,
+                refundIneligibleReason);
         }).ToList();
 
         return Result<PaginatedList<StudentPaymentDto>>.Success(
