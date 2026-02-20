@@ -100,6 +100,9 @@ public class Booking : BaseEntity
 
     public decimal CalculateRefundPercentage()
     {
+        // Mentor didn't show up → student gets full refund
+        if (Status == BookingStatus.NoShow) return 1.0m;
+
         var hoursUntilStart = (StartAt - DateTime.UtcNow).TotalHours;
 
         if (hoursUntilStart >= 24) return 1.0m; // 100%

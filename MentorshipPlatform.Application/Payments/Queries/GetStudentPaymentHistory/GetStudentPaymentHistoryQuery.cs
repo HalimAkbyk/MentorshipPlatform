@@ -21,7 +21,8 @@ public record StudentPaymentDto(
     Guid ResourceId,
     decimal? RefundedAmount,
     decimal RefundPercentage,
-    string? RefundIneligibleReason);
+    string? RefundIneligibleReason,
+    string? RefundNote);
 
 public record GetStudentPaymentHistoryQuery(
     int Page = 1,
@@ -133,6 +134,8 @@ public class GetStudentPaymentHistoryQueryHandler
             string? mentorName = null;
             decimal refundPercentage = 0m;
             string? refundIneligibleReason = null;
+            string? refundNote = null;
+            bool isNoShow = false;
 
             if (o.Type == OrderType.Booking)
             {
@@ -141,6 +144,7 @@ public class GetStudentPaymentHistoryQueryHandler
                 {
                     resourceTitle = booking.Offering?.Title;
                     mentorName = booking.Mentor?.DisplayName;
+                    isNoShow = booking.Status == BookingStatus.NoShow;
                     refundPercentage = booking.CalculateRefundPercentage();
                 }
             }
@@ -177,7 +181,7 @@ public class GetStudentPaymentHistoryQueryHandler
             else if (refundPercentage <= 0m)
             {
                 if (o.Type == OrderType.Booking || o.Type == OrderType.GroupClass)
-                    refundIneligibleReason = "Derse 2 saatten az kaldığı için iade talep edilemez.";
+                    refundIneligibleReason = "Ders saati geçtiği için iade talep edilemez.";
                 else if (o.Type == OrderType.Course)
                     refundIneligibleReason = "İade süresi dolmuş veya kurs ilerleme oranı iade limitini aşmış.";
             }
@@ -185,6 +189,12 @@ public class GetStudentPaymentHistoryQueryHandler
             {
                 refundPercentage = 0m;
                 refundIneligibleReason = "Bu siparişin tamamı zaten iade edilmiş.";
+            }
+
+            // Add helpful note for NoShow refunds
+            if (isNoShow && refundPercentage > 0 && refundIneligibleReason == null)
+            {
+                refundNote = "Mentor derse katılmadığı için tam iade hakkınız bulunmaktadır.";
             }
 
             DateTime? paidAt = o.Status == OrderStatus.Paid
@@ -205,7 +215,8 @@ public class GetStudentPaymentHistoryQueryHandler
                 o.ResourceId,
                 o.RefundedAmount > 0 ? o.RefundedAmount : null,
                 refundPercentage,
-                refundIneligibleReason);
+                refundIneligibleReason,
+                refundNote);
         }).ToList();
 
         return Result<PaginatedList<StudentPaymentDto>>.Success(
