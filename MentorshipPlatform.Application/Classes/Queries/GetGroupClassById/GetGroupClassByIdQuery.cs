@@ -57,7 +57,7 @@ public class GetGroupClassByIdQueryHandler
             .FirstOrDefaultAsync(c => c.Id == request.ClassId, cancellationToken);
 
         if (groupClass == null)
-            return Result<GroupClassDetailDto>.Failure("Group class not found");
+            return Result<GroupClassDetailDto>.Failure("Grup dersi bulunamadı");
 
         var mentor = await _context.Users
             .Where(u => u.Id == groupClass.MentorUserId)

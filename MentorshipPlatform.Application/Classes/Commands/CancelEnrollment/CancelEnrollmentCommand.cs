@@ -14,8 +14,8 @@ public class CancelEnrollmentCommandValidator : AbstractValidator<CancelEnrollme
 {
     public CancelEnrollmentCommandValidator()
     {
-        RuleFor(x => x.EnrollmentId).NotEmpty();
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.EnrollmentId).NotEmpty().WithMessage("Kayıt ID gereklidir.");
+        RuleFor(x => x.Reason).NotEmpty().WithMessage("İptal sebebi zorunludur.").MaximumLength(500).WithMessage("İptal sebebi en fazla 500 karakter olabilir.");
     }
 }
 
@@ -41,7 +41,7 @@ public class CancelEnrollmentCommandHandler
         CancellationToken cancellationToken)
     {
         if (!_currentUser.UserId.HasValue)
-            return Result<bool>.Failure("User not authenticated");
+            return Result<bool>.Failure("Oturum açmanız gerekiyor");
 
         var studentUserId = _currentUser.UserId.Value;
 
@@ -50,13 +50,13 @@ public class CancelEnrollmentCommandHandler
             .FirstOrDefaultAsync(e => e.Id == request.EnrollmentId, cancellationToken);
 
         if (enrollment == null)
-            return Result<bool>.Failure("Enrollment not found");
+            return Result<bool>.Failure("Kayıt bulunamadı");
 
         if (enrollment.StudentUserId != studentUserId)
-            return Result<bool>.Failure("You can only cancel your own enrollments");
+            return Result<bool>.Failure("Yalnızca kendi kayıtlarınızı iptal edebilirsiniz");
 
         if (enrollment.Status != EnrollmentStatus.Confirmed)
-            return Result<bool>.Failure("Only confirmed enrollments can be cancelled");
+            return Result<bool>.Failure("Yalnızca onaylanmış kayıtlar iptal edilebilir");
 
         // Calculate refund percentage based on time
         var refundPercentage = enrollment.Class.CalculateRefundPercentage();

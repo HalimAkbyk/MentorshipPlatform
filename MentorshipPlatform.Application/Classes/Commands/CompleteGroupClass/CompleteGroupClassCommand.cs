@@ -30,7 +30,7 @@ public class CompleteGroupClassCommandHandler
         CancellationToken cancellationToken)
     {
         if (!_currentUser.UserId.HasValue)
-            return Result<bool>.Failure("User not authenticated");
+            return Result<bool>.Failure("Oturum açmanız gerekiyor");
 
         var mentorUserId = _currentUser.UserId.Value;
 
@@ -39,13 +39,13 @@ public class CompleteGroupClassCommandHandler
             .FirstOrDefaultAsync(c => c.Id == request.ClassId, cancellationToken);
 
         if (groupClass == null)
-            return Result<bool>.Failure("Group class not found");
+            return Result<bool>.Failure("Grup dersi bulunamadı");
 
         if (groupClass.MentorUserId != mentorUserId)
-            return Result<bool>.Failure("You can only complete your own classes");
+            return Result<bool>.Failure("Yalnızca kendi derslerinizi tamamlayabilirsiniz");
 
         if (groupClass.Status != ClassStatus.Published)
-            return Result<bool>.Failure("Only published classes can be completed");
+            return Result<bool>.Failure("Yalnızca aktif dersler tamamlanabilir");
 
         groupClass.Complete();
 

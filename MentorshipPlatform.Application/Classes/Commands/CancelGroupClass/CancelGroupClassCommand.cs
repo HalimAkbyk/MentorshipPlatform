@@ -14,7 +14,7 @@ public class CancelGroupClassCommandValidator : AbstractValidator<CancelGroupCla
 {
     public CancelGroupClassCommandValidator()
     {
-        RuleFor(x => x.ClassId).NotEmpty();
+        RuleFor(x => x.ClassId).NotEmpty().WithMessage("Ders ID gereklidir.");
     }
 }
 
@@ -40,7 +40,7 @@ public class CancelGroupClassCommandHandler
         CancellationToken cancellationToken)
     {
         if (!_currentUser.UserId.HasValue)
-            return Result<bool>.Failure("User not authenticated");
+            return Result<bool>.Failure("Oturum açmanız gerekiyor");
 
         var mentorUserId = _currentUser.UserId.Value;
 
@@ -49,13 +49,13 @@ public class CancelGroupClassCommandHandler
             .FirstOrDefaultAsync(c => c.Id == request.ClassId, cancellationToken);
 
         if (groupClass == null)
-            return Result<bool>.Failure("Group class not found");
+            return Result<bool>.Failure("Grup dersi bulunamadı");
 
         if (groupClass.MentorUserId != mentorUserId)
-            return Result<bool>.Failure("You can only cancel your own classes");
+            return Result<bool>.Failure("Yalnızca kendi derslerinizi iptal edebilirsiniz");
 
         if (groupClass.Status == ClassStatus.Cancelled || groupClass.Status == ClassStatus.Completed)
-            return Result<bool>.Failure("This class cannot be cancelled");
+            return Result<bool>.Failure("Bu ders iptal edilemez");
 
         // Cancel the class
         groupClass.Cancel();
