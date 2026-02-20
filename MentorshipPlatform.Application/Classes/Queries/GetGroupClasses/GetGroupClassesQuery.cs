@@ -21,7 +21,8 @@ public record GroupClassListDto(
     string Status,
     string MentorName,
     string? MentorAvatar,
-    Guid MentorUserId);
+    Guid MentorUserId,
+    string? CurrentUserEnrollmentStatus);
 
 public record GetGroupClassesQuery(
     string? Category,
@@ -42,10 +43,14 @@ public class GetGroupClassesQueryHandler
     : IRequestHandler<GetGroupClassesQuery, Result<PagedResult<GroupClassListDto>>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUser;
 
-    public GetGroupClassesQueryHandler(IApplicationDbContext context)
+    public GetGroupClassesQueryHandler(
+        IApplicationDbContext context,
+        ICurrentUserService currentUser)
     {
         _context = context;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<PagedResult<GroupClassListDto>>> Handle(
@@ -73,6 +78,22 @@ public class GetGroupClassesQueryHandler
             .Select(u => new { u.Id, u.DisplayName, u.AvatarUrl })
             .ToDictionaryAsync(u => u.Id, cancellationToken);
 
+        // Get current user's enrollments for these classes
+        var userId = _currentUser.UserId;
+        Dictionary<Guid, string> userEnrollments = new();
+        if (userId.HasValue)
+        {
+            var classIds = await query.Select(c => c.Id).ToListAsync(cancellationToken);
+            userEnrollments = await _context.ClassEnrollments
+                .Where(e => e.StudentUserId == userId.Value &&
+                            classIds.Contains(e.ClassId) &&
+                            e.Status != EnrollmentStatus.Cancelled &&
+                            e.Status != EnrollmentStatus.Refunded)
+                .GroupBy(e => e.ClassId)
+                .Select(g => new { ClassId = g.Key, Status = g.OrderByDescending(e => e.CreatedAt).First().Status })
+                .ToDictionaryAsync(x => x.ClassId, x => x.Status.ToString(), cancellationToken);
+        }
+
         var items = await query
             .OrderBy(c => c.StartAt)
             .Skip((request.Page - 1) * request.PageSize)
@@ -94,17 +115,20 @@ public class GetGroupClassesQueryHandler
                 c.Status.ToString(),
                 "", // placeholder for mentor name
                 null, // placeholder for mentor avatar
-                c.MentorUserId))
+                c.MentorUserId,
+                null)) // placeholder for enrollment status
             .ToListAsync(cancellationToken);
 
-        // Enrich with mentor info
+        // Enrich with mentor info and enrollment status
         var enriched = items.Select(i =>
         {
             var mentor = mentors.GetValueOrDefault(i.MentorUserId);
+            var enrollmentStatus = userEnrollments.GetValueOrDefault(i.Id);
             return i with
             {
                 MentorName = mentor?.DisplayName ?? "Mentor",
-                MentorAvatar = mentor?.AvatarUrl
+                MentorAvatar = mentor?.AvatarUrl,
+                CurrentUserEnrollmentStatus = enrollmentStatus
             };
         }).ToList();
 

@@ -22,7 +22,8 @@ public record GroupClassDetailDto(
     string MentorName,
     string? MentorAvatar,
     Guid MentorUserId,
-    List<EnrollmentDto>? Enrollments);
+    List<EnrollmentDto>? Enrollments,
+    string? CurrentUserEnrollmentStatus);
 
 public record EnrollmentDto(
     Guid Id,
@@ -105,6 +106,19 @@ public class GetGroupClassByIdQueryHandler
             ? "Expired"
             : groupClass.Status.ToString();
 
+        // Current user's enrollment status (for students)
+        string? currentUserEnrollmentStatus = null;
+        if (userId.HasValue && userId.Value != groupClass.MentorUserId)
+        {
+            var userEnrollment = groupClass.Enrollments
+                .Where(e => e.StudentUserId == userId.Value &&
+                            e.Status != EnrollmentStatus.Cancelled &&
+                            e.Status != EnrollmentStatus.Refunded)
+                .OrderByDescending(e => e.CreatedAt)
+                .FirstOrDefault();
+            currentUserEnrollmentStatus = userEnrollment?.Status.ToString();
+        }
+
         return Result<GroupClassDetailDto>.Success(new GroupClassDetailDto(
             groupClass.Id,
             groupClass.Title,
@@ -121,6 +135,7 @@ public class GetGroupClassByIdQueryHandler
             mentor?.DisplayName ?? "Mentor",
             mentor?.AvatarUrl,
             groupClass.MentorUserId,
-            enrollments));
+            enrollments,
+            currentUserEnrollmentStatus));
     }
 }
