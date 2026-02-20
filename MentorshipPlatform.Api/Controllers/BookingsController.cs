@@ -8,6 +8,8 @@ using MentorshipPlatform.Application.Bookings.Commands.ApproveReschedule;
 using MentorshipPlatform.Application.Bookings.Commands.RejectReschedule;
 using MentorshipPlatform.Application.Bookings.Queries.GetMyBookings;
 using MentorshipPlatform.Application.Bookings.Queries.GetBookingById;
+using MentorshipPlatform.Application.Common.Models;
+using MentorshipPlatform.Application.Helpers;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,10 +42,13 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("me")]
-    [ProducesResponseType(typeof(List<BookingDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMyBookings([FromQuery] BookingStatus? status)
+    [ProducesResponseType(typeof(PaginatedList<BookingDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyBookings(
+        [FromQuery] BookingStatus? status,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15)
     {
-        var result = await _mediator.Send(new GetMyBookingsQuery(status));
+        var result = await _mediator.Send(new GetMyBookingsQuery(status, page, pageSize));
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });

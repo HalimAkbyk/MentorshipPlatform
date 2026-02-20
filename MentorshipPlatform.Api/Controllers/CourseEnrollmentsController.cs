@@ -39,9 +39,9 @@ public class CourseEnrollmentsController : ControllerBase
 
     /// <summary>Kayıtlı kurslarım</summary>
     [HttpGet("my")]
-    public async Task<IActionResult> GetEnrolledCourses(CancellationToken ct)
+    public async Task<IActionResult> GetEnrolledCourses([FromQuery] int page = 1, [FromQuery] int pageSize = 15, CancellationToken ct = default)
     {
-        var result = await _mediator.Send(new GetEnrolledCoursesQuery(), ct);
+        var result = await _mediator.Send(new GetEnrolledCoursesQuery(page, pageSize), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
     }
 

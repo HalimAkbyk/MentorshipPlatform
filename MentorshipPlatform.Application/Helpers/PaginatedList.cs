@@ -17,4 +17,7 @@ public class PaginatedList<T>
         PageNumber = pageNumber;
         PageSize = pageSize;
     }
+
+    public static int ClampPage(int page) => Math.Max(1, page);
+    public static int ClampPageSize(int pageSize, int max = 50) => Math.Clamp(pageSize, 1, max);
 }

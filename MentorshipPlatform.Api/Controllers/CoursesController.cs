@@ -42,9 +42,9 @@ public class CoursesController : ControllerBase
     /// <summary>Mentor'un kendi kurslarını listele</summary>
     [Authorize(Roles = "Mentor")]
     [HttpGet("me")]
-    public async Task<IActionResult> GetMyCourses(CancellationToken ct)
+    public async Task<IActionResult> GetMyCourses([FromQuery] int page = 1, [FromQuery] int pageSize = 15, CancellationToken ct = default)
     {
-        var result = await _mediator.Send(new GetMyCoursesQuery(), ct);
+        var result = await _mediator.Send(new GetMyCoursesQuery(page, pageSize), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
     }
 

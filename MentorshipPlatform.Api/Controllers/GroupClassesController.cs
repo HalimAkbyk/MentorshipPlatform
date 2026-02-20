@@ -11,6 +11,8 @@ using MentorshipPlatform.Application.Classes.Queries.GetGroupClasses;
 using MentorshipPlatform.Application.Classes.Queries.GetGroupClassById;
 using MentorshipPlatform.Application.Classes.Queries.GetMyGroupClasses;
 using MentorshipPlatform.Application.Classes.Queries.GetMyEnrollments;
+using MentorshipPlatform.Application.Common.Models;
+using MentorshipPlatform.Application.Helpers;
 
 namespace MentorshipPlatform.Api.Controllers;
 
@@ -80,10 +82,10 @@ public class GroupClassesController : ControllerBase
     /// </summary>
     [HttpGet("my")]
     [Authorize(Policy = "RequireMentorRole")]
-    [ProducesResponseType(typeof(List<MyGroupClassDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMyClasses([FromQuery] string? status)
+    [ProducesResponseType(typeof(PaginatedList<MyGroupClassDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyClasses([FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 15)
     {
-        var result = await _mediator.Send(new GetMyGroupClassesQuery(status));
+        var result = await _mediator.Send(new GetMyGroupClassesQuery(status, page, pageSize));
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Ok(result.Data);
     }
@@ -138,10 +140,10 @@ public class GroupClassesController : ControllerBase
     /// </summary>
     [HttpGet("enrollments/my")]
     [Authorize(Policy = "RequireStudentRole")]
-    [ProducesResponseType(typeof(List<MyEnrollmentDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMyEnrollments()
+    [ProducesResponseType(typeof(PaginatedList<MyEnrollmentDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyEnrollments([FromQuery] int page = 1, [FromQuery] int pageSize = 15)
     {
-        var result = await _mediator.Send(new GetMyEnrollmentsQuery());
+        var result = await _mediator.Send(new GetMyEnrollmentsQuery(page, pageSize));
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Ok(result.Data);
     }

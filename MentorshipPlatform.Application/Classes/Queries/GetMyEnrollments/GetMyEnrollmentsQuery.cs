@@ -1,6 +1,7 @@
 using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
+using MentorshipPlatform.Application.Helpers;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,10 +25,10 @@ public record MyEnrollmentDto(
     Guid MentorUserId,
     DateTime EnrolledAt);
 
-public record GetMyEnrollmentsQuery : IRequest<Result<List<MyEnrollmentDto>>>;
+public record GetMyEnrollmentsQuery(int Page = 1, int PageSize = 15) : IRequest<Result<PaginatedList<MyEnrollmentDto>>>;
 
 public class GetMyEnrollmentsQueryHandler
-    : IRequestHandler<GetMyEnrollmentsQuery, Result<List<MyEnrollmentDto>>>
+    : IRequestHandler<GetMyEnrollmentsQuery, Result<PaginatedList<MyEnrollmentDto>>>
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
@@ -40,19 +41,28 @@ public class GetMyEnrollmentsQueryHandler
         _currentUser = currentUser;
     }
 
-    public async Task<Result<List<MyEnrollmentDto>>> Handle(
+    public async Task<Result<PaginatedList<MyEnrollmentDto>>> Handle(
         GetMyEnrollmentsQuery request,
         CancellationToken cancellationToken)
     {
         if (!_currentUser.UserId.HasValue)
-            return Result<List<MyEnrollmentDto>>.Failure("User not authenticated");
+            return Result<PaginatedList<MyEnrollmentDto>>.Failure("User not authenticated");
 
         var studentUserId = _currentUser.UserId.Value;
 
-        var enrollments = await _context.ClassEnrollments
+        var page = PaginatedList<MyEnrollmentDto>.ClampPage(request.Page);
+        var pageSize = PaginatedList<MyEnrollmentDto>.ClampPageSize(request.PageSize);
+
+        var baseQuery = _context.ClassEnrollments
             .Include(e => e.Class)
             .Where(e => e.StudentUserId == studentUserId)
-            .OrderByDescending(e => e.Class.StartAt)
+            .OrderByDescending(e => e.Class.StartAt);
+
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+        var enrollments = await baseQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         var mentorIds = enrollments.Select(e => e.Class.MentorUserId).Distinct().ToList();
@@ -61,7 +71,7 @@ public class GetMyEnrollmentsQueryHandler
             .Select(u => new { u.Id, u.DisplayName, u.AvatarUrl })
             .ToDictionaryAsync(u => u.Id, cancellationToken);
 
-        var result = enrollments.Select(e =>
+        var items = enrollments.Select(e =>
         {
             var mentor = mentors.GetValueOrDefault(e.Class.MentorUserId);
             return new MyEnrollmentDto(
@@ -83,6 +93,7 @@ public class GetMyEnrollmentsQueryHandler
                 e.CreatedAt);
         }).ToList();
 
-        return Result<List<MyEnrollmentDto>>.Success(result);
+        return Result<PaginatedList<MyEnrollmentDto>>.Success(
+            new PaginatedList<MyEnrollmentDto>(items, totalCount, page, pageSize));
     }
 }
