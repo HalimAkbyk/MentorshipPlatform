@@ -72,12 +72,13 @@ public class InitiateRefundCommandHandler : IRequestHandler<InitiateRefundComman
         if (request.Amount > maxRefundable)
             return Result.Failure($"Refund amount ({request.Amount:F2}) exceeds maximum ({maxRefundable:F2})");
 
-        // Call payment provider
-        if (string.IsNullOrEmpty(order.ProviderPaymentId))
-            return Result.Failure("Order has no payment provider ID");
+        // Call payment provider — Iyzico requires PaymentTransactionId (not PaymentId) for refunds
+        var transactionId = order.ProviderTransactionId ?? order.ProviderPaymentId;
+        if (string.IsNullOrEmpty(transactionId))
+            return Result.Failure("Order has no payment transaction ID");
 
         var refundResult = await _paymentService.RefundPaymentAsync(
-            order.ProviderPaymentId, request.Amount, cancellationToken);
+            transactionId, request.Amount, cancellationToken);
 
         if (!refundResult.Success)
         {

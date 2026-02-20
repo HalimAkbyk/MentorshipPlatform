@@ -80,11 +80,11 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
             }
 
             // Step 5: Mark as paid
-            order.MarkAsPaid("Iyzico", verification.ProviderPaymentId);
+            order.MarkAsPaid("Iyzico", verification.ProviderPaymentId, verification.ProviderTransactionId);
 
             await _history.LogAsync("Order", order.Id, "StatusChanged",
                 "Pending", "Paid",
-                $"Iyzico ödeme doğrulandı. ProviderPaymentId: {verification.ProviderPaymentId}",
+                $"Iyzico ödeme doğrulandı. ProviderPaymentId: {verification.ProviderPaymentId}, ProviderTransactionId: {verification.ProviderTransactionId}",
                 order.BuyerUserId, "Student", ct: cancellationToken);
 
             // Update booking/enrollment status

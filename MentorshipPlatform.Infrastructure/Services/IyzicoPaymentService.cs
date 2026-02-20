@@ -153,13 +153,30 @@ public class IyzicoPaymentService : IPaymentService
         var request = new RetrieveCheckoutFormRequest { Token = token};
         var checkoutForm = CheckoutForm.Retrieve(request, _iyzicoOptions);
 
-        if (checkoutForm.Status == "success" && 
+        if (checkoutForm.Status == "success" &&
             checkoutForm.PaymentStatus == "SUCCESS")
         {
+            // Extract PaymentTransactionId from PaymentItems (required for refunds)
+            string? transactionId = null;
+            if (checkoutForm.PaymentItems != null && checkoutForm.PaymentItems.Count > 0)
+            {
+                transactionId = checkoutForm.PaymentItems[0].PaymentTransactionId;
+                _logger.LogInformation(
+                    "✅ PaymentTransactionId extracted: {TransactionId} (PaymentId: {PaymentId})",
+                    transactionId, checkoutForm.PaymentId);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "⚠️ No PaymentItems found in checkout form. PaymentId: {PaymentId}",
+                    checkoutForm.PaymentId);
+            }
+
             return new PaymentVerifyResult(
                 true,
                 checkoutForm.BasketId,      // ✅ Order.Id
                 checkoutForm.PaymentId?.ToString(),
+                transactionId,
                 checkoutForm.Price,
                 checkoutForm.PaidPrice,
                 null);
@@ -168,6 +185,7 @@ public class IyzicoPaymentService : IPaymentService
         return new PaymentVerifyResult(
             false,
             checkoutForm.ConversationId,
+            null,
             null,
             null,
             null,
@@ -181,23 +199,87 @@ public class IyzicoPaymentService : IPaymentService
     {
         try
         {
+            var transactionId = providerPaymentId;
+
+            // If this looks like a PaymentId (not a PaymentTransactionId),
+            // retrieve the payment to get the correct PaymentTransactionId.
+            // PaymentTransactionIds are typically numeric, PaymentIds are longer strings.
+            // Try refund first; if it fails with "ödeme kırılım kaydı bulunamadı",
+            // fall back to retrieving the transaction ID from the payment.
             var request = new CreateRefundRequest
             {
-                PaymentTransactionId = providerPaymentId,
+                PaymentTransactionId = transactionId,
                 Price = amount.ToString("F2", CultureInfo.InvariantCulture),
                 Currency = Currency.TRY.ToString()
             };
 
-            var refund = await Task.Run(() => 
-                Refund.Create(request, _iyzicoOptions), 
+            var refund = await Task.Run(() =>
+                Refund.Create(request, _iyzicoOptions),
                 cancellationToken);
 
             if (refund.Status == "success")
             {
+                _logger.LogInformation("✅ Refund successful with TransactionId: {TransactionId}", transactionId);
                 return new RefundResult(
                     true,
                     refund.PaymentId.ToString(),
                     null);
+            }
+
+            // If refund failed, try to retrieve the payment and get the correct PaymentTransactionId
+            if (refund.ErrorMessage != null && refund.ErrorMessage.Contains("kırılım"))
+            {
+                _logger.LogWarning(
+                    "⚠️ Refund failed with '{Error}'. Attempting to retrieve PaymentTransactionId via Payment.Retrieve for PaymentId: {PaymentId}",
+                    refund.ErrorMessage, providerPaymentId);
+
+                try
+                {
+                    var retrieveRequest = new RetrievePaymentRequest { PaymentId = providerPaymentId };
+                    var payment = await Task.Run(() =>
+                        Payment.Retrieve(retrieveRequest, _iyzicoOptions),
+                        cancellationToken);
+
+                    if (payment.Status == "success" && payment.PaymentItems?.Count > 0)
+                    {
+                        var correctTransactionId = payment.PaymentItems[0].PaymentTransactionId;
+                        _logger.LogInformation(
+                            "✅ Retrieved correct PaymentTransactionId: {TransactionId} (was using: {OldId})",
+                            correctTransactionId, providerPaymentId);
+
+                        // Retry refund with correct transaction ID
+                        var retryRequest = new CreateRefundRequest
+                        {
+                            PaymentTransactionId = correctTransactionId,
+                            Price = amount.ToString("F2", CultureInfo.InvariantCulture),
+                            Currency = Currency.TRY.ToString()
+                        };
+
+                        var retryRefund = await Task.Run(() =>
+                            Refund.Create(retryRequest, _iyzicoOptions),
+                            cancellationToken);
+
+                        if (retryRefund.Status == "success")
+                        {
+                            _logger.LogInformation("✅ Retry refund successful with correct TransactionId: {TransactionId}",
+                                correctTransactionId);
+                            return new RefundResult(
+                                true,
+                                retryRefund.PaymentId.ToString(),
+                                null);
+                        }
+
+                        return new RefundResult(false, null, retryRefund.ErrorMessage);
+                    }
+                    else
+                    {
+                        _logger.LogError("❌ Payment.Retrieve failed or no PaymentItems: {Error}", payment.ErrorMessage);
+                    }
+                }
+                catch (Exception retrieveEx)
+                {
+                    _logger.LogError(retrieveEx, "❌ Failed to retrieve payment for fallback refund");
+                }
             }
 
             return new RefundResult(false, null, refund.ErrorMessage);

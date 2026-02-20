@@ -175,8 +175,10 @@ public class AdminController : ControllerBase
         if (order.Status != OrderStatus.Paid)
             return BadRequest(new { errors = new[] { "Order is not in Paid status." } });
 
-        if (string.IsNullOrWhiteSpace(order.ProviderPaymentId))
-            return BadRequest(new { errors = new[] { "ProviderPaymentId is missing on Order." } });
+        // Iyzico requires PaymentTransactionId (not PaymentId) for refunds
+        var transactionId = order.ProviderTransactionId ?? order.ProviderPaymentId;
+        if (string.IsNullOrWhiteSpace(transactionId))
+            return BadRequest(new { errors = new[] { "Payment transaction ID is missing on Order." } });
 
         var booking = await _db.Bookings.FirstOrDefaultAsync(x => x.Id == order.ResourceId);
         if (booking == null) return BadRequest(new { errors = new[] { "Related booking not found." } });
@@ -190,7 +192,7 @@ public class AdminController : ControllerBase
         if (refundAmount <= 0)
             return BadRequest(new { errors = new[] { "Refund amount is 0 for this booking." } });
 
-        var result = await _paymentService.RefundPaymentAsync(order.ProviderPaymentId, refundAmount);
+        var result = await _paymentService.RefundPaymentAsync(transactionId, refundAmount);
 
         if (!result.Success)
             return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Refund failed." } });

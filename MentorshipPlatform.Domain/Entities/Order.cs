@@ -15,6 +15,7 @@ public class Order : BaseEntity
     public decimal RefundedAmount { get; private set; }
     public string? PaymentProvider { get; private set; }
     public string? ProviderPaymentId { get; private set; }
+    public string? ProviderTransactionId { get; private set; }
     public string? CheckoutToken { get; private set; }
     public decimal DiscountAmount { get; private set; }
     public string? CouponCode { get; private set; }
@@ -40,11 +41,12 @@ public class Order : BaseEntity
         };
     }
 
-    public void MarkAsPaid(string provider, string providerPaymentId)
+    public void MarkAsPaid(string provider, string providerPaymentId, string? providerTransactionId = null)
     {
         Status = OrderStatus.Paid;
         PaymentProvider = provider;
         ProviderPaymentId = providerPaymentId;
+        ProviderTransactionId = providerTransactionId;
         AddDomainEvent(new OrderPaidEvent(Id, BuyerUserId, Type, ResourceId, AmountTotal));
     }
 
