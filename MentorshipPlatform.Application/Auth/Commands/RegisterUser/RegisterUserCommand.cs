@@ -26,16 +26,16 @@ public class RegisterUserCommandValidator : AbstractValidator<RegisterUserComman
     public RegisterUserCommandValidator()
     {
         RuleFor(x => x.Email)
-            .NotEmpty()
-            .EmailAddress();
+            .NotEmpty().WithMessage("E-posta adresi zorunludur.")
+            .EmailAddress().WithMessage("Geçerli bir e-posta adresi giriniz.");
 
         RuleFor(x => x.Password)
-            .NotEmpty()
-            .MinimumLength(8);
+            .NotEmpty().WithMessage("Şifre zorunludur.")
+            .MinimumLength(8).WithMessage("Şifre en az 8 karakter olmalıdır.");
 
         RuleFor(x => x.DisplayName)
-            .NotEmpty()
-            .MaximumLength(100);
+            .NotEmpty().WithMessage("İsim soyisim zorunludur.")
+            .MaximumLength(100).WithMessage("İsim soyisim en fazla 100 karakter olabilir.");
     }
 }
 
@@ -64,7 +64,7 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, R
             .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
 
         if (existingUser != null)
-            return Result<AuthResponse>.Failure("Email already registered");
+            return Result<AuthResponse>.Failure("Bu e-posta adresi zaten kayıtlı");
 
         // Create user
         var passwordHash = _passwordHasher.HashPassword(null!, request.Password);

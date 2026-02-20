@@ -37,7 +37,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<AuthResp
             .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
 
         if (user == null)
-            return Result<AuthResponse>.Failure("Invalid email or password");
+            return Result<AuthResponse>.Failure("E-posta veya şifre hatalı");
 
         // Social-only accounts have no password
         if (string.IsNullOrEmpty(user.PasswordHash))
@@ -47,10 +47,10 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<AuthResp
             user, user.PasswordHash!, request.Password);
 
         if (verificationResult == PasswordVerificationResult.Failed)
-            return Result<AuthResponse>.Failure("Invalid email or password");
+            return Result<AuthResponse>.Failure("E-posta veya şifre hatalı");
 
         if (user.Status != UserStatus.Active)
-            return Result<AuthResponse>.Failure("Account is not active");
+            return Result<AuthResponse>.Failure("Hesabınız aktif değil");
 
         var (accessToken, refreshToken) = _jwtTokenGenerator.GenerateTokens(
             user.Id, user.Email!, user.Roles.ToArray());
