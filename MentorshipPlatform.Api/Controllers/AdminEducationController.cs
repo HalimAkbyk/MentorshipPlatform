@@ -711,12 +711,25 @@ public class AdminEducationController : ControllerBase
         foreach (var gc in groupClasses.Values)
             allUserIds.Add(gc.MentorUserId);
 
-        var userNames = allUserIds.Count > 0
-            ? await _db.Users
+        var userNameMap = new Dictionary<Guid, string>();
+        var userAvatarMap = new Dictionary<Guid, string?>();
+
+        if (allUserIds.Count > 0)
+        {
+            var userInfoList = await _db.Users
                 .Where(u => allUserIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.DisplayName })
-                .ToDictionaryAsync(u => u.Id, u => u.DisplayName)
-            : new Dictionary<Guid, string>();
+                .Select(u => new { u.Id, u.DisplayName, u.AvatarUrl })
+                .ToListAsync();
+
+            foreach (var u in userInfoList)
+            {
+                userNameMap[u.Id] = u.DisplayName;
+                userAvatarMap[u.Id] = u.AvatarUrl;
+            }
+        }
+
+        string getUserName(Guid uid) => userNameMap.GetValueOrDefault(uid, "?");
+        string? getUserAvatar(Guid uid) => userAvatarMap.GetValueOrDefault(uid);
 
         // Build result items
         var items = sessions.Select(s =>
@@ -729,8 +742,8 @@ public class AdminEducationController : ControllerBase
 
             if (s.ResourceType == "Booking" && s.ResourceId != Guid.Empty && bookings.TryGetValue(s.ResourceId, out var bk))
             {
-                var studentName = userNames.GetValueOrDefault(bk.StudentUserId, "?");
-                mentorName = userNames.GetValueOrDefault(bk.MentorUserId, "?");
+                var studentName = getUserName(bk.StudentUserId);
+                mentorName = getUserName(bk.MentorUserId);
                 mentorUserId = bk.MentorUserId;
                 title = $"1:1 Ders - {studentName} & {mentorName}";
                 scheduledStart = bk.StartAt;
@@ -742,7 +755,7 @@ public class AdminEducationController : ControllerBase
                 if (Guid.TryParse(gcIdStr, out var gcId) && groupClasses.TryGetValue(gcId, out var gc))
                 {
                     title = gc.Title;
-                    mentorName = userNames.GetValueOrDefault(gc.MentorUserId, "?");
+                    mentorName = getUserName(gc.MentorUserId);
                     mentorUserId = gc.MentorUserId;
                     scheduledStart = gc.StartAt;
                     scheduledEnd = gc.EndAt;
@@ -779,7 +792,8 @@ public class AdminEducationController : ControllerBase
                     return new
                     {
                         UserId = g.Key,
-                        DisplayName = userNames.GetValueOrDefault(g.Key, "?"),
+                        DisplayName = getUserName(g.Key),
+                        AvatarUrl = getUserAvatar(g.Key),
                         Role = isMentor ? "Mentor" : "Student",
                         JoinedAt = firstJoin,
                         LeftAt = lastLeft,

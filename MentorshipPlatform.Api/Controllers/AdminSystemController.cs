@@ -92,6 +92,7 @@ public class AuditParticipantDto
 {
     public Guid UserId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
     public string Role { get; set; } = string.Empty;
     public DateTime? JoinedAt { get; set; }
     public DateTime? LeftAt { get; set; }
@@ -728,7 +729,7 @@ public class AdminSystemController : ControllerBase
 
             var participantUsers = await _context.Users.AsNoTracking()
                 .Where(u => participantUserIds.Contains(u.Id))
-                .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, Role = u.Roles.FirstOrDefault().ToString() }, ct);
+                .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, u.AvatarUrl, Role = u.Roles.FirstOrDefault().ToString() }, ct);
 
             var participants = new List<AuditParticipantDto>();
             foreach (var userId in participantUserIds)
@@ -748,6 +749,7 @@ public class AdminSystemController : ControllerBase
                 {
                     UserId = userId,
                     DisplayName = userInfo?.DisplayName ?? "Unknown",
+                    AvatarUrl = userInfo?.AvatarUrl,
                     Role = userInfo?.Role ?? "Unknown",
                     JoinedAt = firstJoin,
                     LeftAt = lastLeft,
