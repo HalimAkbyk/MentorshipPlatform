@@ -749,23 +749,48 @@ public class AdminEducationController : ControllerBase
                 }
             }
 
-            var participants = s.Participants.Select(p =>
-            {
-                var dur = p.DurationSec;
-                var mins = dur / 60;
-                var secs = dur % 60;
-                var isMentor = p.UserId == mentorUserId;
-                return new
+            // Group participant records by UserId so each real user appears once
+            var grouped = s.Participants
+                .GroupBy(p => p.UserId)
+                .Select(g =>
                 {
-                    p.UserId,
-                    DisplayName = userNames.GetValueOrDefault(p.UserId, "?"),
-                    Role = isMentor ? "Mentor" : "Student",
-                    p.JoinedAt,
-                    LeftAt = p.LeftAt.HasValue ? (DateTime?)p.LeftAt.Value : null,
-                    p.DurationSec,
-                    DurationFormatted = $"{mins:D2}:{secs:D2}"
-                };
-            }).OrderByDescending(p => p.Role == "Mentor").ThenBy(p => p.JoinedAt).ToList();
+                    var isMentor = g.Key == mentorUserId;
+                    var segments = g.OrderBy(p => p.JoinedAt).Select(p =>
+                    {
+                        var dur = p.DurationSec;
+                        var mins = dur / 60;
+                        var secs = dur % 60;
+                        return new
+                        {
+                            SegmentId = p.Id,
+                            p.JoinedAt,
+                            LeftAt = p.LeftAt.HasValue ? (DateTime?)p.LeftAt.Value : null,
+                            DurationSec = dur,
+                            DurationFormatted = $"{mins:D2}:{secs:D2}"
+                        };
+                    }).ToList();
+
+                    var totalSec = segments.Sum(seg => seg.DurationSec);
+                    var totalMins = totalSec / 60;
+                    var totalSecs = totalSec % 60;
+                    var firstJoin = segments.First().JoinedAt;
+                    var lastLeft = segments.LastOrDefault(seg => seg.LeftAt.HasValue)?.LeftAt;
+
+                    return new
+                    {
+                        UserId = g.Key,
+                        DisplayName = userNames.GetValueOrDefault(g.Key, "?"),
+                        Role = isMentor ? "Mentor" : "Student",
+                        JoinedAt = firstJoin,
+                        LeftAt = lastLeft,
+                        DurationSec = totalSec,
+                        DurationFormatted = $"{totalMins:D2}:{totalSecs:D2}",
+                        SegmentCount = segments.Count,
+                        Segments = segments
+                    };
+                })
+                .OrderByDescending(p => p.Role == "Mentor").ThenBy(p => p.JoinedAt)
+                .ToList();
 
             return new
             {
@@ -779,9 +804,9 @@ public class AdminEducationController : ControllerBase
                 MentorName = mentorName,
                 ScheduledStart = scheduledStart,
                 ScheduledEnd = scheduledEnd,
-                ParticipantCount = participants.Count,
+                ParticipantCount = grouped.Count,
                 TotalDurationSec = s.GetTotalDurationSeconds(),
-                Participants = participants
+                Participants = grouped
             };
         }).ToList();
 

@@ -96,6 +96,16 @@ public class AuditParticipantDto
     public DateTime? JoinedAt { get; set; }
     public DateTime? LeftAt { get; set; }
     public int TotalDurationSec { get; set; }
+    public int SegmentCount { get; set; }
+    public List<ParticipantSegmentDto> Segments { get; set; } = new();
+}
+
+public class ParticipantSegmentDto
+{
+    public Guid SegmentId { get; set; }
+    public DateTime JoinedAt { get; set; }
+    public DateTime? LeftAt { get; set; }
+    public int DurationSec { get; set; }
 }
 
 public class AuditUserSummaryDto
@@ -128,6 +138,8 @@ public class UserSessionDto
     public DateTime? LeftAt { get; set; }
     public int DurationSec { get; set; }
     public string Role { get; set; } = string.Empty;
+    public int SegmentCount { get; set; }
+    public List<ParticipantSegmentDto> Segments { get; set; } = new();
 }
 
 // ────────────────────────── Controller ──────────────────────────
@@ -698,14 +710,19 @@ public class AdminSystemController : ControllerBase
                 };
             }).ToList();
 
-            // 6. Build participant list from ParticipantJoined/ParticipantDisconnected events
-            var participantEvents = allEvents
-                .Where(e => e.Action == "ParticipantJoined" || e.Action == "ParticipantDisconnected")
-                .ToList();
+            // 6. Build participant list from VideoParticipant records (segment-based)
+            // Each VideoParticipant row = one join/leave segment with its own ID
+            var videoParticipantRecords = new List<VideoParticipant>();
+            if (videoSessionIds.Any())
+            {
+                videoParticipantRecords = await _context.VideoParticipants.AsNoTracking()
+                    .Where(vp => videoSessionIds.Contains(vp.VideoSessionId))
+                    .OrderBy(vp => vp.JoinedAt)
+                    .ToListAsync(ct);
+            }
 
-            var participantUserIds = participantEvents
-                .Where(e => e.PerformedBy.HasValue)
-                .Select(e => e.PerformedBy!.Value)
+            var participantUserIds = videoParticipantRecords
+                .Select(vp => vp.UserId)
                 .Distinct()
                 .ToList();
 
@@ -716,24 +733,14 @@ public class AdminSystemController : ControllerBase
             var participants = new List<AuditParticipantDto>();
             foreach (var userId in participantUserIds)
             {
-                var joinEvents = participantEvents
-                    .Where(e => e.PerformedBy == userId && e.Action == "ParticipantJoined")
-                    .OrderBy(e => e.CreatedAt)
+                var userSegments = videoParticipantRecords
+                    .Where(vp => vp.UserId == userId)
+                    .OrderBy(vp => vp.JoinedAt)
                     .ToList();
 
-                var disconnectEvents = participantEvents
-                    .Where(e => e.PerformedBy == userId && e.Action == "ParticipantDisconnected")
-                    .OrderBy(e => e.CreatedAt)
-                    .ToList();
-
-                var joinedAt = joinEvents.FirstOrDefault()?.CreatedAt;
-                var leftAt = disconnectEvents.LastOrDefault()?.CreatedAt;
-
-                var totalDuration = 0;
-                if (joinedAt.HasValue && leftAt.HasValue)
-                {
-                    totalDuration = (int)(leftAt.Value - joinedAt.Value).TotalSeconds;
-                }
+                var totalDuration = userSegments.Sum(s => s.DurationSec);
+                var firstJoin = userSegments.First().JoinedAt;
+                var lastLeft = userSegments.LastOrDefault(s => s.LeftAt.HasValue)?.LeftAt;
 
                 participantUsers.TryGetValue(userId, out var userInfo);
 
@@ -742,9 +749,17 @@ public class AdminSystemController : ControllerBase
                     UserId = userId,
                     DisplayName = userInfo?.DisplayName ?? "Unknown",
                     Role = userInfo?.Role ?? "Unknown",
-                    JoinedAt = joinedAt,
-                    LeftAt = leftAt,
-                    TotalDurationSec = Math.Max(0, totalDuration)
+                    JoinedAt = firstJoin,
+                    LeftAt = lastLeft,
+                    TotalDurationSec = Math.Max(0, totalDuration),
+                    SegmentCount = userSegments.Count,
+                    Segments = userSegments.Select(s => new ParticipantSegmentDto
+                    {
+                        SegmentId = s.Id,
+                        JoinedAt = s.JoinedAt,
+                        LeftAt = s.LeftAt,
+                        DurationSec = s.DurationSec
+                    }).ToList()
                 });
             }
 
@@ -842,38 +857,22 @@ public class AdminSystemController : ControllerBase
                 .Where(u => userIds.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, Role = u.Roles.FirstOrDefault().ToString() }, ct);
 
-            // 3. Calculate session durations from ParticipantJoined / ParticipantDisconnected pairs
+            // 3. Calculate session durations and counts from VideoParticipant records (segment-based)
             var sessionDurations = new Dictionary<Guid, int>();
-            var joinDisconnectEvents = await _context.ProcessHistories.AsNoTracking()
-                .Where(p => p.PerformedBy != null &&
-                    (p.Action == "ParticipantJoined" || p.Action == "ParticipantDisconnected"))
-                .ToListAsync(ct);
+            var sessionCounts = new Dictionary<Guid, int>();
 
-            foreach (var userId in userIds)
+            if (userIds.Any())
             {
-                var userEvents = joinDisconnectEvents.Where(e => e.PerformedBy == userId).ToList();
-                var entityIds = userEvents.Select(e => e.EntityId).Distinct();
-                var totalDuration = 0;
+                var vpRecords = await _context.VideoParticipants.AsNoTracking()
+                    .Where(vp => userIds.Contains(vp.UserId))
+                    .ToListAsync(ct);
 
-                foreach (var eid in entityIds)
+                foreach (var uid in userIds)
                 {
-                    var joined = userEvents
-                        .Where(e => e.EntityId == eid && e.Action == "ParticipantJoined")
-                        .OrderBy(e => e.CreatedAt)
-                        .FirstOrDefault();
-
-                    var disconnected = userEvents
-                        .Where(e => e.EntityId == eid && e.Action == "ParticipantDisconnected")
-                        .OrderByDescending(e => e.CreatedAt)
-                        .FirstOrDefault();
-
-                    if (joined != null && disconnected != null && disconnected.CreatedAt > joined.CreatedAt)
-                    {
-                        totalDuration += (int)(disconnected.CreatedAt - joined.CreatedAt).TotalSeconds;
-                    }
+                    var userSegments = vpRecords.Where(vp => vp.UserId == uid).ToList();
+                    sessionDurations[uid] = userSegments.Sum(s => s.DurationSec);
+                    sessionCounts[uid] = userSegments.Select(s => s.VideoSessionId).Distinct().Count();
                 }
-
-                sessionDurations[userId] = totalDuration;
             }
 
             // 4. Build summaries
@@ -883,6 +882,8 @@ public class AdminSystemController : ControllerBase
                     users.TryGetValue(g.UserId, out var userInfo);
                     sessionDurations.TryGetValue(g.UserId, out var duration);
 
+                    sessionCounts.TryGetValue(g.UserId, out var sessCount);
+
                     return new AuditUserSummaryDto
                     {
                         UserId = g.UserId,
@@ -890,7 +891,7 @@ public class AdminSystemController : ControllerBase
                         Role = userInfo?.Role ?? "Unknown",
                         TotalActions = g.TotalActions,
                         LastActionAt = g.LastActionAt,
-                        SessionCount = g.SessionCount,
+                        SessionCount = sessCount,
                         TotalSessionDurationSec = duration
                     };
                 })
@@ -947,23 +948,18 @@ public class AdminSystemController : ControllerBase
 
             var userRole = user.Roles.FirstOrDefault().ToString();
 
-            // 2. Get all ParticipantJoined events for this user
-            var joinEvents = await _context.ProcessHistories.AsNoTracking()
-                .Where(p => p.PerformedBy == userId && p.Action == "ParticipantJoined")
-                .OrderByDescending(p => p.CreatedAt)
+            // 2. Get all VideoParticipant records for this user (segment-based)
+            var userParticipantRecords = await _context.VideoParticipants.AsNoTracking()
+                .Where(vp => vp.UserId == userId)
+                .OrderByDescending(vp => vp.JoinedAt)
                 .ToListAsync(ct);
 
-            // Get matching disconnect events
-            var sessionEntityIds = joinEvents.Select(e => e.EntityId).Distinct().ToList();
-            var disconnectEvents = await _context.ProcessHistories.AsNoTracking()
-                .Where(p => p.PerformedBy == userId &&
-                    p.Action == "ParticipantDisconnected" &&
-                    sessionEntityIds.Contains(p.EntityId))
-                .ToListAsync(ct);
+            // 3. Get related VideoSessions for title resolution
+            var videoSessionIds = userParticipantRecords
+                .Select(vp => vp.VideoSessionId)
+                .Distinct()
+                .ToList();
 
-            // 3. Build sessions list
-            // VideoSession ProcessHistory → find the VideoSession → get ResourceId → get Booking/GroupClass title
-            var videoSessionIds = sessionEntityIds;
             var videoSessions = await _context.VideoSessions.AsNoTracking()
                 .Where(vs => videoSessionIds.Contains(vs.Id))
                 .ToListAsync(ct);
@@ -1000,24 +996,21 @@ public class AdminSystemController : ControllerBase
                     .ToDictionaryAsync(g => g.Id, g => g.Title, ct);
             }
 
+            // Group by VideoSession to build per-session summaries with segments
             var sessions = new List<UserSessionDto>();
-            foreach (var joinEvent in joinEvents)
+            foreach (var vsGroup in userParticipantRecords.GroupBy(vp => vp.VideoSessionId))
             {
-                var disconnect = disconnectEvents
-                    .Where(d => d.EntityId == joinEvent.EntityId && d.CreatedAt > joinEvent.CreatedAt)
-                    .OrderBy(d => d.CreatedAt)
-                    .FirstOrDefault();
-
-                var durationSec = disconnect != null
-                    ? (int)(disconnect.CreatedAt - joinEvent.CreatedAt).TotalSeconds
-                    : 0;
+                var segments = vsGroup.OrderBy(vp => vp.JoinedAt).ToList();
+                var totalDuration = segments.Sum(s => s.DurationSec);
+                var firstJoin = segments.First().JoinedAt;
+                var lastLeft = segments.LastOrDefault(s => s.LeftAt.HasValue)?.LeftAt;
 
                 // Resolve title from VideoSession -> Resource
                 var sessionTitle = "Unknown";
                 var sessionEntityType = "VideoSession";
-                var sessionEntityId = joinEvent.EntityId;
+                var sessionEntityId = vsGroup.Key;
 
-                if (vsDict.TryGetValue(joinEvent.EntityId, out var vs))
+                if (vsDict.TryGetValue(vsGroup.Key, out var vs))
                 {
                     sessionEntityType = vs.ResourceType;
                     sessionEntityId = vs.ResourceId;
@@ -1033,10 +1026,18 @@ public class AdminSystemController : ControllerBase
                     EntityId = sessionEntityId,
                     EntityType = sessionEntityType,
                     Title = sessionTitle,
-                    JoinedAt = joinEvent.CreatedAt,
-                    LeftAt = disconnect?.CreatedAt,
-                    DurationSec = Math.Max(0, durationSec),
-                    Role = userRole
+                    JoinedAt = firstJoin,
+                    LeftAt = lastLeft,
+                    DurationSec = Math.Max(0, totalDuration),
+                    Role = userRole,
+                    SegmentCount = segments.Count,
+                    Segments = segments.Select(s => new ParticipantSegmentDto
+                    {
+                        SegmentId = s.Id,
+                        JoinedAt = s.JoinedAt,
+                        LeftAt = s.LeftAt,
+                        DurationSec = s.DurationSec
+                    }).ToList()
                 });
             }
 
