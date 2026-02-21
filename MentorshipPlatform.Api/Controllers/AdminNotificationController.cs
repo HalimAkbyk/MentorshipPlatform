@@ -200,6 +200,99 @@ public class AdminNotificationController : ControllerBase
         return Ok();
     }
 
+    /// <summary>
+    /// Toggle the IsActive state of a notification template.
+    /// </summary>
+    [HttpPost("templates/{id:guid}/toggle-active")]
+    public async Task<IActionResult> ToggleTemplateActive([FromRoute] Guid id, CancellationToken ct)
+    {
+        var template = await _context.NotificationTemplates.FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (template == null)
+            return NotFound();
+
+        template.SetActive(!template.IsActive);
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new NotificationTemplateDto
+        {
+            Id = template.Id,
+            Key = template.Key,
+            Name = template.Name,
+            Subject = template.Subject,
+            Body = template.Body,
+            Variables = template.Variables,
+            Channel = template.Channel,
+            IsActive = template.IsActive,
+            UpdatedAt = template.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Preview a notification template with sample variable values.
+    /// </summary>
+    [HttpPost("templates/{id:guid}/preview")]
+    public async Task<IActionResult> PreviewTemplate([FromRoute] Guid id, CancellationToken ct)
+    {
+        var template = await _context.NotificationTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (template == null)
+            return NotFound();
+
+        var sampleVariables = GetSampleVariables(template.Variables);
+
+        var resolvedSubject = ResolveVariables(template.Subject, sampleVariables);
+        var resolvedBody = ResolveVariables(template.Body, sampleVariables);
+
+        return Ok(new { subject = resolvedSubject, body = resolvedBody });
+    }
+
+    private Dictionary<string, string> GetSampleVariables(string? variablesJson)
+    {
+        var samples = new Dictionary<string, string>
+        {
+            ["displayName"] = "Ahmet Y\u0131lmaz",
+            ["mentorName"] = "Dr. Ay\u015fe Kaya",
+            ["studentName"] = "Mehmet Demir",
+            ["otherPartyName"] = "Fatma \u015eahin",
+            ["bookingDate"] = "15 Mart 2025",
+            ["bookingTime"] = "14:30",
+            ["offeringTitle"] = "Matematik \u00d6zel Ders",
+            ["timeframe"] = "1 saat",
+            ["classroomUrl"] = "https://example.com/classroom/123",
+            ["reason"] = "Ki\u015fisel nedenler",
+            ["oldDate"] = "15 Mart 2025, 14:30",
+            ["newDate"] = "17 Mart 2025, 16:00",
+            ["className"] = "\u0130leri Matematik Grubu",
+            ["classDate"] = "20 Mart 2025",
+            ["classTime"] = "10:00",
+            ["courseTitle"] = "Python ile Veri Bilimi",
+            ["outcome"] = "Onayland\u0131",
+            ["adminNotes"] = "Kurs i\u00e7eri\u011fi uygun bulunmu\u015ftur.",
+            ["rating"] = "5",
+            ["comment"] = "Harika bir ders deneyimiydi!",
+            ["verificationType"] = "Diploma",
+            ["senderName"] = "Ali Veli",
+            ["unreadCount"] = "3",
+            ["messagesUrl"] = "https://example.com/messages",
+            ["amount"] = "\u20ba500,00",
+            ["paymentDate"] = "15 Mart 2025",
+            ["resolution"] = "\u00d6\u011frenci lehine \u00e7\u00f6z\u00fcmlendi, tam iade yap\u0131ld\u0131.",
+            ["platformName"] = "MentorHub",
+        };
+        return samples;
+    }
+
+    private string ResolveVariables(string template, Dictionary<string, string> variables)
+    {
+        var result = template;
+        foreach (var (key, value) in variables)
+        {
+            result = result.Replace($"{{{{{key}}}}}", value ?? string.Empty);
+        }
+        return result;
+    }
+
     // -----------------------------
     // BULK NOTIFICATION HISTORY
     // -----------------------------

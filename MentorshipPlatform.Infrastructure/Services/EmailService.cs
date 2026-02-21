@@ -1,264 +1,87 @@
-using System.Net;
-using System.Net.Mail;
 using MentorshipPlatform.Application.Common.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace MentorshipPlatform.Infrastructure.Services;
 
 public class EmailService : IEmailService
 {
-    private readonly EmailOptions _options;
+    private readonly IEmailProviderFactory _providerFactory;
     private readonly ILogger<EmailService> _logger;
+    private readonly IApplicationDbContext _context;
 
     public EmailService(
-        IOptions<EmailOptions> options,
-        ILogger<EmailService> logger)
+        IEmailProviderFactory providerFactory,
+        ILogger<EmailService> logger,
+        IApplicationDbContext context)
     {
-        _options = options.Value;
+        _providerFactory = providerFactory;
         _logger = logger;
+        _context = context;
     }
 
-    public async Task SendBookingConfirmationAsync(
+    public async Task SendTemplatedEmailAsync(
+        string templateKey,
         string to,
-        string mentorName,
-        DateTime startAt,
-        CancellationToken cancellationToken = default)
-    {
-        var subject = "Rezervasyonunuz Onaylandı! 🎉";
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif;'>
-                <h2>Merhaba!</h2>
-                <p>Rezervasyonunuz başarıyla oluşturuldu.</p>
-                <div style='background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                    <p><strong>Mentör:</strong> {mentorName}</p>
-                    <p><strong>Tarih:</strong> {startAt:dd MMMM yyyy}</p>
-                    <p><strong>Saat:</strong> {startAt:HH:mm}</p>
-                </div>
-                <p>Ders zamanı geldiğinde size hatırlatma göndereceğiz.</p>
-                <p>İyi dersler! 📚</p>
-                <hr>
-                <p style='font-size: 12px; color: #6b7280;'>
-                    Bu otomatik bir mesajdır, lütfen yanıtlamayın.
-                </p>
-            </body>
-            </html>
-        ";
-
-        await SendEmailInternalAsync(to, subject, body, cancellationToken);
-    }
-
-    public async Task SendBookingReminderAsync(
-        string to,
-        string mentorName,
-        DateTime startAt,
-        string timeframe,
-        CancellationToken cancellationToken = default)
-    {
-        var subject = timeframe == "10m" 
-            ? "⏰ Dersiniz 10 dakika sonra başlıyor!" 
-            : $"📅 Dersiniz yaklaşıyor - {timeframe}";
-
-        var urgency = timeframe == "10m" 
-            ? "Dersiniz <strong>10 dakika</strong> sonra başlıyor! Hazır olun." 
-            : $"Dersinizi hatırlatmak istedik. {timeframe} kaldı.";
-
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif;'>
-                <h2>Merhaba!</h2>
-                <p>{urgency}</p>
-                <div style='background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                    <p><strong>Mentör:</strong> {mentorName}</p>
-                    <p><strong>Tarih:</strong> {startAt:dd MMMM yyyy}</p>
-                    <p><strong>Saat:</strong> {startAt:HH:mm}</p>
-                </div>
-                <p>
-                    <a href='https://yourdomain.com/classroom/{startAt:yyyyMMddHHmm}' 
-                       style='background-color: #2563eb; color: white; padding: 12px 24px; 
-                              text-decoration: none; border-radius: 6px; display: inline-block;'>
-                        Derse Katıl
-                    </a>
-                </p>
-                <p>Görüşmek üzere! 👋</p>
-            </body>
-            </html>
-        ";
-
-        await SendEmailInternalAsync(to, subject, body, cancellationToken);
-    }
-
-    public async Task SendBookingCancelledAsync(
-        string to,
-        string reason,
-        CancellationToken cancellationToken = default)
-    {
-        var subject = "Rezervasyon İptal Edildi";
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif;'>
-                <h2>Rezervasyon İptal Edildi</h2>
-                <p>Rezervasyonunuz iptal edildi.</p>
-                <div style='background-color: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                    <p><strong>İptal Sebebi:</strong> {reason}</p>
-                </div>
-                <p>İade işleminiz başlatıldı ve kısa süre içinde hesabınıza yansıyacak.</p>
-                <p>Başka bir zamanda görüşmek üzere!</p>
-            </body>
-            </html>
-        ";
-
-        await SendEmailInternalAsync(to, subject, body, cancellationToken);
-    }
-
-    public async Task SendVerificationApprovedAsync(
-        string to,
-        string verificationType,
-        CancellationToken cancellationToken = default)
-    {
-        var subject = "✅ Doğrulamanız Onaylandı!";
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif;'>
-                <h2>Harika Haber!</h2>
-                <p><strong>{verificationType}</strong> doğrulamanız onaylandı! 🎉</p>
-                <p>Profilinizde artık doğrulama rozeti görünecek.</p>
-                <p>Bu, daha fazla danışan çekmenize yardımcı olacak.</p>
-                <p>
-                    <a href='https://yourdomain.com/mentor/dashboard' 
-                       style='background-color: #10b981; color: white; padding: 12px 24px; 
-                              text-decoration: none; border-radius: 6px; display: inline-block;'>
-                        Dashboard'a Git
-                    </a>
-                </p>
-            </body>
-            </html>
-        ";
-
-        await SendEmailInternalAsync(to, subject, body, cancellationToken);
-    }
-
-    public async Task SendWelcomeEmailAsync(
-        string to,
-        string displayName,
-        CancellationToken cancellationToken = default)
-    {
-        var subject = "MentorHub'a Hoş Geldin! 🎓";
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif;'>
-                <h2>Merhaba {displayName}!</h2>
-                <p>MentorHub ailesine hoş geldin! 🎉</p>
-                <p>Artık derece yapmış mentörlerden birebir mentorluk alabilirsin.</p>
-                <div style='background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                    <h3>İlk Adımlar:</h3>
-                    <ul>
-                        <li>✅ Profilini tamamla</li>
-                        <li>✅ Sana uygun mentörleri keşfet</li>
-                        <li>✅ İlk rezervasyonunu yap</li>
-                    </ul>
-                </div>
-                <p>
-                    <a href='https://yourdomain.com/mentors' 
-                       style='background-color: #2563eb; color: white; padding: 12px 24px; 
-                              text-decoration: none; border-radius: 6px; display: inline-block;'>
-                        Mentörleri Keşfet
-                    </a>
-                </p>
-                <p>Başarılar dileriz! 🚀</p>
-            </body>
-            </html>
-        ";
-
-        await SendEmailInternalAsync(to, subject, body, cancellationToken);
-    }
-
-    public async Task SendUnreadMessageNotificationAsync(
-        string to,
-        string senderName,
-        string offeringTitle,
-        int unreadCount,
-        string messagesUrl,
-        CancellationToken cancellationToken = default)
-    {
-        var subject = $"💬 {senderName} size {unreadCount} okunmamış mesaj gönderdi";
-        var body = $@"
-            <html>
-            <body style='font-family: Arial, sans-serif;'>
-                <h2>Okunmamış Mesajlarınız Var!</h2>
-                <p><strong>{senderName}</strong> size mesaj gönderdi.</p>
-                <div style='background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                    <p><strong>Ders:</strong> {offeringTitle}</p>
-                    <p><strong>Okunmamış mesaj sayısı:</strong> {unreadCount}</p>
-                </div>
-                <p>
-                    <a href='{messagesUrl}'
-                       style='background-color: #2563eb; color: white; padding: 12px 24px;
-                              text-decoration: none; border-radius: 6px; display: inline-block;'>
-                        Mesajlara Git
-                    </a>
-                </p>
-                <p style='font-size: 12px; color: #6b7280; margin-top: 20px;'>
-                    Bu otomatik bir bildirimdir. Mesajlarınızı okuduktan sonra bu bildirimler duracaktır.
-                </p>
-            </body>
-            </html>
-        ";
-
-        await SendEmailInternalAsync(to, subject, body, cancellationToken);
-    }
-
-    public async Task SendGenericEmailAsync(
-        string to,
-        string subject,
-        string htmlBody,
-        CancellationToken cancellationToken = default)
-    {
-        await SendEmailInternalAsync(to, subject, htmlBody, cancellationToken);
-    }
-
-    private async Task SendEmailInternalAsync(
-        string to,
-        string subject,
-        string body,
-        CancellationToken cancellationToken)
+        Dictionary<string, string> variables,
+        CancellationToken ct = default)
     {
         try
         {
-            using var message = new MailMessage
+            // Look up the template from the database
+            var template = await _context.NotificationTemplates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Key == templateKey && t.IsActive, ct);
+
+            if (template == null)
             {
-                From = new MailAddress(_options.FromEmail, _options.FromName),
-                Subject = subject,
-                Body = body,
-                IsBodyHtml = true
-            };
+                _logger.LogWarning("Email template not found or inactive: {TemplateKey}. Skipping email to {To}.", templateKey, to);
+                return;
+            }
 
-            message.To.Add(to);
+            // Resolve variables in subject and body
+            var subject = ResolveVariables(template.Subject, variables);
+            var body = ResolveVariables(template.Body, variables);
 
-            using var client = new SmtpClient(_options.SmtpHost, _options.SmtpPort)
-            {
-                Credentials = new NetworkCredential(_options.SmtpUsername, _options.SmtpPassword),
-                EnableSsl = true
-            };
+            var provider = await _providerFactory.GetProviderAsync(ct);
+            await provider.SendAsync(to, subject, body, ct);
 
-            await client.SendMailAsync(message, cancellationToken);
-            
-            _logger.LogInformation("Email sent to {To}: {Subject}", to, subject);
+            _logger.LogInformation("Templated email [{TemplateKey}] sent to {To}", templateKey, to);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email to {To}", to);
+            _logger.LogError(ex, "Failed to send templated email [{TemplateKey}] to {To}", templateKey, to);
             // Don't throw - email failures shouldn't break the flow
         }
     }
-}
-public class EmailOptions
-{
-    public string SmtpHost { get; set; } = string.Empty;
-    public int SmtpPort { get; set; }
-    public string SmtpUsername { get; set; } = string.Empty;
-    public string SmtpPassword { get; set; } = string.Empty;
-    public string FromEmail { get; set; } = string.Empty;
-    public string FromName { get; set; } = string.Empty;
+
+    public async Task SendRawEmailAsync(
+        string to,
+        string subject,
+        string htmlBody,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var provider = await _providerFactory.GetProviderAsync(ct);
+            await provider.SendAsync(to, subject, htmlBody, ct);
+
+            _logger.LogInformation("Raw email sent to {To}: {Subject}", to, subject);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send raw email to {To}", to);
+            // Don't throw - email failures shouldn't break the flow
+        }
+    }
+
+    private static string ResolveVariables(string template, Dictionary<string, string> variables)
+    {
+        var result = template;
+        foreach (var (key, value) in variables)
+        {
+            result = result.Replace($"{{{{{key}}}}}", value ?? string.Empty);
+        }
+        return result;
+    }
 }

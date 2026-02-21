@@ -18,7 +18,7 @@ public class NotificationService : INotificationService
     {
         try
         {
-            await _emailService.SendGenericEmailAsync(to, subject, body, cancellationToken);
+            await _emailService.SendRawEmailAsync(to, subject, body, cancellationToken);
         }
         catch (Exception ex)
         {

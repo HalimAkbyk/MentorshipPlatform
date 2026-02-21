@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -41,7 +42,7 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
-    private readonly INotificationService _notification;
+    private readonly IEmailService _emailService;
     private readonly IChatNotificationService _chatNotification;
     private readonly ILogger<AdminReviewCourseCommandHandler> _logger;
 
@@ -49,14 +50,14 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IProcessHistoryService history,
-        INotificationService notification,
+        IEmailService emailService,
         IChatNotificationService chatNotification,
         ILogger<AdminReviewCourseCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
-        _notification = notification;
+        _emailService = emailService;
         _chatNotification = chatNotification;
         _logger = logger;
     }
@@ -180,8 +181,24 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
 
             if (mentorUser != null && !string.IsNullOrEmpty(mentorUser.Email))
             {
-                var (subject, body) = BuildEmailContent(course.Title, request.Outcome, request.GeneralNotes);
-                await _notification.SendEmailAsync(mentorUser.Email, subject, body, cancellationToken);
+                var outcomeStr = request.Outcome switch
+                {
+                    ReviewOutcome.Approved => "Onaylandı",
+                    ReviewOutcome.Rejected => "Reddedildi",
+                    ReviewOutcome.RevisionRequested => "Revizyon İstendi",
+                    _ => "İncelendi"
+                };
+
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.CourseReviewResult,
+                    mentorUser.Email,
+                    new Dictionary<string, string>
+                    {
+                        ["courseTitle"] = course.Title,
+                        ["outcome"] = outcomeStr,
+                        ["adminNotes"] = request.GeneralNotes ?? ""
+                    },
+                    cancellationToken);
             }
         }
         catch (Exception ex)
@@ -206,30 +223,6 @@ public class AdminReviewCourseCommandHandler : IRequestHandler<AdminReviewCourse
             ReviewOutcome.RevisionRequested => (
                 $"Revizyon İstendi: {courseTitle}",
                 $"\"{courseTitle}\" adlı kursunuz için revizyon talep edildi. Admin yorumlarını inceleyip düzenlemeleri yapın."),
-            _ => (
-                $"Kurs İnceleme Sonucu: {courseTitle}",
-                $"\"{courseTitle}\" adlı kursunuzun incelemesi tamamlandı.")
-        };
-    }
-
-    private static (string Subject, string Body) BuildEmailContent(
-        string courseTitle, ReviewOutcome outcome, string? notes)
-    {
-        return outcome switch
-        {
-            ReviewOutcome.Approved => (
-                $"Kursunuz Onaylandı: {courseTitle}",
-                $"Tebrikler! \"{courseTitle}\" adlı kursunuz inceleme sürecini başarıyla tamamladı ve yayınlandı."),
-
-            ReviewOutcome.Rejected => (
-                $"Kursunuz Reddedildi: {courseTitle}",
-                $"\"{courseTitle}\" adlı kursunuz inceleme sürecinde reddedildi.\n\nAdmin Notu: {notes}"),
-
-            ReviewOutcome.RevisionRequested => (
-                $"Kursunuz İçin Revizyon İstendi: {courseTitle}",
-                $"\"{courseTitle}\" adlı kursunuz için revizyon talep edildi. Lütfen admin yorumlarını inceleyip gerekli düzenlemeleri yaparak tekrar gönderin."
-                + (string.IsNullOrEmpty(notes) ? "" : $"\n\nAdmin Notu: {notes}")),
-
             _ => (
                 $"Kurs İnceleme Sonucu: {courseTitle}",
                 $"\"{courseTitle}\" adlı kursunuzun incelemesi tamamlandı.")

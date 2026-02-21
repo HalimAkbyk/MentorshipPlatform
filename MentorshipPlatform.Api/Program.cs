@@ -128,8 +128,8 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 
-// Email Service
-builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+// Email Service (dual-provider: SMTP + Resend, switchable via PlatformSettings)
+builder.Services.AddScoped<IEmailProviderFactory, MentorshipPlatform.Infrastructure.Services.Email.EmailProviderFactory>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Notification Service (wraps email for bulk notifications)
@@ -376,6 +376,9 @@ try
 
         // Seed CMS data if tables are empty
         await SeedCmsData(dbContext);
+
+        // Seed email notification templates
+        await MentorshipPlatform.Api.EmailTemplateSeedData.SeedEmailTemplates(dbContext);
     }
 }
 catch (Exception ex)

@@ -49,6 +49,12 @@ public static class PlatformSettings
     public const string SmtpFromEmail = "smtp_from_email";
     public const string SmtpFromName = "smtp_from_name";
 
+    // ── Email (Provider) ──
+    public const string EmailProvider = "email_provider";
+    public const string ResendApiKey = "resend_api_key";
+    public const string ResendFromEmail = "resend_from_email";
+    public const string ResendFromName = "resend_from_name";
+
     // ── SMS ──
     public const string SmsEnabled = "sms_enabled";
 
@@ -66,6 +72,7 @@ public static class PlatformSettings
     {
         SmtpPassword,
         SmtpUsername,
+        ResendApiKey,
         "iyzico_api_key",
         "iyzico_secret_key",
         "twilio_auth_token",

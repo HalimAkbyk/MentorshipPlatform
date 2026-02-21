@@ -1,5 +1,6 @@
 using Hangfire;
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Application.Jobs;
@@ -22,6 +23,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
     private readonly ILogger<ProcessPaymentWebhookCommandHandler> _logger;
     private readonly IPlatformSettingService _settings;
     private readonly IAdminNotificationService _adminNotification;
+    private readonly IEmailService _emailService;
 
     public ProcessPaymentWebhookCommandHandler(
         IApplicationDbContext context,
@@ -30,7 +32,8 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
         IBackgroundJobClient backgroundJobs,
         ILogger<ProcessPaymentWebhookCommandHandler> logger,
         IPlatformSettingService settings,
-        IAdminNotificationService adminNotification)
+        IAdminNotificationService adminNotification,
+        IEmailService emailService)
     {
         _context = context;
         _paymentService = paymentService;
@@ -39,6 +42,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
         _settings = settings;
         _logger = logger;
         _adminNotification = adminNotification;
+        _emailService = emailService;
     }
 
     public async Task<Result> Handle(
@@ -146,6 +150,34 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                     "PendingPayment", "Active",
                     "Ödeme sonrası kurs erişimi aktifleştirildi",
                     performedByRole: "System", ct: cancellationToken);
+
+                // Send course enrollment email
+                try
+                {
+                    var studentUser = await _context.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == order.BuyerUserId, cancellationToken);
+                    var mentorUser = await _context.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == mentorUserId, cancellationToken);
+
+                    if (studentUser?.Email != null)
+                    {
+                        await _emailService.SendTemplatedEmailAsync(
+                            EmailTemplateKeys.CourseEnrolled,
+                            studentUser.Email,
+                            new Dictionary<string, string>
+                            {
+                                ["courseTitle"] = courseEnrollment.Course.Title,
+                                ["mentorName"] = mentorUser?.DisplayName ?? "Mentor"
+                            },
+                            cancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send course enrollment email for order {OrderId}", order.Id);
+                }
             }
             else
             {
@@ -161,6 +193,37 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
 
                 enrollment.Confirm();
                 mentorUserId = enrollment.Class.MentorUserId;
+
+                // Send group class enrollment email
+                try
+                {
+                    var studentUser = await _context.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == order.BuyerUserId, cancellationToken);
+                    var mentorUser = await _context.Users
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == mentorUserId, cancellationToken);
+                    var trCulture = new System.Globalization.CultureInfo("tr-TR");
+
+                    if (studentUser?.Email != null)
+                    {
+                        await _emailService.SendTemplatedEmailAsync(
+                            EmailTemplateKeys.GroupClassEnrolled,
+                            studentUser.Email,
+                            new Dictionary<string, string>
+                            {
+                                ["className"] = enrollment.Class.Title,
+                                ["mentorName"] = mentorUser?.DisplayName ?? "Mentor",
+                                ["classDate"] = enrollment.Class.StartAt.ToString("dd MMMM yyyy", trCulture),
+                                ["classTime"] = enrollment.Class.StartAt.ToString("HH:mm")
+                            },
+                            cancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send group class enrollment email for order {OrderId}", order.Id);
+                }
             }
 
             // Create ledger entries (escrow model)

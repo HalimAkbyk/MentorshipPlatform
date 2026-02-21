@@ -1,10 +1,12 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Classes.Commands.CancelEnrollment;
 
@@ -25,15 +27,21 @@ public class CancelEnrollmentCommandHandler
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _processHistory;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<CancelEnrollmentCommandHandler> _logger;
 
     public CancelEnrollmentCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService processHistory)
+        IProcessHistoryService processHistory,
+        IEmailService emailService,
+        ILogger<CancelEnrollmentCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _processHistory = processHistory;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<Result<bool>> Handle(
@@ -101,6 +109,35 @@ public class CancelEnrollmentCommandHandler
             $"Ogrenci tarafindan iptal edildi. Iade orani: %{refundPercentage * 100:F0}",
             studentUserId, "Student",
             ct: cancellationToken);
+
+        // Send cancellation confirmation to student
+        try
+        {
+            var studentUser = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == studentUserId, cancellationToken);
+            var mentorUser = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == enrollment.Class.MentorUserId, cancellationToken);
+
+            if (studentUser?.Email != null)
+            {
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.GroupClassCancelled,
+                    studentUser.Email,
+                    new Dictionary<string, string>
+                    {
+                        ["className"] = enrollment.Class.Title,
+                        ["mentorName"] = mentorUser?.DisplayName ?? "Mentor",
+                        ["reason"] = $"{request.Reason} (İade oranı: %{refundPercentage * 100:F0})"
+                    },
+                    cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send enrollment cancellation email for {EnrollmentId}", enrollment.Id);
+        }
 
         return Result<bool>.Success(true);
     }

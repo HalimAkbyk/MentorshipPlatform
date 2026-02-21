@@ -1,3 +1,4 @@
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -116,12 +117,16 @@ public class SendUnreadMessageNotificationJob
 
             try
             {
-                await _emailService.SendUnreadMessageNotificationAsync(
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.UnreadMessages,
                     recipient.Email,
-                    senderName ?? "Bilinmeyen",
-                    offeringTitle ?? "Ders",
-                    group.UnreadCount,
-                    messagesUrl);
+                    new Dictionary<string, string>
+                    {
+                        ["senderName"] = senderName ?? "Bilinmeyen",
+                        ["offeringTitle"] = offeringTitle ?? "Ders",
+                        ["unreadCount"] = group.UnreadCount.ToString(),
+                        ["messagesUrl"] = messagesUrl
+                    });
 
                 // Log notification
                 var log = MessageNotificationLog.Create(group.BookingId, recipientUserId, group.UnreadCount);

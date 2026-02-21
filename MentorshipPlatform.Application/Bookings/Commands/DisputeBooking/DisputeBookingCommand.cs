@@ -1,9 +1,11 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Bookings.Commands.DisputeBooking;
 
@@ -24,17 +26,23 @@ public class DisputeBookingCommandHandler : IRequestHandler<DisputeBookingComman
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
     private readonly IAdminNotificationService _adminNotification;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<DisputeBookingCommandHandler> _logger;
 
     public DisputeBookingCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IProcessHistoryService history,
-        IAdminNotificationService adminNotification)
+        IAdminNotificationService adminNotification,
+        IEmailService emailService,
+        ILogger<DisputeBookingCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
         _adminNotification = adminNotification;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<Result> Handle(DisputeBookingCommand request, CancellationToken cancellationToken)
@@ -45,6 +53,8 @@ public class DisputeBookingCommandHandler : IRequestHandler<DisputeBookingComman
         var userId = _currentUser.UserId.Value;
 
         var booking = await _context.Bookings
+            .Include(b => b.Student)
+            .Include(b => b.Mentor)
             .FirstOrDefaultAsync(b => b.Id == request.BookingId, cancellationToken);
 
         if (booking == null)
@@ -72,6 +82,44 @@ public class DisputeBookingCommandHandler : IRequestHandler<DisputeBookingComman
                 count => ("İtirazlar", $"Bekleyen {count} itiraz var"),
                 "Dispute", booking.Id,
                 cancellationToken);
+
+            // Send dispute notification emails to both parties
+            var trCulture = new System.Globalization.CultureInfo("tr-TR");
+            try
+            {
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.DisputeOpened,
+                    booking.Student.Email!,
+                    new Dictionary<string, string>
+                    {
+                        ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
+                        ["reason"] = request.Reason,
+                        ["otherPartyName"] = booking.Mentor.DisplayName
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send dispute email to student for {BookingId}", booking.Id);
+            }
+
+            try
+            {
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.DisputeOpened,
+                    booking.Mentor.Email!,
+                    new Dictionary<string, string>
+                    {
+                        ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
+                        ["reason"] = request.Reason,
+                        ["otherPartyName"] = booking.Student.DisplayName
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send dispute email to mentor for {BookingId}", booking.Id);
+            }
 
             return Result.Success();
         }

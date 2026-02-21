@@ -1,10 +1,12 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Classes.Commands.CancelGroupClass;
 
@@ -24,15 +26,21 @@ public class CancelGroupClassCommandHandler
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _processHistory;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<CancelGroupClassCommandHandler> _logger;
 
     public CancelGroupClassCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService processHistory)
+        IProcessHistoryService processHistory,
+        IEmailService emailService,
+        ILogger<CancelGroupClassCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _processHistory = processHistory;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<Result<bool>> Handle(
@@ -112,6 +120,46 @@ public class CancelGroupClassCommandHandler
             $"Mentor tarafindan iptal edildi. {confirmedEnrollments.Count} kayit icin iade talebi olusturuldu.",
             mentorUserId, "Mentor",
             ct: cancellationToken);
+
+        // Send cancellation emails to all enrolled students
+        try
+        {
+            var mentorUser = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == mentorUserId, cancellationToken);
+
+            var studentIds = confirmedEnrollments.Select(e => e.StudentUserId).Distinct().ToList();
+            var students = await _context.Users
+                .AsNoTracking()
+                .Where(u => studentIds.Contains(u.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var student in students)
+            {
+                if (string.IsNullOrEmpty(student.Email)) continue;
+                try
+                {
+                    await _emailService.SendTemplatedEmailAsync(
+                        EmailTemplateKeys.GroupClassCancelled,
+                        student.Email,
+                        new Dictionary<string, string>
+                        {
+                            ["className"] = groupClass.Title,
+                            ["mentorName"] = mentorUser?.DisplayName ?? "Mentor",
+                            ["reason"] = request.Reason ?? "Belirtilmedi"
+                        },
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send group class cancellation email to {Email}", student.Email);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send group class cancellation emails for {ClassId}", groupClass.Id);
+        }
 
         return Result<bool>.Success(true);
     }

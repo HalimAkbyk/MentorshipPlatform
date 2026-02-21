@@ -1,7 +1,9 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Bookings.Commands.CompleteBooking;
 
@@ -12,15 +14,21 @@ public class CompleteBookingCommandHandler : IRequestHandler<CompleteBookingComm
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<CompleteBookingCommandHandler> _logger;
 
     public CompleteBookingCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService history)
+        IProcessHistoryService history,
+        IEmailService emailService,
+        ILogger<CompleteBookingCommandHandler> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<Result> Handle(CompleteBookingCommand request, CancellationToken cancellationToken)
@@ -29,6 +37,9 @@ public class CompleteBookingCommandHandler : IRequestHandler<CompleteBookingComm
             return Result.Failure("User not authenticated");
 
         var booking = await _context.Bookings
+            .Include(b => b.Student)
+            .Include(b => b.Mentor)
+            .Include(b => b.Offering)
             .FirstOrDefaultAsync(b => b.Id == request.BookingId, cancellationToken);
 
         if (booking == null)
@@ -57,6 +68,26 @@ public class CompleteBookingCommandHandler : IRequestHandler<CompleteBookingComm
             oldStatus, "Completed",
             "Mentor seansı tamamladı",
             _currentUser.UserId.Value, "Mentor", ct: cancellationToken);
+
+        // Send completion email to student
+        var trCulture = new System.Globalization.CultureInfo("tr-TR");
+        try
+        {
+            await _emailService.SendTemplatedEmailAsync(
+                EmailTemplateKeys.BookingCompleted,
+                booking.Student.Email!,
+                new Dictionary<string, string>
+                {
+                    ["otherPartyName"] = booking.Mentor.DisplayName,
+                    ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
+                    ["offeringTitle"] = booking.Offering?.Title ?? "Seans"
+                },
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send booking completion email for {BookingId}", booking.Id);
+        }
 
         return Result.Success();
     }

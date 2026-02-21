@@ -23,7 +23,7 @@
       <PackageReference Include="Iyzipay" Version="2.1.47" />
       <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.23" />
       <PackageReference Include="Minio" Version="6.0.2" />
-      <PackageReference Include="Twilio" Version="7.0.2" />
+<PackageReference Include="Twilio" Version="7.0.2" />
     </ItemGroup>
 
 </Project>

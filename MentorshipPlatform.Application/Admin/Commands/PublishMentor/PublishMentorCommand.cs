@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Enums;
@@ -14,13 +15,16 @@ public class PublishMentorCommandHandler
 {
     private readonly IApplicationDbContext _context;
     private readonly ILogger<PublishMentorCommandHandler> _logger;
+    private readonly IEmailService _emailService;
 
     public PublishMentorCommandHandler(
         IApplicationDbContext context,
-        ILogger<PublishMentorCommandHandler> logger)
+        ILogger<PublishMentorCommandHandler> logger,
+        IEmailService emailService)
     {
         _context = context;
         _logger = logger;
+        _emailService = emailService;
     }
 
     public async Task<Result<bool>> Handle(
@@ -56,9 +60,33 @@ public class PublishMentorCommandHandler
 
             await _context.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("✅ Mentor published - UserId: {UserId}, University: {University}", 
+            _logger.LogInformation("Mentor published - UserId: {UserId}, University: {University}",
                 request.UserId,
                 mentor.University);
+
+            // Send mentor published email
+            try
+            {
+                var mentorUser = await _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken);
+
+                if (mentorUser?.Email != null)
+                {
+                    await _emailService.SendTemplatedEmailAsync(
+                        EmailTemplateKeys.MentorPublished,
+                        mentorUser.Email,
+                        new Dictionary<string, string>
+                        {
+                            ["mentorName"] = mentorUser.DisplayName
+                        },
+                        cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send mentor published email for {UserId}", request.UserId);
+            }
 
             return Result<bool>.Success(true);
         }

@@ -24,6 +24,11 @@ public class UpdateSettingRequest
     public string Value { get; set; } = string.Empty;
 }
 
+public class TestEmailRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
 // Category DTOs
 public class CategoryDto
 {
@@ -61,17 +66,20 @@ public class AdminSettingsController : ControllerBase
     private readonly ICurrentUserService _currentUser;
     private readonly IPlatformSettingService _settingsService;
     private readonly IMediator _mediator;
+    private readonly IEmailService _emailService;
 
     public AdminSettingsController(
         ApplicationDbContext db,
         ICurrentUserService currentUser,
         IPlatformSettingService settingsService,
-        IMediator mediator)
+        IMediator mediator,
+        IEmailService emailService)
     {
         _db = db;
         _currentUser = currentUser;
         _mediator = mediator;
         _settingsService = settingsService;
+        _emailService = emailService;
     }
 
     // -----------------------------
@@ -143,6 +151,24 @@ public class AdminSettingsController : ControllerBase
     }
 
     // -----------------------------
+    // TEST EMAIL
+    // -----------------------------
+
+    [HttpPost("email/test")]
+    public async Task<IActionResult> SendTestEmail([FromBody] TestEmailRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest(new { errors = new[] { "Email is required." } });
+
+        await _emailService.SendRawEmailAsync(
+            request.Email,
+            "Test E-posta - MentorHub",
+            "<html><body style='font-family:Arial,sans-serif;'><h2>Test E-postas\u0131 \u2705</h2><p>E-posta ayarlar\u0131n\u0131z do\u011fru yap\u0131land\u0131r\u0131lm\u0131\u015ft\u0131r.</p><p style='color:#6b7280;font-size:12px;'>Bu bir test mesaj\u0131d\u0131r.</p></body></html>");
+
+        return Ok(new { message = "Test e-postas\u0131 g\u00f6nderildi." });
+    }
+
+    // -----------------------------
     // SEED DEFAULT SETTINGS
     // -----------------------------
 
@@ -169,6 +195,10 @@ public class AdminSettingsController : ControllerBase
             ("smtp_password", "", "SMTP sifresi", "Email"),
             ("smtp_from_email", "", "Gonderici e-posta adresi", "Email"),
             ("smtp_from_name", "Degisim Mentorluk", "Gonderici adi", "Email"),
+            ("email_provider", "smtp", "E-posta sa\u011flay\u0131c\u0131 (smtp veya resend)", "Email"),
+            ("resend_api_key", "", "Resend API anahtar\u0131", "Email"),
+            ("resend_from_email", "", "Resend g\u00f6nderici e-posta", "Email"),
+            ("resend_from_name", "MentorHub", "Resend g\u00f6nderici ad\u0131", "Email"),
 
             // ── SMS ──
             ("sms_enabled", "false", "SMS bildirimlerini ac/kapat", "SMS"),
