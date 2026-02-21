@@ -48,6 +48,88 @@ public class ToggleFeatureFlagRequest
     public bool IsEnabled { get; set; }
 }
 
+public class AuditSessionSummaryDto
+{
+    public Guid EntityId { get; set; }
+    public string EntityType { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string MentorName { get; set; } = string.Empty;
+    public string? StudentName { get; set; }
+    public DateTime? ScheduledDate { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public int TotalEvents { get; set; }
+    public int ParticipantCount { get; set; }
+    public DateTime LastEventAt { get; set; }
+}
+
+public class AuditSessionDetailDto
+{
+    public Guid EntityId { get; set; }
+    public string EntityType { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string MentorName { get; set; } = string.Empty;
+    public string? StudentName { get; set; }
+    public DateTime? ScheduledDate { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public List<AuditEventDto> Events { get; set; } = new();
+    public List<AuditParticipantDto> Participants { get; set; } = new();
+}
+
+public class AuditEventDto
+{
+    public Guid Id { get; set; }
+    public string EntityType { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+    public string? PerformedByName { get; set; }
+    public string? PerformedByRole { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class AuditParticipantDto
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public DateTime? JoinedAt { get; set; }
+    public DateTime? LeftAt { get; set; }
+    public int TotalDurationSec { get; set; }
+}
+
+public class AuditUserSummaryDto
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public int TotalActions { get; set; }
+    public DateTime LastActionAt { get; set; }
+    public int SessionCount { get; set; }
+    public int TotalSessionDurationSec { get; set; }
+}
+
+public class AuditUserDetailDto
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public List<UserSessionDto> Sessions { get; set; } = new();
+    public List<AuditEventDto> RecentActions { get; set; } = new();
+    public int TotalActions { get; set; }
+}
+
+public class UserSessionDto
+{
+    public Guid EntityId { get; set; }
+    public string EntityType { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime JoinedAt { get; set; }
+    public DateTime? LeftAt { get; set; }
+    public int DurationSec { get; set; }
+    public string Role { get; set; } = string.Empty;
+}
+
 // ────────────────────────── Controller ──────────────────────────
 
 [ApiController]
@@ -296,5 +378,705 @@ public class AdminSystemController : ControllerBase
         }).ToList();
 
         return Ok(result);
+    }
+
+    // ────────────────────────── Audit Log – Session Endpoints ──────────────────────────
+
+    /// <summary>
+    /// Paginated list of audit sessions (Bookings + GroupClasses) with event counts.
+    /// </summary>
+    [HttpGet("audit-log/sessions")]
+    public async Task<ActionResult<PagedResult<AuditSessionSummaryDto>>> GetAuditSessions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? type = null,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var pg = Math.Max(1, page);
+            var ps = Math.Clamp(pageSize, 1, 100);
+
+            // 1. Gather all Booking-based summaries
+            var bookingSummaries = new List<AuditSessionSummaryDto>();
+            if (string.IsNullOrWhiteSpace(type) || type == "Booking")
+            {
+                var bookingQuery = _context.Bookings.AsNoTracking()
+                    .Include(b => b.Offering)
+                    .Include(b => b.Student)
+                    .Include(b => b.Mentor)
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var s = search.ToLower();
+                    bookingQuery = bookingQuery.Where(b =>
+                        b.Mentor.DisplayName.ToLower().Contains(s) ||
+                        b.Student.DisplayName.ToLower().Contains(s));
+                }
+
+                var bookings = await bookingQuery.ToListAsync(ct);
+                var bookingIds = bookings.Select(b => b.Id).ToList();
+
+                // Get direct ProcessHistory events for bookings
+                var bookingEvents = await _context.ProcessHistories.AsNoTracking()
+                    .Where(p => p.EntityType == "Booking" && bookingIds.Contains(p.EntityId))
+                    .GroupBy(p => p.EntityId)
+                    .Select(g => new
+                    {
+                        EntityId = g.Key,
+                        TotalEvents = g.Count(),
+                        ParticipantCount = g.Select(p => p.PerformedBy).Distinct().Count(),
+                        LastEventAt = g.Max(p => p.CreatedAt)
+                    })
+                    .ToDictionaryAsync(x => x.EntityId, ct);
+
+                // Get VideoSession-related events: VideoSessions where ResourceType == "Booking"
+                var videoSessionsForBookings = await _context.VideoSessions.AsNoTracking()
+                    .Where(vs => vs.ResourceType == "Booking" && bookingIds.Contains(vs.ResourceId))
+                    .ToListAsync(ct);
+
+                var videoSessionIds = videoSessionsForBookings.Select(vs => vs.Id).ToList();
+                var videoEventsByResource = new Dictionary<Guid, (int Count, int Participants, DateTime MaxDate)>();
+                if (videoSessionIds.Any())
+                {
+                    var videoEvents = await _context.ProcessHistories.AsNoTracking()
+                        .Where(p => p.EntityType == "VideoSession" && videoSessionIds.Contains(p.EntityId))
+                        .ToListAsync(ct);
+
+                    // Map video session ID -> resource ID
+                    var vsIdToResourceId = videoSessionsForBookings.ToDictionary(vs => vs.Id, vs => vs.ResourceId);
+
+                    foreach (var grp in videoEvents.GroupBy(p => p.EntityId))
+                    {
+                        if (vsIdToResourceId.TryGetValue(grp.Key, out var resourceId))
+                        {
+                            var count = grp.Count();
+                            var participants = grp.Select(p => p.PerformedBy).Distinct().Count();
+                            var maxDate = grp.Max(p => p.CreatedAt);
+
+                            if (videoEventsByResource.ContainsKey(resourceId))
+                            {
+                                var existing = videoEventsByResource[resourceId];
+                                videoEventsByResource[resourceId] = (
+                                    existing.Count + count,
+                                    Math.Max(existing.Participants, participants),
+                                    existing.MaxDate > maxDate ? existing.MaxDate : maxDate);
+                            }
+                            else
+                            {
+                                videoEventsByResource[resourceId] = (count, participants, maxDate);
+                            }
+                        }
+                    }
+                }
+
+                foreach (var b in bookings)
+                {
+                    bookingEvents.TryGetValue(b.Id, out var be);
+                    videoEventsByResource.TryGetValue(b.Id, out var ve);
+
+                    var totalEvents = (be?.TotalEvents ?? 0) + ve.Count;
+                    var participantCount = Math.Max(be?.ParticipantCount ?? 0, ve.Participants);
+                    var lastEvent = be != null && ve.MaxDate != default
+                        ? (be.LastEventAt > ve.MaxDate ? be.LastEventAt : ve.MaxDate)
+                        : be?.LastEventAt ?? ve.MaxDate;
+
+                    if (totalEvents == 0) continue; // Skip bookings with no audit events
+
+                    bookingSummaries.Add(new AuditSessionSummaryDto
+                    {
+                        EntityId = b.Id,
+                        EntityType = "Booking",
+                        Title = b.Offering?.Title ?? "Untitled",
+                        MentorName = b.Mentor?.DisplayName ?? "Unknown",
+                        StudentName = b.Student?.DisplayName,
+                        ScheduledDate = b.StartAt,
+                        Status = b.Status.ToString(),
+                        TotalEvents = totalEvents,
+                        ParticipantCount = participantCount,
+                        LastEventAt = lastEvent
+                    });
+                }
+            }
+
+            // 2. Gather all GroupClass-based summaries
+            var groupClassSummaries = new List<AuditSessionSummaryDto>();
+            if (string.IsNullOrWhiteSpace(type) || type == "GroupClass")
+            {
+                var gcQuery = _context.GroupClasses.AsNoTracking().AsQueryable();
+
+                var gcList = await gcQuery.ToListAsync(ct);
+                var gcIds = gcList.Select(g => g.Id).ToList();
+                var mentorIds = gcList.Select(g => g.MentorUserId).Distinct().ToList();
+
+                var mentorNames = await _context.Users.AsNoTracking()
+                    .Where(u => mentorIds.Contains(u.Id))
+                    .ToDictionaryAsync(u => u.Id, u => u.DisplayName, ct);
+
+                // Get direct events
+                var gcEvents = await _context.ProcessHistories.AsNoTracking()
+                    .Where(p => p.EntityType == "GroupClass" && gcIds.Contains(p.EntityId))
+                    .GroupBy(p => p.EntityId)
+                    .Select(g => new
+                    {
+                        EntityId = g.Key,
+                        TotalEvents = g.Count(),
+                        ParticipantCount = g.Select(p => p.PerformedBy).Distinct().Count(),
+                        LastEventAt = g.Max(p => p.CreatedAt)
+                    })
+                    .ToDictionaryAsync(x => x.EntityId, ct);
+
+                // Get VideoSession-related events for GroupClasses
+                var videoSessionsForGc = await _context.VideoSessions.AsNoTracking()
+                    .Where(vs => vs.ResourceType == "GroupClass" && gcIds.Contains(vs.ResourceId))
+                    .ToListAsync(ct);
+
+                var gcVideoSessionIds = videoSessionsForGc.Select(vs => vs.Id).ToList();
+                var gcVideoEventsByResource = new Dictionary<Guid, (int Count, int Participants, DateTime MaxDate)>();
+                if (gcVideoSessionIds.Any())
+                {
+                    var gcVideoEvents = await _context.ProcessHistories.AsNoTracking()
+                        .Where(p => p.EntityType == "VideoSession" && gcVideoSessionIds.Contains(p.EntityId))
+                        .ToListAsync(ct);
+
+                    var gcVsIdToResourceId = videoSessionsForGc.ToDictionary(vs => vs.Id, vs => vs.ResourceId);
+
+                    foreach (var grp in gcVideoEvents.GroupBy(p => p.EntityId))
+                    {
+                        if (gcVsIdToResourceId.TryGetValue(grp.Key, out var resourceId))
+                        {
+                            var count = grp.Count();
+                            var participants = grp.Select(p => p.PerformedBy).Distinct().Count();
+                            var maxDate = grp.Max(p => p.CreatedAt);
+
+                            if (gcVideoEventsByResource.ContainsKey(resourceId))
+                            {
+                                var existing = gcVideoEventsByResource[resourceId];
+                                gcVideoEventsByResource[resourceId] = (
+                                    existing.Count + count,
+                                    Math.Max(existing.Participants, participants),
+                                    existing.MaxDate > maxDate ? existing.MaxDate : maxDate);
+                            }
+                            else
+                            {
+                                gcVideoEventsByResource[resourceId] = (count, participants, maxDate);
+                            }
+                        }
+                    }
+                }
+
+                // Apply search filter on mentor names for group classes
+                foreach (var gc in gcList)
+                {
+                    mentorNames.TryGetValue(gc.MentorUserId, out var mentorName);
+
+                    if (!string.IsNullOrWhiteSpace(search))
+                    {
+                        var s = search.ToLower();
+                        if (!(mentorName?.ToLower().Contains(s) == true ||
+                              gc.Title.ToLower().Contains(s)))
+                            continue;
+                    }
+
+                    gcEvents.TryGetValue(gc.Id, out var ge);
+                    gcVideoEventsByResource.TryGetValue(gc.Id, out var gve);
+
+                    var totalEvents = (ge?.TotalEvents ?? 0) + gve.Count;
+                    var participantCount = Math.Max(ge?.ParticipantCount ?? 0, gve.Participants);
+                    var lastEvent = ge != null && gve.MaxDate != default
+                        ? (ge.LastEventAt > gve.MaxDate ? ge.LastEventAt : gve.MaxDate)
+                        : ge?.LastEventAt ?? gve.MaxDate;
+
+                    if (totalEvents == 0) continue;
+
+                    groupClassSummaries.Add(new AuditSessionSummaryDto
+                    {
+                        EntityId = gc.Id,
+                        EntityType = "GroupClass",
+                        Title = gc.Title,
+                        MentorName = mentorName ?? "Unknown",
+                        StudentName = null,
+                        ScheduledDate = gc.StartAt,
+                        Status = gc.Status.ToString(),
+                        TotalEvents = totalEvents,
+                        ParticipantCount = participantCount,
+                        LastEventAt = lastEvent
+                    });
+                }
+            }
+
+            // 3. Combine, sort by LastEventAt desc, paginate
+            var allSummaries = bookingSummaries
+                .Concat(groupClassSummaries)
+                .OrderByDescending(s => s.LastEventAt)
+                .ToList();
+
+            var totalCount = allSummaries.Count;
+            var skip = (pg - 1) * ps;
+            var pagedItems = allSummaries.Skip(skip).Take(ps).ToList();
+            var totalPages = (int)Math.Ceiling((double)totalCount / ps);
+
+            return Ok(new PagedResult<AuditSessionSummaryDto>
+            {
+                Items = pagedItems,
+                TotalCount = totalCount,
+                Page = pg,
+                PageSize = ps,
+                TotalPages = totalPages
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Failed to retrieve audit sessions", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Detailed audit trail for a specific session (Booking or GroupClass) including video events.
+    /// </summary>
+    [HttpGet("audit-log/sessions/{entityId}")]
+    public async Task<ActionResult<AuditSessionDetailDto>> GetAuditSessionDetail(
+        [FromRoute] Guid entityId,
+        [FromQuery] string entityType = "Booking",
+        CancellationToken ct = default)
+    {
+        try
+        {
+            // 1. Get direct ProcessHistory events for this entity
+            var directEvents = await _context.ProcessHistories.AsNoTracking()
+                .Where(p => p.EntityType == entityType && p.EntityId == entityId)
+                .ToListAsync(ct);
+
+            // 2. Get VideoSession-related events
+            var videoSessions = await _context.VideoSessions.AsNoTracking()
+                .Where(vs => vs.ResourceId == entityId)
+                .ToListAsync(ct);
+
+            var videoSessionIds = videoSessions.Select(vs => vs.Id).ToList();
+            var videoEvents = new List<ProcessHistory>();
+            if (videoSessionIds.Any())
+            {
+                videoEvents = await _context.ProcessHistories.AsNoTracking()
+                    .Where(p => p.EntityType == "VideoSession" && videoSessionIds.Contains(p.EntityId))
+                    .ToListAsync(ct);
+            }
+
+            // 3. Combine all events
+            var allEvents = directEvents.Concat(videoEvents).OrderBy(e => e.CreatedAt).ToList();
+
+            // 4. Get performer names
+            var performerIds = allEvents
+                .Where(e => e.PerformedBy.HasValue)
+                .Select(e => e.PerformedBy!.Value)
+                .Distinct()
+                .ToList();
+
+            var performerNames = await _context.Users.AsNoTracking()
+                .Where(u => performerIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName, ct);
+
+            // 5. Build event DTOs
+            var eventDtos = allEvents.Select(e =>
+            {
+                string? performerName = null;
+                if (e.PerformedBy.HasValue)
+                    performerNames.TryGetValue(e.PerformedBy.Value, out performerName);
+
+                return new AuditEventDto
+                {
+                    Id = e.Id,
+                    EntityType = e.EntityType,
+                    Action = e.Action,
+                    Description = e.Description,
+                    OldValue = e.OldValue,
+                    NewValue = e.NewValue,
+                    PerformedByName = performerName,
+                    PerformedByRole = e.PerformedByRole,
+                    CreatedAt = e.CreatedAt
+                };
+            }).ToList();
+
+            // 6. Build participant list from ParticipantJoined/ParticipantDisconnected events
+            var participantEvents = allEvents
+                .Where(e => e.Action == "ParticipantJoined" || e.Action == "ParticipantDisconnected")
+                .ToList();
+
+            var participantUserIds = participantEvents
+                .Where(e => e.PerformedBy.HasValue)
+                .Select(e => e.PerformedBy!.Value)
+                .Distinct()
+                .ToList();
+
+            var participantUsers = await _context.Users.AsNoTracking()
+                .Where(u => participantUserIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, Role = u.Roles.FirstOrDefault().ToString() }, ct);
+
+            var participants = new List<AuditParticipantDto>();
+            foreach (var userId in participantUserIds)
+            {
+                var joinEvents = participantEvents
+                    .Where(e => e.PerformedBy == userId && e.Action == "ParticipantJoined")
+                    .OrderBy(e => e.CreatedAt)
+                    .ToList();
+
+                var disconnectEvents = participantEvents
+                    .Where(e => e.PerformedBy == userId && e.Action == "ParticipantDisconnected")
+                    .OrderBy(e => e.CreatedAt)
+                    .ToList();
+
+                var joinedAt = joinEvents.FirstOrDefault()?.CreatedAt;
+                var leftAt = disconnectEvents.LastOrDefault()?.CreatedAt;
+
+                var totalDuration = 0;
+                if (joinedAt.HasValue && leftAt.HasValue)
+                {
+                    totalDuration = (int)(leftAt.Value - joinedAt.Value).TotalSeconds;
+                }
+
+                participantUsers.TryGetValue(userId, out var userInfo);
+
+                participants.Add(new AuditParticipantDto
+                {
+                    UserId = userId,
+                    DisplayName = userInfo?.DisplayName ?? "Unknown",
+                    Role = userInfo?.Role ?? "Unknown",
+                    JoinedAt = joinedAt,
+                    LeftAt = leftAt,
+                    TotalDurationSec = Math.Max(0, totalDuration)
+                });
+            }
+
+            // 7. Build header info from Booking or GroupClass
+            string title = "Unknown", mentorName = "Unknown", status = "Unknown";
+            string? studentName = null;
+            DateTime? scheduledDate = null;
+
+            if (entityType == "Booking")
+            {
+                var booking = await _context.Bookings.AsNoTracking()
+                    .Include(b => b.Offering)
+                    .Include(b => b.Mentor)
+                    .Include(b => b.Student)
+                    .FirstOrDefaultAsync(b => b.Id == entityId, ct);
+
+                if (booking != null)
+                {
+                    title = booking.Offering?.Title ?? "Untitled";
+                    mentorName = booking.Mentor?.DisplayName ?? "Unknown";
+                    studentName = booking.Student?.DisplayName;
+                    scheduledDate = booking.StartAt;
+                    status = booking.Status.ToString();
+                }
+            }
+            else if (entityType == "GroupClass")
+            {
+                var gc = await _context.GroupClasses.AsNoTracking()
+                    .FirstOrDefaultAsync(g => g.Id == entityId, ct);
+
+                if (gc != null)
+                {
+                    title = gc.Title;
+                    scheduledDate = gc.StartAt;
+                    status = gc.Status.ToString();
+
+                    var mentor = await _context.Users.AsNoTracking()
+                        .FirstOrDefaultAsync(u => u.Id == gc.MentorUserId, ct);
+                    mentorName = mentor?.DisplayName ?? "Unknown";
+                }
+            }
+
+            return Ok(new AuditSessionDetailDto
+            {
+                EntityId = entityId,
+                EntityType = entityType,
+                Title = title,
+                MentorName = mentorName,
+                StudentName = studentName,
+                ScheduledDate = scheduledDate,
+                Status = status,
+                Events = eventDtos,
+                Participants = participants
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Failed to retrieve session detail", detail = ex.Message });
+        }
+    }
+
+    // ────────────────────────── Audit Log – User Endpoints ──────────────────────────
+
+    /// <summary>
+    /// Paginated list of users who have performed audit actions, with summary stats.
+    /// </summary>
+    [HttpGet("audit-log/users")]
+    public async Task<ActionResult<PagedResult<AuditUserSummaryDto>>> GetAuditUsers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var pg = Math.Max(1, page);
+            var ps = Math.Clamp(pageSize, 1, 100);
+
+            // 1. Group ProcessHistories by PerformedBy
+            var userGroups = await _context.ProcessHistories.AsNoTracking()
+                .Where(p => p.PerformedBy != null)
+                .GroupBy(p => p.PerformedBy!.Value)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    TotalActions = g.Count(),
+                    LastActionAt = g.Max(p => p.CreatedAt),
+                    SessionCount = g.Where(p => p.Action == "ParticipantJoined").Select(p => p.EntityId).Distinct().Count()
+                })
+                .ToListAsync(ct);
+
+            // 2. Get all user IDs and fetch user info
+            var userIds = userGroups.Select(g => g.UserId).ToList();
+            var users = await _context.Users.AsNoTracking()
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => new { u.DisplayName, Role = u.Roles.FirstOrDefault().ToString() }, ct);
+
+            // 3. Calculate session durations from ParticipantJoined / ParticipantDisconnected pairs
+            var sessionDurations = new Dictionary<Guid, int>();
+            var joinDisconnectEvents = await _context.ProcessHistories.AsNoTracking()
+                .Where(p => p.PerformedBy != null &&
+                    (p.Action == "ParticipantJoined" || p.Action == "ParticipantDisconnected"))
+                .ToListAsync(ct);
+
+            foreach (var userId in userIds)
+            {
+                var userEvents = joinDisconnectEvents.Where(e => e.PerformedBy == userId).ToList();
+                var entityIds = userEvents.Select(e => e.EntityId).Distinct();
+                var totalDuration = 0;
+
+                foreach (var eid in entityIds)
+                {
+                    var joined = userEvents
+                        .Where(e => e.EntityId == eid && e.Action == "ParticipantJoined")
+                        .OrderBy(e => e.CreatedAt)
+                        .FirstOrDefault();
+
+                    var disconnected = userEvents
+                        .Where(e => e.EntityId == eid && e.Action == "ParticipantDisconnected")
+                        .OrderByDescending(e => e.CreatedAt)
+                        .FirstOrDefault();
+
+                    if (joined != null && disconnected != null && disconnected.CreatedAt > joined.CreatedAt)
+                    {
+                        totalDuration += (int)(disconnected.CreatedAt - joined.CreatedAt).TotalSeconds;
+                    }
+                }
+
+                sessionDurations[userId] = totalDuration;
+            }
+
+            // 4. Build summaries
+            var summaries = userGroups
+                .Select(g =>
+                {
+                    users.TryGetValue(g.UserId, out var userInfo);
+                    sessionDurations.TryGetValue(g.UserId, out var duration);
+
+                    return new AuditUserSummaryDto
+                    {
+                        UserId = g.UserId,
+                        DisplayName = userInfo?.DisplayName ?? "Unknown",
+                        Role = userInfo?.Role ?? "Unknown",
+                        TotalActions = g.TotalActions,
+                        LastActionAt = g.LastActionAt,
+                        SessionCount = g.SessionCount,
+                        TotalSessionDurationSec = duration
+                    };
+                })
+                .ToList();
+
+            // 5. Apply search filter
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.ToLower();
+                summaries = summaries
+                    .Where(u => u.DisplayName.ToLower().Contains(s))
+                    .ToList();
+            }
+
+            // 6. Sort by LastActionAt desc, paginate
+            summaries = summaries.OrderByDescending(u => u.LastActionAt).ToList();
+
+            var totalCount = summaries.Count;
+            var skip = (pg - 1) * ps;
+            var pagedItems = summaries.Skip(skip).Take(ps).ToList();
+            var totalPages = (int)Math.Ceiling((double)totalCount / ps);
+
+            return Ok(new PagedResult<AuditUserSummaryDto>
+            {
+                Items = pagedItems,
+                TotalCount = totalCount,
+                Page = pg,
+                PageSize = ps,
+                TotalPages = totalPages
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Failed to retrieve audit users", detail = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Detailed audit trail for a specific user: their sessions and recent actions.
+    /// </summary>
+    [HttpGet("audit-log/users/{userId}")]
+    public async Task<ActionResult<AuditUserDetailDto>> GetAuditUserDetail(
+        [FromRoute] Guid userId,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            // 1. Get user info
+            var user = await _context.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId, ct);
+
+            if (user == null)
+                return NotFound(new { error = "User not found" });
+
+            var userRole = user.Roles.FirstOrDefault().ToString();
+
+            // 2. Get all ParticipantJoined events for this user
+            var joinEvents = await _context.ProcessHistories.AsNoTracking()
+                .Where(p => p.PerformedBy == userId && p.Action == "ParticipantJoined")
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync(ct);
+
+            // Get matching disconnect events
+            var sessionEntityIds = joinEvents.Select(e => e.EntityId).Distinct().ToList();
+            var disconnectEvents = await _context.ProcessHistories.AsNoTracking()
+                .Where(p => p.PerformedBy == userId &&
+                    p.Action == "ParticipantDisconnected" &&
+                    sessionEntityIds.Contains(p.EntityId))
+                .ToListAsync(ct);
+
+            // 3. Build sessions list
+            // VideoSession ProcessHistory → find the VideoSession → get ResourceId → get Booking/GroupClass title
+            var videoSessionIds = sessionEntityIds;
+            var videoSessions = await _context.VideoSessions.AsNoTracking()
+                .Where(vs => videoSessionIds.Contains(vs.Id))
+                .ToListAsync(ct);
+
+            var vsDict = videoSessions.ToDictionary(vs => vs.Id);
+
+            // Gather resource IDs for title lookup
+            var bookingResourceIds = videoSessions
+                .Where(vs => vs.ResourceType == "Booking")
+                .Select(vs => vs.ResourceId)
+                .Distinct()
+                .ToList();
+
+            var gcResourceIds = videoSessions
+                .Where(vs => vs.ResourceType == "GroupClass")
+                .Select(vs => vs.ResourceId)
+                .Distinct()
+                .ToList();
+
+            var bookingTitles = new Dictionary<Guid, string>();
+            if (bookingResourceIds.Any())
+            {
+                bookingTitles = await _context.Bookings.AsNoTracking()
+                    .Include(b => b.Offering)
+                    .Where(b => bookingResourceIds.Contains(b.Id))
+                    .ToDictionaryAsync(b => b.Id, b => b.Offering != null ? b.Offering.Title : "Untitled", ct);
+            }
+
+            var gcTitles = new Dictionary<Guid, string>();
+            if (gcResourceIds.Any())
+            {
+                gcTitles = await _context.GroupClasses.AsNoTracking()
+                    .Where(g => gcResourceIds.Contains(g.Id))
+                    .ToDictionaryAsync(g => g.Id, g => g.Title, ct);
+            }
+
+            var sessions = new List<UserSessionDto>();
+            foreach (var joinEvent in joinEvents)
+            {
+                var disconnect = disconnectEvents
+                    .Where(d => d.EntityId == joinEvent.EntityId && d.CreatedAt > joinEvent.CreatedAt)
+                    .OrderBy(d => d.CreatedAt)
+                    .FirstOrDefault();
+
+                var durationSec = disconnect != null
+                    ? (int)(disconnect.CreatedAt - joinEvent.CreatedAt).TotalSeconds
+                    : 0;
+
+                // Resolve title from VideoSession -> Resource
+                var sessionTitle = "Unknown";
+                var sessionEntityType = "VideoSession";
+                var sessionEntityId = joinEvent.EntityId;
+
+                if (vsDict.TryGetValue(joinEvent.EntityId, out var vs))
+                {
+                    sessionEntityType = vs.ResourceType;
+                    sessionEntityId = vs.ResourceId;
+
+                    if (vs.ResourceType == "Booking" && bookingTitles.TryGetValue(vs.ResourceId, out var bt))
+                        sessionTitle = bt;
+                    else if (vs.ResourceType == "GroupClass" && gcTitles.TryGetValue(vs.ResourceId, out var gt))
+                        sessionTitle = gt;
+                }
+
+                sessions.Add(new UserSessionDto
+                {
+                    EntityId = sessionEntityId,
+                    EntityType = sessionEntityType,
+                    Title = sessionTitle,
+                    JoinedAt = joinEvent.CreatedAt,
+                    LeftAt = disconnect?.CreatedAt,
+                    DurationSec = Math.Max(0, durationSec),
+                    Role = userRole
+                });
+            }
+
+            // 4. Get recent actions (last 50)
+            var recentActions = await _context.ProcessHistories.AsNoTracking()
+                .Where(p => p.PerformedBy == userId)
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(50)
+                .ToListAsync(ct);
+
+            var recentActionDtos = recentActions.Select(e => new AuditEventDto
+            {
+                Id = e.Id,
+                EntityType = e.EntityType,
+                Action = e.Action,
+                Description = e.Description,
+                OldValue = e.OldValue,
+                NewValue = e.NewValue,
+                PerformedByName = user.DisplayName,
+                PerformedByRole = e.PerformedByRole,
+                CreatedAt = e.CreatedAt
+            }).ToList();
+
+            // 5. Total action count
+            var totalActions = await _context.ProcessHistories.AsNoTracking()
+                .CountAsync(p => p.PerformedBy == userId, ct);
+
+            return Ok(new AuditUserDetailDto
+            {
+                UserId = userId,
+                DisplayName = user.DisplayName,
+                Role = userRole,
+                Sessions = sessions,
+                RecentActions = recentActionDtos,
+                TotalActions = totalActions
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = "Failed to retrieve user detail", detail = ex.Message });
+        }
     }
 }
