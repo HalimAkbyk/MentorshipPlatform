@@ -43,7 +43,12 @@ public class TwilioVideoService : IVideoService
     {
         try
         {
-            var roomName = $"{resourceType}-{resourceId}";
+            // Use kebab-case format to match frontend convention (e.g., "group-class-{id}")
+            var roomName = resourceType switch
+            {
+                "GroupClass" => $"group-class-{resourceId}",
+                _ => $"{resourceType}-{resourceId}"
+            };
             
             var room = await RoomResource.CreateAsync(
                 uniqueName: roomName,

@@ -70,17 +70,24 @@ public class GenerateVideoTokenCommandHandler
         // Eğer host (mentor) ise, VideoSession'ı Live olarak işaretle
         if (request.IsHost)
         {
-            if (Guid.TryParse(request.RoomName, out var bookingId))
+            var session = await _context.VideoSessions
+                .FirstOrDefaultAsync(s => s.RoomName == request.RoomName, cancellationToken);
+
+            if (session != null)
             {
-                var session = await _context.VideoSessions
-                    .FirstOrDefaultAsync(s => s.RoomName == request.RoomName, cancellationToken);
+                session.MarkAsLive();
+                await _context.SaveChangesAsync(cancellationToken);
 
-                if (session == null)
-                {
-                    session = VideoSession.Create("Booking", bookingId, request.RoomName);
-                    _context.VideoSessions.Add(session);
-                }
-
+                await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
+                    "Scheduled", "Live",
+                    $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
+                    userId, "Mentor", ct: cancellationToken);
+            }
+            else if (Guid.TryParse(request.RoomName, out var bookingId))
+            {
+                // Legacy fallback for booking rooms where session was not pre-created
+                session = VideoSession.Create("Booking", bookingId, request.RoomName);
+                _context.VideoSessions.Add(session);
                 session.MarkAsLive();
                 await _context.SaveChangesAsync(cancellationToken);
 
