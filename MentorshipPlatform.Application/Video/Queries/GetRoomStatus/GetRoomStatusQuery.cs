@@ -33,6 +33,18 @@ public class GetRoomStatusQueryHandler
             .Include(s => s.Participants)
             .FirstOrDefaultAsync(s => s.RoomName == request.RoomName, cancellationToken);
 
+        // Fallback: try to find by extracting ResourceId from room name (e.g., group-class-{guid})
+        if (session == null && request.RoomName.StartsWith("group-class-"))
+        {
+            var idPart = request.RoomName.Replace("group-class-", "");
+            if (Guid.TryParse(idPart, out var classId))
+            {
+                session = await _context.VideoSessions
+                    .Include(s => s.Participants)
+                    .FirstOrDefaultAsync(s => s.ResourceId == classId, cancellationToken);
+            }
+        }
+
         if (session == null)
         {
             // Room doesn't exist yet - mentor hasn't activated

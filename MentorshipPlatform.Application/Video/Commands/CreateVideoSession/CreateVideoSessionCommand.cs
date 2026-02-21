@@ -30,11 +30,12 @@ public class CreateVideoSessionCommandHandler
         CreateVideoSessionCommand request,
         CancellationToken cancellationToken)
     {
-        // Check if session already exists
+        // Check if a Live/Scheduled session already exists for this resource
         var existing = await _context.VideoSessions
             .FirstOrDefaultAsync(s =>
                     s.ResourceType == request.ResourceType &&
-                    s.ResourceId == request.ResourceId,
+                    s.ResourceId == request.ResourceId &&
+                    s.Status != Domain.Enums.VideoSessionStatus.Ended,
                 cancellationToken);
 
         if (existing != null)
@@ -43,20 +44,30 @@ public class CreateVideoSessionCommandHandler
                 new VideoSessionDto(existing.Id, existing.RoomName));
         }
 
-        // Create room via Twilio
+        // Determine room name matching frontend convention
+        var expectedRoomName = request.ResourceType switch
+        {
+            "GroupClass" => $"group-class-{request.ResourceId}",
+            _ => $"{request.ResourceType}-{request.ResourceId}"
+        };
+
+        // Create room via Twilio (may already exist if previous session ended)
         var roomResult = await _videoService.CreateRoomAsync(
             request.ResourceType,
             request.ResourceId,
             cancellationToken);
 
-        if (!roomResult.Success)
+        // If Twilio room already exists, use our expected room name
+        var roomName = roomResult.Success ? roomResult.RoomName : expectedRoomName;
+
+        if (!roomResult.Success && !roomResult.ErrorMessage!.Contains("Room exists", System.StringComparison.OrdinalIgnoreCase))
             return Result<VideoSessionDto>.Failure(roomResult.ErrorMessage ?? "Failed to create video room");
 
         // Save session
         var session = VideoSession.Create(
             request.ResourceType,
             request.ResourceId,
-            roomResult.RoomName);
+            roomName);
 
         _context.VideoSessions.Add(session);
         await _context.SaveChangesAsync(cancellationToken);

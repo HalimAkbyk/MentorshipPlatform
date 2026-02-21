@@ -67,11 +67,31 @@ public class GenerateVideoTokenCommandHandler
         if (!tokenResult.Success)
             return Result<VideoTokenDto>.Failure(tokenResult.ErrorMessage ?? "Failed to generate token");
 
+        // Helper: find session by RoomName with fallback for group classes
+        async Task<VideoSession?> findSessionByRoomName(string roomName)
+        {
+            var s = await _context.VideoSessions
+                .FirstOrDefaultAsync(vs => vs.RoomName == roomName, cancellationToken);
+            if (s != null) return s;
+
+            // Fallback: try to find by ResourceId from room name (e.g., group-class-{guid})
+            if (roomName.StartsWith("group-class-"))
+            {
+                var idPart = roomName.Replace("group-class-", "");
+                if (Guid.TryParse(idPart, out var classId))
+                {
+                    s = await _context.VideoSessions
+                        .FirstOrDefaultAsync(vs => vs.ResourceId == classId &&
+                                                    vs.Status != Domain.Enums.VideoSessionStatus.Ended, cancellationToken);
+                }
+            }
+            return s;
+        }
+
         // Eğer host (mentor) ise, VideoSession'ı Live olarak işaretle
         if (request.IsHost)
         {
-            var session = await _context.VideoSessions
-                .FirstOrDefaultAsync(s => s.RoomName == request.RoomName, cancellationToken);
+            var session = await findSessionByRoomName(request.RoomName);
 
             if (session != null)
             {
@@ -99,8 +119,7 @@ public class GenerateVideoTokenCommandHandler
         }
 
         // Track participant
-        var existingSession = await _context.VideoSessions
-            .FirstOrDefaultAsync(s => s.RoomName == request.RoomName, cancellationToken);
+        var existingSession = await findSessionByRoomName(request.RoomName);
 
         if (existingSession != null)
         {
