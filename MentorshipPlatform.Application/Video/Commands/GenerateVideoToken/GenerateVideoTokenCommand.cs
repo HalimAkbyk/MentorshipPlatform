@@ -97,6 +97,20 @@ public class GenerateVideoTokenCommandHandler
 
         if (existingSession != null)
         {
+            // Close any open (active) segment for this user in this session before creating a new one.
+            // This prevents duplicate open segments when user refreshes the page or reconnects.
+            var openSegment = await _context.VideoParticipants
+                .FirstOrDefaultAsync(p =>
+                    p.VideoSessionId == existingSession.Id &&
+                    p.UserId == userId &&
+                    !p.LeftAt.HasValue,
+                    cancellationToken);
+
+            if (openSegment != null)
+            {
+                openSegment.Leave();
+            }
+
             var participant = VideoParticipant.Create(existingSession.Id, userId);
             _context.VideoParticipants.Add(participant);
             await _context.SaveChangesAsync(cancellationToken);
