@@ -20,4 +20,12 @@ public interface IVideoService
         string roomName,
         string participantIdentity,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Check if a Twilio room exists and is currently in-progress.
+    /// Returns (exists, isInProgress, participantCount).
+    /// </summary>
+    Task<(bool Exists, bool IsInProgress, int ParticipantCount)> GetRoomInfoAsync(
+        string roomName,
+        CancellationToken cancellationToken = default);
 }

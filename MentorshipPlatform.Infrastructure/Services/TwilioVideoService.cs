@@ -167,6 +167,36 @@ public class TwilioVideoService : IVideoService
             return false;
         }
     }
+
+    public async Task<(bool Exists, bool IsInProgress, int ParticipantCount)> GetRoomInfoAsync(
+        string roomName,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var rooms = await RoomResource.ReadAsync(
+                uniqueName: roomName,
+                status: RoomResource.RoomStatusEnum.InProgress,
+                limit: 1);
+            var room = rooms.FirstOrDefault();
+            if (room == null)
+                return (false, false, 0);
+
+            // Count connected participants
+            var participants = await ParticipantResource.ReadAsync(
+                pathRoomSid: room.Sid,
+                status: ParticipantResource.StatusEnum.Connected,
+                limit: 50);
+            var count = participants.Count();
+
+            return (true, true, count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error checking Twilio room info for {RoomName}", roomName);
+            return (false, false, 0);
+        }
+    }
 }
 
 public class TwilioOptions

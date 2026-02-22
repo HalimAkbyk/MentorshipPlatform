@@ -81,5 +81,12 @@ public interface IApplicationDbContext
     // User notification entities
     DbSet<UserNotification> UserNotifications { get; }
 
+    // Payout entities
+    DbSet<PayoutRequest> PayoutRequests { get; }
+
+    // Onboarding entities
+    DbSet<StudentOnboardingProfile> StudentOnboardingProfiles { get; }
+    DbSet<MentorOnboardingProfile> MentorOnboardingProfiles { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

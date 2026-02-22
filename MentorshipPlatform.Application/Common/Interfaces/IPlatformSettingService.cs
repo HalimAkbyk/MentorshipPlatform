@@ -67,6 +67,9 @@ public static class PlatformSettings
     public const string DefaultSessionDurationMin = "default_session_duration_min";
     public const string BookingAutoExpireMinutes = "booking_auto_expire_minutes";
 
+    // ── Payout ──
+    public const string MinimumPayoutAmount = "minimum_payout_amount";
+
     // ── Keys that are sensitive (should be masked in public endpoint) ──
     public static readonly HashSet<string> SensitiveKeys = new()
     {

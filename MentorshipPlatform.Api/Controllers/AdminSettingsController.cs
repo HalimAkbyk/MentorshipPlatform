@@ -211,6 +211,7 @@ public class AdminSettingsController : ControllerBase
             ("max_class_capacity", "50", "Grup dersi maksimum katilimci sayisi", "Limits"),
             ("default_session_duration_min", "60", "Varsayilan ders suresi (dakika)", "Limits"),
             ("booking_auto_expire_minutes", "30", "Odenmemis rezervasyonlarin otomatik iptal suresi (dakika)", "Limits"),
+            ("minimum_payout_amount", "100", "Mentorlarin talep edebilecegi minimum odeme tutari (TRY)", "Limits"),
         };
 
         var existingKeys = await _db.PlatformSettings

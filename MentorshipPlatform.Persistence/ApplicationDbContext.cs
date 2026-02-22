@@ -96,6 +96,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     // User notification entities
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
+    // Payout entities
+    public DbSet<PayoutRequest> PayoutRequests => Set<PayoutRequest>();
+
+    // Onboarding entities
+    public DbSet<StudentOnboardingProfile> StudentOnboardingProfiles => Set<StudentOnboardingProfile>();
+    public DbSet<MentorOnboardingProfile> MentorOnboardingProfiles => Set<MentorOnboardingProfile>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

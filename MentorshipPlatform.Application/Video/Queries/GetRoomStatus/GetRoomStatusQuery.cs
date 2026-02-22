@@ -18,20 +18,26 @@ public class GetRoomStatusQueryHandler
     : IRequestHandler<GetRoomStatusQuery, Result<RoomStatusDto>>
 {
     private readonly IApplicationDbContext _context;
+    private readonly IVideoService _videoService;
 
-    public GetRoomStatusQueryHandler(IApplicationDbContext context)
+    public GetRoomStatusQueryHandler(
+        IApplicationDbContext context,
+        IVideoService videoService)
     {
         _context = context;
+        _videoService = videoService;
     }
 
     public async Task<Result<RoomStatusDto>> Handle(
         GetRoomStatusQuery request,
         CancellationToken cancellationToken)
     {
-        // Check if VideoSession exists and is Live
+        // Check if a non-Ended VideoSession exists (prefer Live, then Scheduled)
         var session = await _context.VideoSessions
             .Include(s => s.Participants)
-            .FirstOrDefaultAsync(s => s.RoomName == request.RoomName, cancellationToken);
+            .Where(s => s.RoomName == request.RoomName && s.Status != VideoSessionStatus.Ended)
+            .OrderByDescending(s => s.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
 
         // Fallback: try to find by extracting ResourceId from room name (e.g., group-class-{guid})
         if (session == null && request.RoomName.StartsWith("group-class-"))
@@ -41,80 +47,98 @@ public class GetRoomStatusQueryHandler
             {
                 session = await _context.VideoSessions
                     .Include(s => s.Participants)
-                    .FirstOrDefaultAsync(s => s.ResourceId == classId, cancellationToken);
+                    .Where(s => s.ResourceId == classId && s.Status != VideoSessionStatus.Ended)
+                    .OrderByDescending(s => s.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
             }
         }
 
-        if (session == null)
+        // If DB says session is Live, use DB data for host/participant info
+        if (session != null && session.Status == VideoSessionStatus.Live)
         {
-            // Room doesn't exist yet - mentor hasn't activated
+            var participantCount = session.Participants.Count(p => !p.LeftAt.HasValue);
+            var hostConnected = await CheckHostConnectedFromDb(session, request.RoomName, cancellationToken);
+
+            // If DB says host is connected, trust it
+            if (hostConnected)
+            {
+                return Result<RoomStatusDto>.Success(new RoomStatusDto(
+                    request.RoomName,
+                    IsActive: true,
+                    HostConnected: true,
+                    ParticipantCount: participantCount
+                ));
+            }
+        }
+
+        // Fallback: check actual Twilio room status
+        // This handles cases where DB is out of sync (e.g., session created in older deploy,
+        // MarkAsLive wasn't called, webhooks didn't fire, etc.)
+        var (twilioExists, twilioInProgress, twilioParticipants) =
+            await _videoService.GetRoomInfoAsync(request.RoomName, cancellationToken);
+
+        if (twilioInProgress && twilioParticipants > 0)
+        {
+            // Twilio room is active with participants — sync DB if needed
+            if (session != null && session.Status != VideoSessionStatus.Live)
+            {
+                session.MarkAsLive();
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
             return Result<RoomStatusDto>.Success(new RoomStatusDto(
                 request.RoomName,
-                IsActive: false,
-                HostConnected: false,
-                ParticipantCount: 0
+                IsActive: true,
+                HostConnected: true, // If room is in-progress with participants, host must be there
+                ParticipantCount: twilioParticipants
             ));
         }
 
-        // Room exists - check if it's Live
-        var isActive = session.Status == VideoSessionStatus.Live;
-        var participantCount = session.Participants.Count(p => !p.LeftAt.HasValue);
+        // Neither DB nor Twilio shows an active room
+        return Result<RoomStatusDto>.Success(new RoomStatusDto(
+            request.RoomName,
+            IsActive: false,
+            HostConnected: false,
+            ParticipantCount: 0
+        ));
+    }
 
-        // Determine if host (mentor) is actually connected right now
-        // by checking if the mentor has an active participant record (no LeftAt)
-        var hostConnected = false;
-        if (isActive)
+    private async Task<bool> CheckHostConnectedFromDb(
+        Domain.Entities.VideoSession session,
+        string roomName,
+        CancellationToken cancellationToken)
+    {
+        Guid? mentorUserId = null;
+
+        if (session.ResourceType == "Booking")
         {
-            // Resolve mentor UserId based on resource type
-            Guid? mentorUserId = null;
-
-            if (session.ResourceType == "Booking")
+            var booking = await _context.Bookings
+                .FirstOrDefaultAsync(b => b.Id == session.ResourceId, cancellationToken);
+            mentorUserId = booking?.MentorUserId;
+        }
+        else if (session.ResourceType == "GroupClass")
+        {
+            var groupClass = await _context.GroupClasses
+                .FirstOrDefaultAsync(g => g.Id == session.ResourceId, cancellationToken);
+            if (groupClass != null)
             {
-                var booking = await _context.Bookings
-                    .FirstOrDefaultAsync(b => b.Id == session.ResourceId, cancellationToken);
-                mentorUserId = booking?.MentorUserId;
+                mentorUserId = groupClass.MentorUserId;
             }
-            else if (session.ResourceType == "GroupClass")
+            else if (roomName.StartsWith("group-class-"))
             {
-                var groupClass = await _context.GroupClasses
-                    .FirstOrDefaultAsync(g => g.Id == session.ResourceId, cancellationToken);
-                // If ResourceId is Guid.Empty (legacy), try to resolve from room name
-                if (groupClass != null)
+                var classIdStr = roomName.Replace("group-class-", "");
+                if (Guid.TryParse(classIdStr, out var classId))
                 {
-                    mentorUserId = groupClass.MentorUserId;
+                    var gc = await _context.GroupClasses
+                        .FirstOrDefaultAsync(g => g.Id == classId, cancellationToken);
+                    mentorUserId = gc?.MentorUserId;
                 }
-                else
-                {
-                    // For group-class-{classId} format rooms where ResourceId was empty
-                    var roomName = request.RoomName;
-                    if (roomName.StartsWith("group-class-"))
-                    {
-                        var classIdStr = roomName.Replace("group-class-", "");
-                        if (Guid.TryParse(classIdStr, out var classId))
-                        {
-                            var gc = await _context.GroupClasses
-                                .FirstOrDefaultAsync(g => g.Id == classId, cancellationToken);
-                            mentorUserId = gc?.MentorUserId;
-                        }
-                    }
-                }
-            }
-
-            if (mentorUserId.HasValue)
-            {
-                // Check if mentor has an active participant record (joined but not left)
-                hostConnected = session.Participants
-                    .Any(p => p.UserId == mentorUserId.Value && !p.LeftAt.HasValue);
             }
         }
 
-        var dto = new RoomStatusDto(
-            request.RoomName,
-            IsActive: isActive,
-            HostConnected: hostConnected,
-            ParticipantCount: participantCount
-        );
+        if (!mentorUserId.HasValue) return false;
 
-        return Result<RoomStatusDto>.Success(dto);
+        return session.Participants
+            .Any(p => p.UserId == mentorUserId.Value && !p.LeftAt.HasValue);
     }
 }
