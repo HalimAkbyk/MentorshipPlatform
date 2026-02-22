@@ -27,9 +27,17 @@ public class SmtpEmailProvider : IEmailProvider
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {
-            _logger.LogWarning("SMTP credentials not configured. Skipping email to {To}", to);
-            return;
+            _logger.LogError("📧 [SMTP] CRITICAL: SMTP credentials not configured (username or password empty). Cannot send email to {To}: {Subject}", to, subject);
+            throw new InvalidOperationException($"SMTP credentials not configured. Cannot send email to {to}");
         }
+
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            _logger.LogError("📧 [SMTP] CRITICAL: SMTP host not configured. Cannot send email to {To}", to);
+            throw new InvalidOperationException($"SMTP host not configured. Cannot send email to {to}");
+        }
+
+        _logger.LogInformation("📧 [SMTP] Sending to {To} via {Host}:{Port} from {From}...", to, host, port, fromEmail);
 
         using var message = new MailMessage
         {
@@ -47,6 +55,6 @@ public class SmtpEmailProvider : IEmailProvider
         };
 
         await client.SendMailAsync(message, ct);
-        _logger.LogInformation("[SMTP] Email sent to {To}: {Subject}", to, subject);
+        _logger.LogInformation("📧 [SMTP] ✅ Email sent successfully to {To}: {Subject}", to, subject);
     }
 }

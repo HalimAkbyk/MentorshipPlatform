@@ -3,6 +3,7 @@ using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Domain.Common;
 using MentorshipPlatform.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Persistence;
 
@@ -10,14 +11,17 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
 {
     private readonly IMediator _mediator;
     private readonly ICurrentUserService _currentUser;
+    private readonly ILogger<ApplicationDbContext> _logger;
 
     public ApplicationDbContext(
         DbContextOptions<ApplicationDbContext> options,
         IMediator mediator,
-        ICurrentUserService currentUser) : base(options)
+        ICurrentUserService currentUser,
+        ILogger<ApplicationDbContext> logger) : base(options)
     {
         _mediator = mediator;
         _currentUser = currentUser;
+        _logger = logger;
     }
 
     public DbSet<User> Users => Set<User>();
@@ -140,11 +144,26 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             .SelectMany(e => e.DomainEvents)
             .ToList();
 
+        if (domainEvents.Count > 0)
+        {
+            _logger.LogInformation("📧 Dispatching {Count} domain event(s): {EventTypes}",
+                domainEvents.Count,
+                string.Join(", ", domainEvents.Select(e => e.GetType().Name)));
+        }
+
         domainEntities.ForEach(e => e.ClearDomainEvents());
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            try
+            {
+                await _mediator.Publish(domainEvent, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "📧 ❌ Error dispatching domain event {EventType}", domainEvent.GetType().Name);
+                // Don't re-throw — don't break SaveChanges flow for event dispatch failures
+            }
         }
     }
 }

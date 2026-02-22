@@ -114,6 +114,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
 
                 booking.Confirm();
                 mentorUserId = booking.MentorUserId;
+                _logger.LogInformation("📧 Booking.Confirm() called — domain event raised for BookingId={BookingId}. Email will be dispatched on SaveChanges.", booking.Id);
 
                 await _history.LogAsync("Booking", booking.Id, "StatusChanged",
                     "PendingPayment", "Confirmed",
@@ -161,6 +162,9 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                         .AsNoTracking()
                         .FirstOrDefaultAsync(u => u.Id == mentorUserId, cancellationToken);
 
+                    _logger.LogInformation("📧 Course enrollment: StudentEmail={Email}, Course={Course}",
+                        studentUser?.Email ?? "NULL", courseEnrollment.Course.Title);
+
                     if (studentUser?.Email != null)
                     {
                         await _emailService.SendTemplatedEmailAsync(
@@ -172,11 +176,16 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                                 ["mentorName"] = mentorUser?.DisplayName ?? "Mentor"
                             },
                             cancellationToken);
+                        _logger.LogInformation("📧 ✅ course_enrolled email sent to {Email}", studentUser.Email);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("📧 Student email is null for order {OrderId}. Cannot send course enrollment email.", order.Id);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to send course enrollment email for order {OrderId}", order.Id);
+                    _logger.LogError(ex, "📧 ❌ Failed to send course_enrolled email for order {OrderId}", order.Id);
                 }
             }
             else
@@ -205,6 +214,9 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                         .FirstOrDefaultAsync(u => u.Id == mentorUserId, cancellationToken);
                     var trCulture = new System.Globalization.CultureInfo("tr-TR");
 
+                    _logger.LogInformation("📧 Group class enrollment: StudentEmail={Email}, Class={Class}",
+                        studentUser?.Email ?? "NULL", enrollment.Class.Title);
+
                     if (studentUser?.Email != null)
                     {
                         await _emailService.SendTemplatedEmailAsync(
@@ -218,11 +230,16 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                                 ["classTime"] = enrollment.Class.StartAt.ToString("HH:mm")
                             },
                             cancellationToken);
+                        _logger.LogInformation("📧 ✅ group_class_enrolled email sent to {Email}", studentUser.Email);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("📧 Student email is null for order {OrderId}. Cannot send group class enrollment email.", order.Id);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to send group class enrollment email for order {OrderId}", order.Id);
+                    _logger.LogError(ex, "📧 ❌ Failed to send group_class_enrolled email for order {OrderId}", order.Id);
                 }
             }
 

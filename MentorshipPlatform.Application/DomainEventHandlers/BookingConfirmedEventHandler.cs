@@ -30,6 +30,8 @@ public class BookingConfirmedEventHandler : INotificationHandler<BookingConfirme
 
     public async Task Handle(BookingConfirmedEvent notification, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("📧 BookingConfirmedEventHandler triggered for BookingId={BookingId}", notification.BookingId);
+
         // Get booking details
         var booking = await _context.Bookings
             .Include(b => b.Student)
@@ -37,48 +39,73 @@ public class BookingConfirmedEventHandler : INotificationHandler<BookingConfirme
             .Include(b => b.Offering)
             .FirstOrDefaultAsync(b => b.Id == notification.BookingId, cancellationToken);
 
-        if (booking == null) return;
+        if (booking == null)
+        {
+            _logger.LogError("📧 BookingConfirmedEventHandler: Booking not found! BookingId={BookingId}", notification.BookingId);
+            return;
+        }
+
+        _logger.LogInformation("📧 Booking found: Student={StudentEmail}, Mentor={MentorEmail}, Offering={Offering}",
+            booking.Student?.Email ?? "NULL", booking.Mentor?.Email ?? "NULL", booking.Offering?.Title ?? "NULL");
 
         var trCulture = new System.Globalization.CultureInfo("tr-TR");
 
         // Send confirmation email to student
         try
         {
-            await _emailService.SendTemplatedEmailAsync(
-                EmailTemplateKeys.BookingConfirmed,
-                booking.Student.Email!,
-                new Dictionary<string, string>
-                {
-                    ["mentorName"] = booking.Mentor.DisplayName,
-                    ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
-                    ["bookingTime"] = booking.StartAt.ToString("HH:mm"),
-                    ["offeringTitle"] = booking.Offering?.Title ?? "Seans"
-                },
-                cancellationToken);
+            if (string.IsNullOrWhiteSpace(booking.Student?.Email))
+            {
+                _logger.LogWarning("📧 Student email is null/empty for BookingId={BookingId}. Skipping student email.", notification.BookingId);
+            }
+            else
+            {
+                _logger.LogInformation("📧 Sending booking_confirmed to student: {Email}", booking.Student.Email);
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.BookingConfirmed,
+                    booking.Student.Email,
+                    new Dictionary<string, string>
+                    {
+                        ["mentorName"] = booking.Mentor.DisplayName,
+                        ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
+                        ["bookingTime"] = booking.StartAt.ToString("HH:mm"),
+                        ["offeringTitle"] = booking.Offering?.Title ?? "Seans"
+                    },
+                    cancellationToken);
+                _logger.LogInformation("📧 ✅ booking_confirmed email sent to student {Email}", booking.Student.Email);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send booking confirmation email to student for {BookingId}", notification.BookingId);
+            _logger.LogError(ex, "📧 ❌ Failed to send booking_confirmed email to student for BookingId={BookingId}", notification.BookingId);
         }
 
         // Send confirmation email to mentor
         try
         {
-            await _emailService.SendTemplatedEmailAsync(
-                EmailTemplateKeys.BookingConfirmedMentor,
-                booking.Mentor.Email!,
-                new Dictionary<string, string>
-                {
-                    ["studentName"] = booking.Student.DisplayName,
-                    ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
-                    ["bookingTime"] = booking.StartAt.ToString("HH:mm"),
-                    ["offeringTitle"] = booking.Offering?.Title ?? "Seans"
-                },
-                cancellationToken);
+            if (string.IsNullOrWhiteSpace(booking.Mentor?.Email))
+            {
+                _logger.LogWarning("📧 Mentor email is null/empty for BookingId={BookingId}. Skipping mentor email.", notification.BookingId);
+            }
+            else
+            {
+                _logger.LogInformation("📧 Sending booking_confirmed_mentor to mentor: {Email}", booking.Mentor.Email);
+                await _emailService.SendTemplatedEmailAsync(
+                    EmailTemplateKeys.BookingConfirmedMentor,
+                    booking.Mentor.Email,
+                    new Dictionary<string, string>
+                    {
+                        ["studentName"] = booking.Student.DisplayName,
+                        ["bookingDate"] = booking.StartAt.ToString("dd MMMM yyyy", trCulture),
+                        ["bookingTime"] = booking.StartAt.ToString("HH:mm"),
+                        ["offeringTitle"] = booking.Offering?.Title ?? "Seans"
+                    },
+                    cancellationToken);
+                _logger.LogInformation("📧 ✅ booking_confirmed_mentor email sent to mentor {Email}", booking.Mentor.Email);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send booking confirmation email to mentor for {BookingId}", notification.BookingId);
+            _logger.LogError(ex, "📧 ❌ Failed to send booking_confirmed_mentor email to mentor for BookingId={BookingId}", notification.BookingId);
         }
 
         // Schedule reminder jobs

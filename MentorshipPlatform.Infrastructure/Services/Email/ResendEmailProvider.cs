@@ -22,13 +22,21 @@ public class ResendEmailProvider : IEmailProvider
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            _logger.LogWarning("Resend API key not configured. Skipping email to {To}", to);
-            return;
+            _logger.LogError("📧 [Resend] CRITICAL: Resend API key not configured. Cannot send email to {To}: {Subject}", to, subject);
+            throw new InvalidOperationException($"Resend API key not configured. Cannot send email to {to}");
+        }
+
+        if (string.IsNullOrWhiteSpace(fromEmail))
+        {
+            _logger.LogError("📧 [Resend] CRITICAL: Resend from email not configured. Cannot send email to {To}", to);
+            throw new InvalidOperationException($"Resend from email not configured. Cannot send email to {to}");
         }
 
         var from = string.IsNullOrWhiteSpace(fromName)
             ? fromEmail
             : $"{fromName} <{fromEmail}>";
+
+        _logger.LogInformation("📧 [Resend] Sending to {To} from {From}...", to, from);
 
         using var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Authorization =
@@ -50,12 +58,13 @@ public class ResendEmailProvider : IEmailProvider
 
         if (response.IsSuccessStatusCode)
         {
-            _logger.LogInformation("[Resend] Email sent to {To}: {Subject}", to, subject);
+            _logger.LogInformation("📧 [Resend] ✅ Email sent successfully to {To}: {Subject}", to, subject);
         }
         else
         {
-            _logger.LogError("[Resend] Failed to send email to {To}: {StatusCode} - {Response}",
+            _logger.LogError("📧 [Resend] ❌ Failed to send email to {To}: {StatusCode} - {Response}",
                 to, response.StatusCode, responseBody);
+            throw new HttpRequestException($"Resend API returned {response.StatusCode}: {responseBody}");
         }
     }
 }
