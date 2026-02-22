@@ -97,6 +97,7 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, R
         // Send welcome email
         try
         {
+            _logger.LogInformation("📧 Sending welcome email to {Email} (userId={UserId})", user.Email, user.Id);
             await _emailService.SendTemplatedEmailAsync(
                 EmailTemplateKeys.Welcome,
                 user.Email!,
@@ -105,10 +106,11 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, R
                     ["displayName"] = user.DisplayName
                 },
                 cancellationToken);
+            _logger.LogInformation("📧 Welcome email call completed for {Email}", user.Email);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send welcome email to {Email}", user.Email);
+            _logger.LogError(ex, "📧 Failed to send welcome email to {Email}", user.Email);
         }
 
         var response = new AuthResponse(

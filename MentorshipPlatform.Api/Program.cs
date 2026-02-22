@@ -379,11 +379,74 @@ try
 
         // Seed email notification templates
         await MentorshipPlatform.Api.EmailTemplateSeedData.SeedEmailTemplates(dbContext);
+
+        // Override PlatformSettings from environment variables (for SMTP/Resend config via Koyeb)
+        await SyncEmailSettingsFromEnv(dbContext);
     }
 }
 catch (Exception ex)
 {
     Log.Error(ex, "An error occurred while migrating the database");
+}
+
+// Sync email settings from environment variables into PlatformSettings table.
+// This allows configuring SMTP/Resend credentials via Koyeb env vars
+// without needing to use the admin panel.
+static async Task SyncEmailSettingsFromEnv(ApplicationDbContext db)
+{
+    var envMappings = new Dictionary<string, string>
+    {
+        // SMTP
+        ["SMTP__Host"] = "smtp_host",
+        ["SMTP__Port"] = "smtp_port",
+        ["SMTP__Username"] = "smtp_username",
+        ["SMTP__Password"] = "smtp_password",
+        ["SMTP__FromEmail"] = "smtp_from_email",
+        ["SMTP__FromName"] = "smtp_from_name",
+        // Resend
+        ["Resend__ApiKey"] = "resend_api_key",
+        ["Resend__FromEmail"] = "resend_from_email",
+        ["Resend__FromName"] = "resend_from_name",
+        // Provider selection
+        ["Email__Provider"] = "email_provider",
+    };
+
+    var hasChanges = false;
+
+    foreach (var (envKey, settingKey) in envMappings)
+    {
+        var envValue = Environment.GetEnvironmentVariable(envKey);
+        if (string.IsNullOrEmpty(envValue)) continue;
+
+        var setting = await db.PlatformSettings
+            .FirstOrDefaultAsync(s => s.Key == settingKey);
+
+        if (setting != null)
+        {
+            // Direct property update via private setter workaround
+            if (setting.Value != envValue)
+            {
+                setting.UpdateValue(envValue, Guid.Empty);
+                hasChanges = true;
+                Log.Information("PlatformSetting '{Key}' updated from environment variable", settingKey);
+            }
+        }
+        else
+        {
+            var category = settingKey.StartsWith("smtp") || settingKey.StartsWith("resend") || settingKey == "email_provider"
+                ? "Email"
+                : "General";
+            db.PlatformSettings.Add(PlatformSetting.Create(settingKey, envValue, $"Set from env: {envKey}", category));
+            hasChanges = true;
+            Log.Information("PlatformSetting '{Key}' created from environment variable", settingKey);
+        }
+    }
+
+    if (hasChanges)
+    {
+        await db.SaveChangesAsync();
+        Log.Information("Email settings synced from environment variables");
+    }
 }
 
 // CMS Seed Data
