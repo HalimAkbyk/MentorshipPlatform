@@ -44,11 +44,13 @@ public class GenerateVideoTokenCommandHandler
 
         var userId = _currentUser.UserId.Value;
 
-        // Helper: find session by RoomName with fallback for group classes
+        // Helper: find ACTIVE (non-Ended) session by RoomName, en son oluşturulanı döndür
         async Task<VideoSession?> findSessionByRoomName(string roomName)
         {
             var s = await _context.VideoSessions
-                .FirstOrDefaultAsync(vs => vs.RoomName == roomName, cancellationToken);
+                .Where(vs => vs.RoomName == roomName && vs.Status != Domain.Enums.VideoSessionStatus.Ended)
+                .OrderByDescending(vs => vs.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
             if (s != null) return s;
 
             // Fallback: try to find by ResourceId from room name (e.g., group-class-{guid})
@@ -58,11 +60,35 @@ public class GenerateVideoTokenCommandHandler
                 if (Guid.TryParse(idPart, out var classId))
                 {
                     s = await _context.VideoSessions
-                        .FirstOrDefaultAsync(vs => vs.ResourceId == classId &&
-                                                    vs.Status != Domain.Enums.VideoSessionStatus.Ended, cancellationToken);
+                        .Where(vs => vs.ResourceId == classId &&
+                                     vs.Status != Domain.Enums.VideoSessionStatus.Ended)
+                        .OrderByDescending(vs => vs.CreatedAt)
+                        .FirstOrDefaultAsync(cancellationToken);
                 }
             }
             return s;
+        }
+
+        // Helper: eski (stale) session'ları temizle — tüm eski Live/Scheduled session'ları Ended yap
+        // Twilio'da stale room varsa da kapatır (yenisi mentor bağlanırken otomatik oluşturulur)
+        async Task cleanupStaleSessions(string roomName)
+        {
+            var activeSessions = await _context.VideoSessions
+                .Where(vs => vs.RoomName == roomName && vs.Status != Domain.Enums.VideoSessionStatus.Ended)
+                .ToListAsync(cancellationToken);
+
+            foreach (var stale in activeSessions)
+            {
+                stale.MarkAsEnded();
+            }
+
+            if (activeSessions.Any())
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            // Twilio'da da eski room varsa kapat (isHost=true olduğunda yenisi otomatik oluşturulacak)
+            try { await _videoService.CompleteRoomAsync(roomName, cancellationToken); } catch { }
         }
 
         // ──── Sunucu tarafında isHost doğrulaması ────
@@ -177,27 +203,28 @@ public class GenerateVideoTokenCommandHandler
         if (!tokenResult.Success)
             return Result<VideoTokenDto>.Failure(tokenResult.ErrorMessage ?? "Failed to generate token");
 
-        // Eğer host (mentor) ise, VideoSession'ı Live olarak işaretle
+        // Eğer host (mentor) ise, eski session'ları temizle ve yeni session oluştur/Live yap
         if (serverIsHost)
         {
+            // ──── Önce eski stale session'ları temizle ────
+            await cleanupStaleSessions(request.RoomName);
+
+            // Şimdi yeni session oluştur veya mevcut Scheduled olanı Live yap
             var session = await findSessionByRoomName(request.RoomName);
 
             if (session != null)
             {
-                if (session.Status != Domain.Enums.VideoSessionStatus.Live)
-                {
-                    session.MarkAsLive();
-                    await _context.SaveChangesAsync(cancellationToken);
+                session.MarkAsLive();
+                await _context.SaveChangesAsync(cancellationToken);
 
-                    await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
-                        "Scheduled", "Live",
-                        $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
-                        userId, "Mentor", ct: cancellationToken);
-                }
+                await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
+                    "Scheduled", "Live",
+                    $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
+                    userId, "Mentor", ct: cancellationToken);
             }
             else if (Guid.TryParse(request.RoomName, out var bookingId))
             {
-                // Legacy fallback for booking rooms where session was not pre-created
+                // Yeni session oluştur (eski stale'ler temizlendi)
                 session = VideoSession.Create("Booking", bookingId, request.RoomName);
                 _context.VideoSessions.Add(session);
                 session.MarkAsLive();
@@ -205,7 +232,7 @@ public class GenerateVideoTokenCommandHandler
 
                 await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
                     "Scheduled", "Live",
-                    $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
+                    $"Mentor odaya katıldı, yeni session başlatıldı. Room: {request.RoomName}",
                     userId, "Mentor", ct: cancellationToken);
             }
         }
