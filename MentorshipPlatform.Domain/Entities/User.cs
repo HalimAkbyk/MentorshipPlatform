@@ -10,6 +10,7 @@ public class User : BaseEntity
     public string? PasswordHash { get; private set; }
     public string DisplayName { get; private set; } = string.Empty;
     public string? AvatarUrl { get; private set; }
+    public bool IsAvatarFlagged { get; private set; }
     public int? BirthYear { get; private set; }
     public UserStatus Status { get; private set; } = UserStatus.Active;
 
@@ -83,6 +84,25 @@ public class User : BaseEntity
 
     public void Suspend() => Status = UserStatus.Suspended;
     public void Activate() => Status = UserStatus.Active;
+
+    public void FlagAvatar()
+    {
+        IsAvatarFlagged = true;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void UnflagAvatar()
+    {
+        IsAvatarFlagged = false;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ResetAvatar()
+    {
+        AvatarUrl = null;
+        IsAvatarFlagged = false;
+        UpdatedAt = DateTime.UtcNow;
+    }
 
     public bool IsMinor()
     {

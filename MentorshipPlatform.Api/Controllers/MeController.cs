@@ -67,19 +67,6 @@ public class MeController : ControllerBase
         return Ok(ToDto(user));
     }
 
-    [HttpGet("preset-avatars")]
-    public async Task<IActionResult> GetPresetAvatars(CancellationToken ct)
-    {
-        var items = await _db.PresetAvatars
-            .AsNoTracking()
-            .Where(a => a.IsActive)
-            .OrderBy(a => a.SortOrder)
-            .Select(a => new { a.Id, a.Url, a.Label, a.SortOrder })
-            .ToListAsync(ct);
-
-        return Ok(items);
-    }
-
     [HttpPost("avatar")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadAvatar(IFormFile avatar, CancellationToken ct)

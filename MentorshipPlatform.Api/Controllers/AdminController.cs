@@ -471,116 +471,72 @@ public class AdminController : ControllerBase
     }
 
     // -----------------------------
-    // PRESET AVATARS
+    // AVATAR MODERATION
     // -----------------------------
-    public record PresetAvatarDto(Guid Id, string Url, string Label, int SortOrder, bool IsActive);
-    public record UpdatePresetAvatarRequest(string Label, int SortOrder, bool IsActive);
+    public record UserAvatarDto(Guid UserId, string DisplayName, string? Email, string? AvatarUrl, string[] Roles, bool IsFlagged);
 
-    [HttpGet("preset-avatars")]
-    public async Task<IActionResult> GetPresetAvatars()
+    [HttpGet("user-avatars")]
+    public async Task<IActionResult> GetUserAvatars([FromQuery] bool? flaggedOnly, [FromQuery] bool? withAvatarOnly)
     {
-        var items = await _db.PresetAvatars
-            .AsNoTracking()
-            .OrderBy(a => a.SortOrder)
-            .Select(a => new PresetAvatarDto(a.Id, a.Url, a.Label, a.SortOrder, a.IsActive))
+        var query = _db.Users.AsNoTracking().AsQueryable();
+
+        if (withAvatarOnly == true)
+            query = query.Where(u => u.AvatarUrl != null && u.AvatarUrl != "");
+
+        if (flaggedOnly == true)
+            query = query.Where(u => u.IsAvatarFlagged);
+
+        var users = await query
+            .OrderByDescending(u => u.IsAvatarFlagged)
+            .ThenByDescending(u => u.CreatedAt)
+            .Take(100)
+            .Select(u => new UserAvatarDto(
+                u.Id,
+                u.DisplayName,
+                u.Email,
+                u.AvatarUrl,
+                u.Roles.Select(r => r.ToString()).ToArray(),
+                u.IsAvatarFlagged
+            ))
             .ToListAsync();
 
-        return Ok(items);
+        return Ok(users);
     }
 
-    [HttpPost("preset-avatars")]
-    [Consumes("multipart/form-data")]
-    public async Task<IActionResult> CreatePresetAvatar(
-        IFormFile file,
-        [FromForm] string label,
-        [FromForm] int sortOrder)
+    [HttpPost("user-avatars/{userId:guid}/flag")]
+    public async Task<IActionResult> FlagUserAvatar([FromRoute] Guid userId)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest(new { errors = new[] { "Dosya secilmedi." } });
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return NotFound();
 
-        if (file.Length > 2 * 1024 * 1024)
-            return BadRequest(new { errors = new[] { "Dosya boyutu 2MB'den buyuk olamaz." } });
-
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
-        if (!allowedTypes.Contains(file.ContentType.ToLower()))
-            return BadRequest(new { errors = new[] { "Sadece JPG, PNG, GIF, WebP veya SVG dosyalari yuklenebilir." } });
-
-        using var stream = file.OpenReadStream();
-        var result = await _storage.UploadFileAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            "preset-avatars",
-            "avatar",
-            default);
-
-        if (!result.Success)
-            return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Dosya yuklenemedi." } });
-
-        var avatar = new Domain.Entities.PresetAvatar(result.PublicUrl!, label, sortOrder);
-        _db.PresetAvatars.Add(avatar);
+        user.FlagAvatar();
         await _db.SaveChangesAsync();
 
-        return Ok(new PresetAvatarDto(avatar.Id, avatar.Url, avatar.Label, avatar.SortOrder, avatar.IsActive));
+        return Ok(new { message = "Avatar isaretlendi." });
     }
 
-    [HttpPut("preset-avatars/{id:guid}")]
-    public async Task<IActionResult> UpdatePresetAvatar([FromRoute] Guid id, [FromBody] UpdatePresetAvatarRequest req)
+    [HttpPost("user-avatars/{userId:guid}/reset")]
+    public async Task<IActionResult> ResetUserAvatar([FromRoute] Guid userId)
     {
-        var avatar = await _db.PresetAvatars.FirstOrDefaultAsync(a => a.Id == id);
-        if (avatar == null) return NotFound();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return NotFound();
 
-        avatar.Update(avatar.Url, req.Label, req.SortOrder, req.IsActive);
+        user.ResetAvatar();
         await _db.SaveChangesAsync();
 
-        return Ok(new PresetAvatarDto(avatar.Id, avatar.Url, avatar.Label, avatar.SortOrder, avatar.IsActive));
+        return Ok(new { message = "Avatar sifirlandi." });
     }
 
-    [HttpPut("preset-avatars/{id:guid}/image")]
-    [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UpdatePresetAvatarImage([FromRoute] Guid id, IFormFile file)
+    [HttpPost("user-avatars/{userId:guid}/unflag")]
+    public async Task<IActionResult> UnflagUserAvatar([FromRoute] Guid userId)
     {
-        var avatar = await _db.PresetAvatars.FirstOrDefaultAsync(a => a.Id == id);
-        if (avatar == null) return NotFound();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return NotFound();
 
-        if (file == null || file.Length == 0)
-            return BadRequest(new { errors = new[] { "Dosya secilmedi." } });
-
-        if (file.Length > 2 * 1024 * 1024)
-            return BadRequest(new { errors = new[] { "Dosya boyutu 2MB'den buyuk olamaz." } });
-
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
-        if (!allowedTypes.Contains(file.ContentType.ToLower()))
-            return BadRequest(new { errors = new[] { "Sadece JPG, PNG, GIF, WebP veya SVG dosyalari yuklenebilir." } });
-
-        using var stream = file.OpenReadStream();
-        var result = await _storage.UploadFileAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            "preset-avatars",
-            "avatar",
-            default);
-
-        if (!result.Success)
-            return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Dosya yuklenemedi." } });
-
-        avatar.Update(result.PublicUrl!, avatar.Label, avatar.SortOrder, avatar.IsActive);
+        user.UnflagAvatar();
         await _db.SaveChangesAsync();
 
-        return Ok(new PresetAvatarDto(avatar.Id, avatar.Url, avatar.Label, avatar.SortOrder, avatar.IsActive));
-    }
-
-    [HttpDelete("preset-avatars/{id:guid}")]
-    public async Task<IActionResult> DeletePresetAvatar([FromRoute] Guid id)
-    {
-        var avatar = await _db.PresetAvatars.FirstOrDefaultAsync(a => a.Id == id);
-        if (avatar == null) return NotFound();
-
-        _db.PresetAvatars.Remove(avatar);
-        await _db.SaveChangesAsync();
-
-        return Ok();
+        return Ok(new { message = "Avatar isareti kaldirildi." });
     }
 
     // -----------------------------
