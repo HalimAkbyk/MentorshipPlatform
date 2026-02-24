@@ -213,6 +213,11 @@ public class AdminSettingsController : ControllerBase
             ("booking_auto_expire_minutes", "30", "Odenmemis rezervasyonlarin otomatik iptal suresi (dakika)", "Limits"),
             ("minimum_payout_amount", "100", "Mentorlarin talep edebilecegi minimum odeme tutari (TRY)", "Limits"),
 
+            // ── Session Lifecycle ──
+            ("session_grace_period_minutes", "10", "1:1 ders bittikten sonra uzatma suresi (dakika)", "Limits"),
+            ("group_class_grace_period_minutes", "15", "Grup dersi bittikten sonra uzatma suresi (dakika)", "Limits"),
+            ("noshow_wait_minutes", "15", "Karsi taraf gelmezse no-show tespit suresi (dakika)", "Limits"),
+
             // ── Dev / Debug ──
             ("dev_mode_session_bypass", "true", "Gelistirme modu: Acikken ders herhangi bir zamanda baslatilabilir", "Dev"),
             ("session_early_join_minutes", "15", "Ders baslangicina kac dakika kala katilim acilir", "Dev"),

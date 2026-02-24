@@ -6,6 +6,7 @@ using MentorshipPlatform.Application.Bookings.Commands.DisputeBooking;
 using MentorshipPlatform.Application.Bookings.Commands.RescheduleBooking;
 using MentorshipPlatform.Application.Bookings.Commands.ApproveReschedule;
 using MentorshipPlatform.Application.Bookings.Commands.RejectReschedule;
+using MentorshipPlatform.Application.Bookings.Commands.ReportNoShow;
 using MentorshipPlatform.Application.Bookings.Queries.GetMyBookings;
 using MentorshipPlatform.Application.Bookings.Queries.GetBookingById;
 using MentorshipPlatform.Application.Common.Models;
@@ -106,6 +107,20 @@ public class BookingsController : ControllerBase
             return BadRequest(new { errors = result.Errors });
 
         return Ok();
+    }
+
+    // ─── No-Show Report ───
+
+    [HttpPost("{id}/report-noshow")]
+    [Authorize(Policy = "RequireMentorRole")]
+    public async Task<IActionResult> ReportNoShow(Guid id)
+    {
+        var result = await _mediator.Send(new ReportNoShowCommand(id));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { message = result.Data });
     }
 
     // ─── Reschedule Endpoints ───

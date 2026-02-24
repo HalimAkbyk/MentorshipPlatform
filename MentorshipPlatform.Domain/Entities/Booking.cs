@@ -81,6 +81,22 @@ public class Booking : BaseEntity
         Status = BookingStatus.NoShow;
     }
 
+    public void MarkAsStudentNoShow()
+    {
+        if (Status != BookingStatus.Confirmed)
+            throw new DomainException("Only confirmed bookings can be marked as student no-show");
+
+        Status = BookingStatus.StudentNoShow;
+    }
+
+    public void MarkAsMentorNoShow()
+    {
+        if (Status != BookingStatus.Confirmed)
+            throw new DomainException("Only confirmed bookings can be marked as mentor no-show");
+
+        Status = BookingStatus.MentorNoShow;
+    }
+
     public void MarkAsExpired()
     {
         if (Status != BookingStatus.PendingPayment)
@@ -91,7 +107,8 @@ public class Booking : BaseEntity
 
     public void Dispute(string reason)
     {
-        if (Status != BookingStatus.Completed && Status != BookingStatus.NoShow)
+        if (Status != BookingStatus.Completed && Status != BookingStatus.NoShow
+            && Status != BookingStatus.StudentNoShow && Status != BookingStatus.MentorNoShow)
             throw new DomainException("Only completed or no-show bookings can be disputed");
 
         Status = BookingStatus.Disputed;
@@ -101,7 +118,10 @@ public class Booking : BaseEntity
     public decimal CalculateRefundPercentage()
     {
         // Mentor didn't show up → student gets full refund
-        if (Status == BookingStatus.NoShow) return 1.0m;
+        if (Status == BookingStatus.NoShow || Status == BookingStatus.MentorNoShow) return 1.0m;
+
+        // Student didn't show up → mentor keeps payment, no refund
+        if (Status == BookingStatus.StudentNoShow) return 0m;
 
         var hoursUntilStart = (StartAt - DateTime.UtcNow).TotalHours;
 

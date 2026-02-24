@@ -4,5 +4,6 @@ public enum RefundType
 {
     StudentRequest,
     AdminInitiated,
-    GoodwillCredit
+    GoodwillCredit,
+    NoShowRefund
 }

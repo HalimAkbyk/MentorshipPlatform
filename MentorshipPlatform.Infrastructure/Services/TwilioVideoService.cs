@@ -168,6 +168,35 @@ public class TwilioVideoService : IVideoService
         }
     }
 
+    public async Task<bool> CompleteRoomAsync(string roomName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var rooms = await RoomResource.ReadAsync(
+                uniqueName: roomName,
+                status: RoomResource.RoomStatusEnum.InProgress,
+                limit: 1);
+            var room = rooms.FirstOrDefault();
+            if (room == null)
+            {
+                _logger.LogInformation("Room {RoomName} not found or already completed", roomName);
+                return false;
+            }
+
+            await RoomResource.UpdateAsync(
+                pathSid: room.Sid,
+                status: RoomResource.RoomStatusEnum.Completed);
+
+            _logger.LogInformation("Forcibly completed Twilio room: {RoomName} (Sid: {Sid})", roomName, room.Sid);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error completing Twilio room {RoomName}", roomName);
+            return false;
+        }
+    }
+
     public async Task<(bool Exists, bool IsInProgress, int ParticipantCount)> GetRoomInfoAsync(
         string roomName,
         CancellationToken cancellationToken = default)

@@ -28,4 +28,10 @@ public interface IVideoService
     Task<(bool Exists, bool IsInProgress, int ParticipantCount)> GetRoomInfoAsync(
         string roomName,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Forcibly complete/close a Twilio room, disconnecting all participants.
+    /// Returns true if successful, false if room not found or already completed.
+    /// </summary>
+    Task<bool> CompleteRoomAsync(string roomName, CancellationToken cancellationToken = default);
 }

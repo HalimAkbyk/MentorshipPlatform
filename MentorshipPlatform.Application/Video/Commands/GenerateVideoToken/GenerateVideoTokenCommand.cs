@@ -68,6 +68,44 @@ public class GenerateVideoTokenCommandHandler
             }
         }
 
+        // Group class early join kontrolü
+        if (request.RoomName.StartsWith("group-class-"))
+        {
+            var gcIdPart = request.RoomName.Replace("group-class-", "");
+            if (Guid.TryParse(gcIdPart, out var gcId))
+            {
+                var groupClass = await _context.GroupClasses
+                    .Include(c => c.Enrollments)
+                    .FirstOrDefaultAsync(c => c.Id == gcId, cancellationToken);
+
+                if (groupClass == null)
+                    return Result<VideoTokenDto>.Failure("Grup dersi bulunamadı");
+
+                if (groupClass.Status != Domain.Enums.ClassStatus.Published)
+                    return Result<VideoTokenDto>.Failure(
+                        $"Bu grup dersi için video token oluşturulamaz. Ders durumu: {groupClass.Status}");
+
+                // Verify user is mentor or has confirmed enrollment
+                var isMentor = groupClass.MentorUserId == userId;
+                var isEnrolled = groupClass.Enrollments.Any(e =>
+                    e.StudentUserId == userId && e.Status == Domain.Enums.EnrollmentStatus.Confirmed);
+
+                if (!isMentor && !isEnrolled)
+                    return Result<VideoTokenDto>.Failure("Bu derse katılma yetkiniz yok");
+
+                // Early join check — DevMode bypass
+                var gcDevMode = await _settings.GetBoolAsync(PlatformSettings.DevModeSessionBypass, false, cancellationToken);
+                if (!gcDevMode)
+                {
+                    var gcEarlyMinutes = await _settings.GetIntAsync(PlatformSettings.SessionEarlyJoinMinutes, 15, cancellationToken);
+                    var gcMinutesUntilStart = (groupClass.StartAt - DateTime.UtcNow).TotalMinutes;
+                    if (gcMinutesUntilStart > gcEarlyMinutes)
+                        return Result<VideoTokenDto>.Failure(
+                            $"Ders en erken {gcEarlyMinutes} dakika önce başlatılabilir. Ders başlangıcına {Math.Ceiling(gcMinutesUntilStart)} dakika kaldı.");
+                }
+            }
+        }
+
         // Get user info
         var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
         if (user == null)

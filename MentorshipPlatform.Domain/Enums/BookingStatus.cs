@@ -8,5 +8,7 @@ public enum BookingStatus
     Completed,
     NoShow,
     Disputed,
-    Expired
+    Expired,
+    StudentNoShow,
+    MentorNoShow
 }

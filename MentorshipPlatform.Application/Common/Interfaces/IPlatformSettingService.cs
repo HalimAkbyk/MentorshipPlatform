@@ -74,6 +74,11 @@ public static class PlatformSettings
     public const string DevModeSessionBypass = "dev_mode_session_bypass";
     public const string SessionEarlyJoinMinutes = "session_early_join_minutes";
 
+    // ── Session Lifecycle ──
+    public const string SessionGracePeriodMinutes = "session_grace_period_minutes";
+    public const string GroupClassGracePeriodMinutes = "group_class_grace_period_minutes";
+    public const string NoShowWaitMinutes = "noshow_wait_minutes";
+
     // ── Keys that are sensitive (should be masked in public endpoint) ──
     public static readonly HashSet<string> SensitiveKeys = new()
     {

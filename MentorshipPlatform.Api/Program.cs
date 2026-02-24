@@ -350,6 +350,9 @@ try
 
     RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.AutoCompleteGroupClassesJob>(
         "auto-complete-group-classes", job => job.Execute(), "*/10 * * * *"); // Every 10 minutes
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.EnforceSessionEndJob>(
+        "enforce-session-end", job => job.Execute(), "*/2 * * * *"); // Every 2 minutes — grace period enforcer
 }
 catch (Exception ex)
 {
