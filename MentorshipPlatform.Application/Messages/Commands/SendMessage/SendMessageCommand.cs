@@ -110,13 +110,15 @@ public class SendMessageCommandHandler : IRequestHandler<SendMessageCommand, Res
             .Select(u => new { u.DisplayName, u.AvatarUrl })
             .FirstOrDefaultAsync(cancellationToken);
 
+        var senderName = sender?.DisplayName ?? "Bilinmeyen";
+
         var payload = new
         {
             id = message.Id,
             conversationId = conversation.Id,
             bookingId = message.BookingId,
             senderUserId = userId,
-            senderName = sender?.DisplayName ?? "Bilinmeyen",
+            senderName,
             senderAvatar = sender?.AvatarUrl,
             content = message.Content,
             isRead = message.IsRead,
@@ -127,6 +129,27 @@ public class SendMessageCommandHandler : IRequestHandler<SendMessageCommand, Res
         };
 
         await _chatNotification.NotifyNewMessage(recipientUserId, payload);
+
+        // Create a persistent notification for the recipient (bell icon)
+        // Use groupKey to allow marking all message notifications from a conversation together
+        var truncatedContent = message.Content.Length > 100
+            ? message.Content[..100] + "…"
+            : message.Content;
+        var notification = UserNotification.Create(
+            recipientUserId,
+            "Message",
+            $"{senderName} yeni bir mesaj gönderdi",
+            truncatedContent,
+            "Conversation",
+            conversation.Id,
+            $"msg-conv-{conversation.Id}");
+        _context.UserNotifications.Add(notification);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Notify recipient about updated notification count via SignalR
+        var unreadNotifCount = await _context.UserNotifications
+            .CountAsync(n => n.UserId == recipientUserId && !n.IsRead, cancellationToken);
+        await _chatNotification.NotifyNotificationCountUpdated(recipientUserId, unreadNotifCount);
 
         return Result<Guid>.Success(message.Id);
     }
