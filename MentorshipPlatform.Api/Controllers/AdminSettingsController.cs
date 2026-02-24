@@ -212,6 +212,10 @@ public class AdminSettingsController : ControllerBase
             ("default_session_duration_min", "60", "Varsayilan ders suresi (dakika)", "Limits"),
             ("booking_auto_expire_minutes", "30", "Odenmemis rezervasyonlarin otomatik iptal suresi (dakika)", "Limits"),
             ("minimum_payout_amount", "100", "Mentorlarin talep edebilecegi minimum odeme tutari (TRY)", "Limits"),
+
+            // ── Dev / Debug ──
+            ("dev_mode_session_bypass", "true", "Gelistirme modu: Acikken ders herhangi bir zamanda baslatilabilir", "Dev"),
+            ("session_early_join_minutes", "15", "Ders baslangicina kac dakika kala katilim acilir", "Dev"),
         };
 
         var existingKeys = await _db.PlatformSettings

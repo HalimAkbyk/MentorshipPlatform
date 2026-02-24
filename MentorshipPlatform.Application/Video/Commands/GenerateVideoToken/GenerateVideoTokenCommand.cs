@@ -19,17 +19,20 @@ public class GenerateVideoTokenCommandHandler
     private readonly ICurrentUserService _currentUser;
     private readonly IVideoService _videoService;
     private readonly IProcessHistoryService _history;
+    private readonly IPlatformSettingService _settings;
 
     public GenerateVideoTokenCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IVideoService videoService,
-        IProcessHistoryService history)
+        IProcessHistoryService history,
+        IPlatformSettingService settings)
     {
         _context = context;
         _currentUser = currentUser;
         _videoService = videoService;
         _history = history;
+        _settings = settings;
     }
 
     public async Task<Result<VideoTokenDto>> Handle(
@@ -49,6 +52,20 @@ public class GenerateVideoTokenCommandHandler
             if (booking != null && booking.Status != Domain.Enums.BookingStatus.Confirmed)
                 return Result<VideoTokenDto>.Failure(
                     $"Bu seans için video token oluşturulamaz. Seans durumu: {booking.Status}");
+
+            // Erken katılım kontrolü — DevMode kapalıysa en erken 15dk önce başlatılabilir
+            if (booking != null)
+            {
+                var devMode = await _settings.GetBoolAsync(PlatformSettings.DevModeSessionBypass, false, cancellationToken);
+                if (!devMode)
+                {
+                    var earlyMinutes = await _settings.GetIntAsync(PlatformSettings.SessionEarlyJoinMinutes, 15, cancellationToken);
+                    var minutesUntilStart = (booking.StartAt - DateTime.UtcNow).TotalMinutes;
+                    if (minutesUntilStart > earlyMinutes)
+                        return Result<VideoTokenDto>.Failure(
+                            $"Ders en erken {earlyMinutes} dakika önce başlatılabilir. Ders başlangıcına {Math.Ceiling(minutesUntilStart)} dakika kaldı.");
+                }
+            }
         }
 
         // Get user info

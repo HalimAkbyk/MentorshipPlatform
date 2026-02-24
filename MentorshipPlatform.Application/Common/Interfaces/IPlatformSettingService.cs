@@ -70,6 +70,10 @@ public static class PlatformSettings
     // ── Payout ──
     public const string MinimumPayoutAmount = "minimum_payout_amount";
 
+    // ── Dev / Debug ──
+    public const string DevModeSessionBypass = "dev_mode_session_bypass";
+    public const string SessionEarlyJoinMinutes = "session_early_join_minutes";
+
     // ── Keys that are sensitive (should be masked in public endpoint) ──
     public static readonly HashSet<string> SensitiveKeys = new()
     {
