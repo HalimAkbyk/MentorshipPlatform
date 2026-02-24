@@ -2,6 +2,7 @@ using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Application.Helpers;
+using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,8 @@ namespace MentorshipPlatform.Application.Mentors.Queries.GetMentorsList;
 public record GetMentorsListQuery(
     string? SearchTerm,
     string? University,
+    string? Category,
+    string? SortBy,
     decimal? MinPrice,
     decimal? MaxPrice,
     int Page = 1,
@@ -21,10 +24,12 @@ public record MentorListDto(
     string? AvatarUrl,
     string University,
     string Department,
+    string? Headline,
     decimal RatingAvg,
     int RatingCount,
     decimal? HourlyRate,
-    bool IsVerified);
+    bool IsVerified,
+    List<string> Categories);
 
 public class GetMentorsListQueryHandler 
     : IRequestHandler<GetMentorsListQuery, Result<PaginatedList<MentorListDto>>>
@@ -58,6 +63,13 @@ public class GetMentorsListQueryHandler
                 m.Department.Contains(request.SearchTerm));
         }
 
+        // Category filter on offerings
+        if (!string.IsNullOrEmpty(request.Category))
+        {
+            query = query.Where(m => m.Offerings.Any(o =>
+                o.IsActive && o.Category != null && o.Category == request.Category));
+        }
+
         // Price filter on offerings
         if (request.MinPrice.HasValue || request.MaxPrice.HasValue)
         {
@@ -69,8 +81,17 @@ public class GetMentorsListQueryHandler
 
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var mentors = await query
-            .OrderByDescending(m => m.RatingAvg)
+        // Sorting
+        IOrderedQueryable<MentorProfile> sorted = request.SortBy?.ToLower() switch
+        {
+            "rating" => query.OrderByDescending(m => m.RatingAvg),
+            "price_low" => query.OrderBy(m => m.Offerings.Where(o => o.IsActive).Min(o => (decimal?)o.PriceAmount) ?? decimal.MaxValue),
+            "price_high" => query.OrderByDescending(m => m.Offerings.Where(o => o.IsActive).Min(o => (decimal?)o.PriceAmount) ?? 0),
+            "newest" => query.OrderByDescending(m => m.CreatedAt),
+            _ => query.OrderByDescending(m => m.RatingAvg), // recommended = rating
+        };
+
+        var mentors = await sorted
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(m => new MentorListDto(
@@ -79,10 +100,12 @@ public class GetMentorsListQueryHandler
                 m.User.AvatarUrl,
                 m.University,
                 m.Department,
+                m.Headline,
                 m.RatingAvg,
                 m.RatingCount,
                 m.Offerings.Where(o => o.IsActive).Min(o => (decimal?)o.PriceAmount),
-                m.Verifications.Any(v => v.Status == VerificationStatus.Approved)))
+                m.Verifications.Any(v => v.Status == VerificationStatus.Approved),
+                m.Offerings.Where(o => o.IsActive && o.Category != null).Select(o => o.Category!).Distinct().ToList()))
             .ToListAsync(cancellationToken);
 
         var result = new PaginatedList<MentorListDto>(

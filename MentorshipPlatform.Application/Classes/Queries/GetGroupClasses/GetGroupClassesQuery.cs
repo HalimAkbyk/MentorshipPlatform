@@ -27,6 +27,7 @@ public record GroupClassListDto(
 public record GetGroupClassesQuery(
     string? Category,
     string? Search,
+    string? SortBy,
     int Page = 1,
     int PageSize = 20
 ) : IRequest<Result<PagedResult<GroupClassListDto>>>;
@@ -94,8 +95,18 @@ public class GetGroupClassesQueryHandler
                 .ToDictionaryAsync(x => x.ClassId, x => x.Status.ToString(), cancellationToken);
         }
 
-        var items = await query
-            .OrderBy(c => c.StartAt)
+        // Sorting
+        IOrderedQueryable<Domain.Entities.GroupClass> sorted = request.SortBy?.ToLower() switch
+        {
+            "price_low" => query.OrderBy(c => c.PricePerSeat),
+            "price_high" => query.OrderByDescending(c => c.PricePerSeat),
+            "popular" => query.OrderByDescending(c => c.Enrollments.Count(e =>
+                e.Status == EnrollmentStatus.Confirmed || e.Status == EnrollmentStatus.Attended)),
+            "newest" => query.OrderByDescending(c => c.CreatedAt),
+            _ => query.OrderBy(c => c.StartAt), // default: soonest first
+        };
+
+        var items = await sorted
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(c => new GroupClassListDto(

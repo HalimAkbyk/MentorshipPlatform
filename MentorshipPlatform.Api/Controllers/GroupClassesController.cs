@@ -55,10 +55,11 @@ public class GroupClassesController : ControllerBase
     public async Task<IActionResult> List(
         [FromQuery] string? category,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var result = await _mediator.Send(new GetGroupClassesQuery(category, search, page, pageSize));
+        var result = await _mediator.Send(new GetGroupClassesQuery(category, search, sortBy, page, pageSize));
         if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Ok(result.Data);
     }
