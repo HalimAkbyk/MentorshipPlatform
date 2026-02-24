@@ -71,7 +71,7 @@ public class GetMyConversationsQueryHandler
         // Get last message per conversation
         var lastMessages = await _context.Messages
             .AsNoTracking()
-            .Where(m => conversationIds.Contains(m.ConversationId))
+            .Where(m => m.ConversationId.HasValue && conversationIds.Contains(m.ConversationId.Value))
             .GroupBy(m => m.ConversationId)
             .Select(g => new
             {
@@ -92,7 +92,7 @@ public class GetMyConversationsQueryHandler
         // Get unread counts per conversation
         var unreadCounts = await _context.Messages
             .AsNoTracking()
-            .Where(m => conversationIds.Contains(m.ConversationId)
+            .Where(m => m.ConversationId.HasValue && conversationIds.Contains(m.ConversationId.Value)
                         && m.SenderUserId != userId
                         && !m.IsRead)
             .GroupBy(m => m.ConversationId)

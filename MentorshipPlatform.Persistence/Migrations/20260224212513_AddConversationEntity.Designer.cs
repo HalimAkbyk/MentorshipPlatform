@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MentorshipPlatform.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260224205042_AddConversationEntity")]
+    [Migration("20260224212513_AddConversationEntity")]
     partial class AddConversationEntity
     {
         /// <inheritdoc />
@@ -1910,7 +1910,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<Guid>("ConversationId")
+                    b.Property<Guid?>("ConversationId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -3194,8 +3194,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasOne("MentorshipPlatform.Domain.Entities.Conversation", "Conversation")
                         .WithMany("Messages")
                         .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("MentorshipPlatform.Domain.Entities.User", "SenderUser")
                         .WithMany()

@@ -52,7 +52,7 @@ public class GetUnreadMessageCountQueryHandler
         // Count unread: via conversation or via legacy booking
         var perBooking = await _context.Messages
             .AsNoTracking()
-            .Where(m => (conversationIds.Contains(m.ConversationId) ||
+            .Where(m => (m.ConversationId.HasValue && conversationIds.Contains(m.ConversationId.Value) ||
                         (m.BookingId.HasValue && bookingIds.Contains(m.BookingId.Value)))
                         && m.SenderUserId != userId
                         && !m.IsRead)
@@ -64,7 +64,7 @@ public class GetUnreadMessageCountQueryHandler
         // Also count direct messages with no booking
         var directUnread = await _context.Messages
             .AsNoTracking()
-            .Where(m => conversationIds.Contains(m.ConversationId)
+            .Where(m => m.ConversationId.HasValue && conversationIds.Contains(m.ConversationId.Value)
                         && !m.BookingId.HasValue
                         && m.SenderUserId != userId
                         && !m.IsRead)
