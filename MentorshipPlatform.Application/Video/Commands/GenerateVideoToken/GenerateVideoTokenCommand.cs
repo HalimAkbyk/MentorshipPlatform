@@ -69,30 +69,7 @@ public class GenerateVideoTokenCommandHandler
             return s;
         }
 
-        // Helper: eski (stale) session'ları temizle — tüm eski Live/Scheduled session'ları Ended yap
-        // Twilio'da stale room varsa da kapatır (yenisi mentor bağlanırken otomatik oluşturulur)
-        async Task cleanupStaleSessions(string roomName)
-        {
-            var activeSessions = await _context.VideoSessions
-                .Where(vs => vs.RoomName == roomName && vs.Status != Domain.Enums.VideoSessionStatus.Ended)
-                .ToListAsync(cancellationToken);
-
-            foreach (var stale in activeSessions)
-            {
-                stale.MarkAsEnded();
-            }
-
-            if (activeSessions.Any())
-            {
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-
-            // Twilio'da da eski room varsa kapat (isHost=true olduğunda yenisi otomatik oluşturulacak)
-            try { await _videoService.CompleteRoomAsync(roomName, cancellationToken); } catch { }
-        }
-
         // ──── Sunucu tarafında isHost doğrulaması ────
-        // Client'ın gönderdiği isHost değerine güvenmiyoruz, sunucu tarafında hesaplıyoruz
         bool serverIsHost = false;
 
         // Booking status kontrolü — iptal edilen/tamamlanan seanslara token verilmez
@@ -122,7 +99,8 @@ public class GenerateVideoTokenCommandHandler
                 }
 
                 // ──── Öğrenci için mentor aktivasyon kontrolü ────
-                // Öğrenci (host değil) token istiyorsa, mentor'ün odayı aktifleştirmiş olması gerekir
+                // Session Live ise öğrenci girebilir (mentor odadayken VEYA mentor geçici ayrılmışken)
+                // Session Ended veya yoksa → mentor henüz aktifleştirmedi
                 if (!serverIsHost)
                 {
                     var session = await findSessionByRoomName(request.RoomName);
@@ -160,10 +138,8 @@ public class GenerateVideoTokenCommandHandler
                 if (!isMentor && !isEnrolled)
                     return Result<VideoTokenDto>.Failure("Bu derse katılma yetkiniz yok");
 
-                // Sunucu tarafında host belirleme — mentor = host
                 serverIsHost = isMentor;
 
-                // Early join check — DevMode bypass
                 var gcDevMode = await _settings.GetBoolAsync(PlatformSettings.DevModeSessionBypass, false, cancellationToken);
                 if (!gcDevMode)
                 {
@@ -174,7 +150,6 @@ public class GenerateVideoTokenCommandHandler
                             $"Ders en erken {gcEarlyMinutes} dakika önce başlatılabilir. Ders başlangıcına {Math.Ceiling(gcMinutesUntilStart)} dakika kaldı.");
                 }
 
-                // ──── Öğrenci için mentor aktivasyon kontrolü (grup dersleri) ────
                 if (!serverIsHost)
                 {
                     var gcSession = await findSessionByRoomName(request.RoomName);
@@ -203,28 +178,29 @@ public class GenerateVideoTokenCommandHandler
         if (!tokenResult.Success)
             return Result<VideoTokenDto>.Failure(tokenResult.ErrorMessage ?? "Failed to generate token");
 
-        // Eğer host (mentor) ise, eski session'ları temizle ve yeni session oluştur/Live yap
+        // ──── Mentor (host) session yönetimi ────
         if (serverIsHost)
         {
-            // ──── Önce eski stale session'ları temizle ────
-            await cleanupStaleSessions(request.RoomName);
-
-            // Şimdi yeni session oluştur veya mevcut Scheduled olanı Live yap
             var session = await findSessionByRoomName(request.RoomName);
 
             if (session != null)
             {
-                session.MarkAsLive();
-                await _context.SaveChangesAsync(cancellationToken);
+                // Mevcut Live veya Scheduled session var — koru ve Live yap
+                if (session.Status != Domain.Enums.VideoSessionStatus.Live)
+                {
+                    session.MarkAsLive();
+                    await _context.SaveChangesAsync(cancellationToken);
 
-                await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
-                    "Scheduled", "Live",
-                    $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
-                    userId, "Mentor", ct: cancellationToken);
+                    await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
+                        "Scheduled", "Live",
+                        $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
+                        userId, "Mentor", ct: cancellationToken);
+                }
+                // Zaten Live ise — mentor tekrar bağlanıyor, session'ı olduğu gibi bırak
             }
             else if (Guid.TryParse(request.RoomName, out var bookingId))
             {
-                // Yeni session oluştur (eski stale'ler temizlendi)
+                // Hiç active session yok → yeni oluştur
                 session = VideoSession.Create("Booking", bookingId, request.RoomName);
                 _context.VideoSessions.Add(session);
                 session.MarkAsLive();
@@ -242,8 +218,6 @@ public class GenerateVideoTokenCommandHandler
 
         if (existingSession != null)
         {
-            // Close any open (active) segment for this user in this session before creating a new one.
-            // This prevents duplicate open segments when user refreshes the page or reconnects.
             var openSegment = await _context.VideoParticipants
                 .FirstOrDefaultAsync(p =>
                     p.VideoSessionId == existingSession.Id &&

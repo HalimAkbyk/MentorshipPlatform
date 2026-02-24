@@ -3,6 +3,7 @@ using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Video.Commands.CreateVideoSession;
 using MentorshipPlatform.Application.Video.Commands.GenerateVideoToken;
 using MentorshipPlatform.Application.Video.Commands.EndVideoSession;
+using MentorshipPlatform.Application.Video.Commands.LeaveRoom;
 using MentorshipPlatform.Application.Video.Commands.HandleVideoWebhook;
 using MentorshipPlatform.Application.Video.Queries.GetRoomStatus;
 using Microsoft.AspNetCore.Authorization;
@@ -66,6 +67,18 @@ public class VideoController : ControllerBase
 
         return Ok(result.Data);
     }
+    [HttpPost("room/{roomName}/leave")]
+    [ProducesResponseType(typeof(LeaveRoomResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> LeaveRoom(string roomName)
+    {
+        var result = await _mediator.Send(new LeaveRoomCommand(roomName));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(result.Data);
+    }
+
     [HttpPost("room/{roomName}/end")]
     public async Task<IActionResult> EndSession(string roomName)
     {
