@@ -79,8 +79,22 @@ public class GetRoomStatusQueryHandler
 
         if (twilioInProgress && twilioParticipants > 0)
         {
-            // Twilio room is active with participants — sync DB if needed
-            if (session != null && session.Status != VideoSessionStatus.Live)
+            // Twilio room is active with participants
+            // Ancak DB session Ended ise, bu bir stale room — rapor etme ama tekrar Live yapma
+            if (session != null && session.Status == VideoSessionStatus.Ended)
+            {
+                // DB'de session kapalı, Twilio'da hâlâ açık — stale room, kapatmayı dene
+                try { await _videoService.CompleteRoomAsync(request.RoomName, cancellationToken); } catch { }
+                return Result<RoomStatusDto>.Success(new RoomStatusDto(
+                    request.RoomName,
+                    IsActive: false,
+                    HostConnected: false,
+                    ParticipantCount: 0
+                ));
+            }
+
+            // DB session Live değilse ama Scheduled ise → mentor'ün odayı aktifleştirdiğini varsay
+            if (session != null && session.Status == VideoSessionStatus.Scheduled)
             {
                 session.MarkAsLive();
                 await _context.SaveChangesAsync(cancellationToken);
@@ -89,7 +103,7 @@ public class GetRoomStatusQueryHandler
             return Result<RoomStatusDto>.Success(new RoomStatusDto(
                 request.RoomName,
                 IsActive: true,
-                HostConnected: true, // If room is in-progress with participants, host must be there
+                HostConnected: true,
                 ParticipantCount: twilioParticipants
             ));
         }

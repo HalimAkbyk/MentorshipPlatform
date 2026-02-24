@@ -44,6 +44,31 @@ public class GenerateVideoTokenCommandHandler
 
         var userId = _currentUser.UserId.Value;
 
+        // Helper: find session by RoomName with fallback for group classes
+        async Task<VideoSession?> findSessionByRoomName(string roomName)
+        {
+            var s = await _context.VideoSessions
+                .FirstOrDefaultAsync(vs => vs.RoomName == roomName, cancellationToken);
+            if (s != null) return s;
+
+            // Fallback: try to find by ResourceId from room name (e.g., group-class-{guid})
+            if (roomName.StartsWith("group-class-"))
+            {
+                var idPart = roomName.Replace("group-class-", "");
+                if (Guid.TryParse(idPart, out var classId))
+                {
+                    s = await _context.VideoSessions
+                        .FirstOrDefaultAsync(vs => vs.ResourceId == classId &&
+                                                    vs.Status != Domain.Enums.VideoSessionStatus.Ended, cancellationToken);
+                }
+            }
+            return s;
+        }
+
+        // ──── Sunucu tarafında isHost doğrulaması ────
+        // Client'ın gönderdiği isHost değerine güvenmiyoruz, sunucu tarafında hesaplıyoruz
+        bool serverIsHost = false;
+
         // Booking status kontrolü — iptal edilen/tamamlanan seanslara token verilmez
         if (Guid.TryParse(request.RoomName, out var parsedBookingId))
         {
@@ -52,6 +77,10 @@ public class GenerateVideoTokenCommandHandler
             if (booking != null && booking.Status != Domain.Enums.BookingStatus.Confirmed)
                 return Result<VideoTokenDto>.Failure(
                     $"Bu seans için video token oluşturulamaz. Seans durumu: {booking.Status}");
+
+            // Sunucu tarafında host belirleme — mentor = host
+            if (booking != null)
+                serverIsHost = booking.MentorUserId == userId;
 
             // Erken katılım kontrolü — DevMode kapalıysa en erken 15dk önce başlatılabilir
             if (booking != null)
@@ -64,6 +93,18 @@ public class GenerateVideoTokenCommandHandler
                     if (minutesUntilStart > earlyMinutes)
                         return Result<VideoTokenDto>.Failure(
                             $"Ders en erken {earlyMinutes} dakika önce başlatılabilir. Ders başlangıcına {Math.Ceiling(minutesUntilStart)} dakika kaldı.");
+                }
+
+                // ──── Öğrenci için mentor aktivasyon kontrolü ────
+                // Öğrenci (host değil) token istiyorsa, mentor'ün odayı aktifleştirmiş olması gerekir
+                if (!serverIsHost)
+                {
+                    var session = await findSessionByRoomName(request.RoomName);
+                    if (session == null || session.Status != Domain.Enums.VideoSessionStatus.Live)
+                    {
+                        return Result<VideoTokenDto>.Failure(
+                            "Mentor henüz odayı aktifleştirmedi. Lütfen bekleyin.");
+                    }
                 }
             }
         }
@@ -93,6 +134,9 @@ public class GenerateVideoTokenCommandHandler
                 if (!isMentor && !isEnrolled)
                     return Result<VideoTokenDto>.Failure("Bu derse katılma yetkiniz yok");
 
+                // Sunucu tarafında host belirleme — mentor = host
+                serverIsHost = isMentor;
+
                 // Early join check — DevMode bypass
                 var gcDevMode = await _settings.GetBoolAsync(PlatformSettings.DevModeSessionBypass, false, cancellationToken);
                 if (!gcDevMode)
@@ -103,6 +147,17 @@ public class GenerateVideoTokenCommandHandler
                         return Result<VideoTokenDto>.Failure(
                             $"Ders en erken {gcEarlyMinutes} dakika önce başlatılabilir. Ders başlangıcına {Math.Ceiling(gcMinutesUntilStart)} dakika kaldı.");
                 }
+
+                // ──── Öğrenci için mentor aktivasyon kontrolü (grup dersleri) ────
+                if (!serverIsHost)
+                {
+                    var gcSession = await findSessionByRoomName(request.RoomName);
+                    if (gcSession == null || gcSession.Status != Domain.Enums.VideoSessionStatus.Live)
+                    {
+                        return Result<VideoTokenDto>.Failure(
+                            "Mentor henüz odayı aktifleştirmedi. Lütfen bekleyin.");
+                    }
+                }
             }
         }
 
@@ -111,52 +166,34 @@ public class GenerateVideoTokenCommandHandler
         if (user == null)
             return Result<VideoTokenDto>.Failure("User not found");
 
-        // Generate token
+        // Generate token — sunucu tarafında hesaplanan isHost kullan
         var tokenResult = await _videoService.GenerateTokenAsync(
             request.RoomName,
             userId,
             user.DisplayName,
-            request.IsHost,
+            serverIsHost,
             cancellationToken);
 
         if (!tokenResult.Success)
             return Result<VideoTokenDto>.Failure(tokenResult.ErrorMessage ?? "Failed to generate token");
 
-        // Helper: find session by RoomName with fallback for group classes
-        async Task<VideoSession?> findSessionByRoomName(string roomName)
-        {
-            var s = await _context.VideoSessions
-                .FirstOrDefaultAsync(vs => vs.RoomName == roomName, cancellationToken);
-            if (s != null) return s;
-
-            // Fallback: try to find by ResourceId from room name (e.g., group-class-{guid})
-            if (roomName.StartsWith("group-class-"))
-            {
-                var idPart = roomName.Replace("group-class-", "");
-                if (Guid.TryParse(idPart, out var classId))
-                {
-                    s = await _context.VideoSessions
-                        .FirstOrDefaultAsync(vs => vs.ResourceId == classId &&
-                                                    vs.Status != Domain.Enums.VideoSessionStatus.Ended, cancellationToken);
-                }
-            }
-            return s;
-        }
-
         // Eğer host (mentor) ise, VideoSession'ı Live olarak işaretle
-        if (request.IsHost)
+        if (serverIsHost)
         {
             var session = await findSessionByRoomName(request.RoomName);
 
             if (session != null)
             {
-                session.MarkAsLive();
-                await _context.SaveChangesAsync(cancellationToken);
+                if (session.Status != Domain.Enums.VideoSessionStatus.Live)
+                {
+                    session.MarkAsLive();
+                    await _context.SaveChangesAsync(cancellationToken);
 
-                await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
-                    "Scheduled", "Live",
-                    $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
-                    userId, "Mentor", ct: cancellationToken);
+                    await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
+                        "Scheduled", "Live",
+                        $"Mentor odaya katıldı, session başlatıldı. Room: {request.RoomName}",
+                        userId, "Mentor", ct: cancellationToken);
+                }
             }
             else if (Guid.TryParse(request.RoomName, out var bookingId))
             {
@@ -196,7 +233,7 @@ public class GenerateVideoTokenCommandHandler
             _context.VideoParticipants.Add(participant);
             await _context.SaveChangesAsync(cancellationToken);
 
-            var role = request.IsHost ? "Mentor" : "Student";
+            var role = serverIsHost ? "Mentor" : "Student";
             await _history.LogAsync("VideoSession", existingSession.Id, "ParticipantJoined",
                 null, null,
                 $"{role} ({user.DisplayName}) odaya katıldı. Room: {request.RoomName}",

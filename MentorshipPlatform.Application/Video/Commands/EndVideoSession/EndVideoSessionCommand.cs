@@ -13,15 +13,18 @@ public class EndVideoSessionCommandHandler : IRequestHandler<EndVideoSessionComm
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IProcessHistoryService _history;
+    private readonly IVideoService _videoService;
 
     public EndVideoSessionCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
-        IProcessHistoryService history)
+        IProcessHistoryService history,
+        IVideoService videoService)
     {
         _context = context;
         _currentUser = currentUser;
         _history = history;
+        _videoService = videoService;
     }
 
     public async Task<Result> Handle(
@@ -55,7 +58,7 @@ public class EndVideoSessionCommandHandler : IRequestHandler<EndVideoSessionComm
 
         var oldStatus = session.Status.ToString();
 
-        // Mark session as ended
+        // Mark session as ended in DB
         session.MarkAsEnded();
 
         // Mark all active participants as left
@@ -70,9 +73,19 @@ public class EndVideoSessionCommandHandler : IRequestHandler<EndVideoSessionComm
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        // ──── Twilio room'u da kapat (stale room önleme) ────
+        try
+        {
+            await _videoService.CompleteRoomAsync(request.RoomName, cancellationToken);
+        }
+        catch
+        {
+            // Twilio kapanmazsa bile DB session'ı kapalı — kritik değil
+        }
+
         await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
             oldStatus, "Ended",
-            $"Session sonlandırıldı. Room: {request.RoomName}, {activeParticipants.Count} aktif katılımcı çıkartıldı",
+            $"Session sonlandırıldı. Room: {request.RoomName}, {activeParticipants.Count} aktif katılımcı çıkartıldı, Twilio room kapatıldı",
             _currentUser.UserId, "Mentor", ct: cancellationToken);
 
         return Result.Success();
