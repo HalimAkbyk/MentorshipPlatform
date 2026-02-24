@@ -60,6 +60,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<RefundRequest> RefundRequests => Set<RefundRequest>();
 
     // Messaging entities
+    public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageReport> MessageReports => Set<MessageReport>();
     public DbSet<MessageNotificationLog> MessageNotificationLogs => Set<MessageNotificationLog>();

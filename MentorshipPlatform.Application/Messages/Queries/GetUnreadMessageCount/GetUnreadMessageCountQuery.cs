@@ -32,27 +32,45 @@ public class GetUnreadMessageCountQueryHandler
 
         var userId = _currentUser.UserId!.Value;
 
-        // Find all bookings where user is participant
+        // Count unread messages across all conversations where user is a participant
+        var conversationIds = await _context.Conversations
+            .AsNoTracking()
+            .Where(c => c.User1Id == userId || c.User2Id == userId)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
+        // Also include legacy booking-based messages
         var bookingIds = await _context.Bookings
             .AsNoTracking()
             .Where(b => b.StudentUserId == userId || b.MentorUserId == userId)
             .Select(b => b.Id)
             .ToListAsync(cancellationToken);
 
-        if (!bookingIds.Any())
+        if (!conversationIds.Any() && !bookingIds.Any())
             return Result<UnreadCountDto>.Success(new UnreadCountDto(0, new List<BookingUnreadDto>()));
 
-        // Count unread messages per booking (messages not sent by current user and not read)
+        // Count unread: via conversation or via legacy booking
         var perBooking = await _context.Messages
             .AsNoTracking()
-            .Where(m => bookingIds.Contains(m.BookingId)
+            .Where(m => (conversationIds.Contains(m.ConversationId) ||
+                        (m.BookingId.HasValue && bookingIds.Contains(m.BookingId.Value)))
                         && m.SenderUserId != userId
                         && !m.IsRead)
-            .GroupBy(m => m.BookingId)
+            .Where(m => m.BookingId.HasValue)
+            .GroupBy(m => m.BookingId!.Value)
             .Select(g => new BookingUnreadDto(g.Key, g.Count()))
             .ToListAsync(cancellationToken);
 
-        var total = perBooking.Sum(b => b.Count);
+        // Also count direct messages with no booking
+        var directUnread = await _context.Messages
+            .AsNoTracking()
+            .Where(m => conversationIds.Contains(m.ConversationId)
+                        && !m.BookingId.HasValue
+                        && m.SenderUserId != userId
+                        && !m.IsRead)
+            .CountAsync(cancellationToken);
+
+        var total = perBooking.Sum(b => b.Count) + directUnread;
 
         return Result<UnreadCountDto>.Success(new UnreadCountDto(total, perBooking));
     }

@@ -8,15 +8,18 @@ using Microsoft.EntityFrameworkCore;
 namespace MentorshipPlatform.Application.Messages.Commands.SendMessage;
 
 public record SendMessageCommand(
-    Guid BookingId,
+    Guid? ConversationId,
+    Guid? BookingId,
     string Content) : IRequest<Result<Guid>>;
 
 public class SendMessageCommandValidator : AbstractValidator<SendMessageCommand>
 {
     public SendMessageCommandValidator()
     {
-        RuleFor(x => x.BookingId).NotEmpty();
         RuleFor(x => x.Content).NotEmpty().MaximumLength(2000);
+        RuleFor(x => x)
+            .Must(x => x.ConversationId.HasValue || x.BookingId.HasValue)
+            .WithMessage("ConversationId veya BookingId gereklidir.");
     }
 }
 
@@ -42,20 +45,56 @@ public class SendMessageCommandHandler : IRequestHandler<SendMessageCommand, Res
             return Result<Guid>.Failure("Giriş yapmalısınız.");
 
         var userId = _currentUser.UserId!.Value;
+        Conversation? conversation = null;
+        Guid? bookingId = request.BookingId;
 
-        var booking = await _context.Bookings
-            .AsNoTracking()
-            .FirstOrDefaultAsync(b => b.Id == request.BookingId, cancellationToken);
+        if (request.ConversationId.HasValue)
+        {
+            // Send via conversation
+            conversation = await _context.Conversations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == request.ConversationId.Value, cancellationToken);
 
-        if (booking == null)
-            return Result<Guid>.Failure("Rezervasyon bulunamadı.");
+            if (conversation == null)
+                return Result<Guid>.Failure("Konuşma bulunamadı.");
 
-        if (booking.StudentUserId != userId && booking.MentorUserId != userId)
-            return Result<Guid>.Failure("Bu rezervasyona mesaj gönderme yetkiniz yok.");
+            if (!conversation.IsParticipant(userId))
+                return Result<Guid>.Failure("Bu konuşmaya mesaj gönderme yetkiniz yok.");
 
-        var message = Message.Create(request.BookingId, userId, request.Content);
+            bookingId = conversation.BookingId;
+        }
+        else if (request.BookingId.HasValue)
+        {
+            // Legacy: send via booking — find or create conversation
+            var booking = await _context.Bookings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == request.BookingId.Value, cancellationToken);
 
-        var recipientUserId = booking.StudentUserId == userId ? booking.MentorUserId : booking.StudentUserId;
+            if (booking == null)
+                return Result<Guid>.Failure("Rezervasyon bulunamadı.");
+
+            if (booking.StudentUserId != userId && booking.MentorUserId != userId)
+                return Result<Guid>.Failure("Bu rezervasyona mesaj gönderme yetkiniz yok.");
+
+            // Find or create conversation for this booking
+            conversation = await _context.Conversations
+                .FirstOrDefaultAsync(c => c.BookingId == request.BookingId.Value, cancellationToken);
+
+            if (conversation == null)
+            {
+                conversation = Conversation.CreateForBooking(
+                    booking.StudentUserId, booking.MentorUserId, booking.Id);
+                _context.Conversations.Add(conversation);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        if (conversation == null)
+            return Result<Guid>.Failure("Konuşma bulunamadı.");
+
+        var recipientUserId = conversation.GetOtherUserId(userId);
+        var message = Message.Create(conversation.Id, bookingId, userId, request.Content);
+
         if (_chatNotification.IsUserOnline(recipientUserId))
         {
             message.MarkAsDelivered();
@@ -74,6 +113,7 @@ public class SendMessageCommandHandler : IRequestHandler<SendMessageCommand, Res
         var payload = new
         {
             id = message.Id,
+            conversationId = conversation.Id,
             bookingId = message.BookingId,
             senderUserId = userId,
             senderName = sender?.DisplayName ?? "Bilinmeyen",

@@ -31,13 +31,14 @@ public class SendUnreadMessageNotificationJob
         var cutoff = DateTime.UtcNow.AddMinutes(-10);
 
         // Find unread messages older than 10 minutes, grouped by (recipient, booking)
+        // Only booking-based messages are included in email notifications
         var unreadGroups = await _context.Messages
             .AsNoTracking()
-            .Where(m => !m.IsRead && m.CreatedAt <= cutoff)
-            .GroupBy(m => new { m.BookingId, m.SenderUserId })
+            .Where(m => !m.IsRead && m.CreatedAt <= cutoff && m.BookingId.HasValue)
+            .GroupBy(m => new { BookingId = m.BookingId!.Value, m.SenderUserId })
             .Select(g => new
             {
-                g.Key.BookingId,
+                BookingId = g.Key.BookingId,
                 SenderUserId = g.Key.SenderUserId,
                 UnreadCount = g.Count(),
                 OldestUnread = g.Min(m => m.CreatedAt)

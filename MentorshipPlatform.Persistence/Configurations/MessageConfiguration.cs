@@ -14,6 +14,11 @@ public class MessageConfiguration : IEntityTypeConfiguration<Message>
             .HasMaxLength(2000)
             .IsRequired();
 
+        builder.HasOne(m => m.Conversation)
+            .WithMany(c => c.Messages)
+            .HasForeignKey(m => m.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne(m => m.Booking)
             .WithMany()
             .HasForeignKey(m => m.BookingId)
@@ -25,6 +30,7 @@ public class MessageConfiguration : IEntityTypeConfiguration<Message>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(m => m.SenderUserId);
+        builder.HasIndex(m => new { m.ConversationId, m.CreatedAt });
         builder.HasIndex(m => new { m.BookingId, m.CreatedAt });
     }
 }

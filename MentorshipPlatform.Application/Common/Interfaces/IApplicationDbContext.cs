@@ -41,6 +41,7 @@ public interface IApplicationDbContext
     DbSet<RefundRequest> RefundRequests { get; }
 
     // Messaging entities
+    DbSet<Conversation> Conversations { get; }
     DbSet<Message> Messages { get; }
     DbSet<MessageReport> MessageReports { get; }
     DbSet<MessageNotificationLog> MessageNotificationLogs { get; }
