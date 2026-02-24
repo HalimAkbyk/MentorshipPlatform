@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Bookings.Queries.GetMyBookings;
 
-public record GetMyBookingsQuery(BookingStatus? Status, int Page = 1, int PageSize = 15) : IRequest<Result<PaginatedList<BookingDto>>>;
+public record GetMyBookingsQuery(BookingStatus? Status, string? Role = null, int Page = 1, int PageSize = 15) : IRequest<Result<PaginatedList<BookingDto>>>;
 
 public record BookingDto(
     Guid Id,
@@ -57,7 +57,15 @@ public class GetMyBookingsQueryHandler
             .Include(b => b.Mentor)
             .Include(b => b.Student)
             .Include(b => b.Offering)
-            .Where(b => b.StudentUserId == userId || b.MentorUserId == userId);
+            .AsQueryable();
+
+        // Role-based filtering: "student" = bookings as student, "mentor" = bookings as mentor
+        if (string.Equals(request.Role, "student", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(b => b.StudentUserId == userId);
+        else if (string.Equals(request.Role, "mentor", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(b => b.MentorUserId == userId);
+        else
+            query = query.Where(b => b.StudentUserId == userId || b.MentorUserId == userId);
 
         if (request.Status.HasValue)
         {

@@ -45,10 +45,11 @@ public class BookingsController : ControllerBase
     [ProducesResponseType(typeof(PaginatedList<BookingDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMyBookings(
         [FromQuery] BookingStatus? status,
+        [FromQuery] string? role,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 15)
     {
-        var result = await _mediator.Send(new GetMyBookingsQuery(status, page, pageSize));
+        var result = await _mediator.Send(new GetMyBookingsQuery(status, role, page, pageSize));
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
