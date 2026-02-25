@@ -41,6 +41,13 @@ public class ChatNotificationService : IChatNotificationService
             .SendAsync("NotificationCountUpdated", new { unreadCount });
     }
 
+    public async Task NotifyRoomStatusChanged(Guid userId, string roomName, bool isActive, bool hostConnected, int participantCount)
+    {
+        await _hubContext.Clients
+            .Group(userId.ToString())
+            .SendAsync("RoomStatusChanged", new { roomName, isActive, hostConnected, participantCount });
+    }
+
     public bool IsUserOnline(Guid userId)
     {
         return ChatHub.OnlineUsers.ContainsKey(userId);
