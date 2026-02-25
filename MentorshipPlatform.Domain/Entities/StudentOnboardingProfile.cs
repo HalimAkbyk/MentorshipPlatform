@@ -5,6 +5,9 @@ namespace MentorshipPlatform.Domain.Entities;
 public class StudentOnboardingProfile : BaseEntity
 {
     public Guid UserId { get; private set; }
+    public string? BirthDay { get; private set; }
+    public string? BirthMonth { get; private set; }
+    public string? Phone { get; private set; }
     public string? City { get; private set; }
     public string? Gender { get; private set; }
     public string? Status { get; private set; }
@@ -30,6 +33,9 @@ public class StudentOnboardingProfile : BaseEntity
     }
 
     public void Update(
+        string? birthDay,
+        string? birthMonth,
+        string? phone,
         string? city,
         string? gender,
         string? status,
@@ -44,6 +50,9 @@ public class StudentOnboardingProfile : BaseEntity
         string? availability,
         string? sessionFormats)
     {
+        BirthDay = birthDay;
+        BirthMonth = birthMonth;
+        Phone = phone;
         City = city;
         Gender = gender;
         Status = status;

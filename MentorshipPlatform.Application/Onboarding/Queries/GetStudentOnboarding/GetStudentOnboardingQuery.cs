@@ -37,6 +37,9 @@ public class GetStudentOnboardingQueryHandler
 
         return Result<StudentOnboardingDto?>.Success(new StudentOnboardingDto(
             profile.Id,
+            profile.BirthDay,
+            profile.BirthMonth,
+            profile.Phone,
             profile.City,
             profile.Gender,
             profile.Status,

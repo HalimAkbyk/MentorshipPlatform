@@ -8,6 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace MentorshipPlatform.Application.Onboarding.Commands.SaveStudentOnboarding;
 
 public record SaveStudentOnboardingCommand(
+    string? BirthDay,
+    string? BirthMonth,
+    string? Phone,
     string? City,
     string? Gender,
     string? Status,
@@ -24,6 +27,9 @@ public record SaveStudentOnboardingCommand(
 
 public record StudentOnboardingDto(
     Guid Id,
+    string? BirthDay,
+    string? BirthMonth,
+    string? Phone,
     string? City,
     string? Gender,
     string? Status,
@@ -85,6 +91,9 @@ public class SaveStudentOnboardingCommandHandler
         }
 
         profile.Update(
+            request.BirthDay,
+            request.BirthMonth,
+            request.Phone,
             request.City,
             request.Gender,
             request.Status,
@@ -103,6 +112,9 @@ public class SaveStudentOnboardingCommandHandler
 
         return Result<StudentOnboardingDto>.Success(new StudentOnboardingDto(
             profile.Id,
+            profile.BirthDay,
+            profile.BirthMonth,
+            profile.Phone,
             profile.City,
             profile.Gender,
             profile.Status,
