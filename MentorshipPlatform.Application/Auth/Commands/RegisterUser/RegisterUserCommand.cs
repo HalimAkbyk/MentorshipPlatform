@@ -16,7 +16,7 @@ public record RegisterUserCommand(
     string Email,
     string Password,
     string DisplayName,
-    UserRole InitialRole) : IRequest<Result<AuthResponse>>;
+    UserRole? InitialRole = null) : IRequest<Result<AuthResponse>>;
 public record AuthResponse(
     Guid UserId,
     string AccessToken,
@@ -74,14 +74,15 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, R
         if (existingUser != null)
             return Result<AuthResponse>.Failure("Bu e-posta adresi zaten kayıtlı");
 
-        // Create user
+        // Create user — default to Student role if not specified
+        var role = request.InitialRole ?? UserRole.Student;
         var passwordHash = _passwordHasher.HashPassword(null!, request.Password);
         var user = User.Create(request.Email, request.DisplayName, passwordHash);
-        user.AddRole(request.InitialRole);
+        user.AddRole(role);
 
         // Mentor seçen kullanıcıya otomatik olarak Student rolünü de ekle
         // Böylece mentor, diğer mentorların kurslarına kayıt olabilir ve birebir seans alabilir
-        if (request.InitialRole == UserRole.Mentor)
+        if (role == UserRole.Mentor)
         {
             user.AddRole(UserRole.Student);
         }

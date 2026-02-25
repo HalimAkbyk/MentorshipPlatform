@@ -108,25 +108,8 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             }
             else
             {
-                // 4. Create new user — InitialRole required
-                if (request.InitialRole == null)
-                {
-                    // Return a success response with PendingToken instead of a failure.
-                    // This avoids HTTP 400 and the global error interceptor toast.
-                    // Frontend detects PendingToken != null → shows role selection UI.
-                    var newUserPt = !string.IsNullOrEmpty(request.Token)
-                        ? request.Token
-                        : !string.IsNullOrEmpty(externalUser.ProviderAccessToken)
-                            ? externalUser.ProviderAccessToken
-                            : "ROLE_REQUIRED";
-                    return Result<ExternalLoginResponse>.Success(new ExternalLoginResponse(
-                        Guid.Empty,
-                        "",
-                        "",
-                        Array.Empty<UserRole>(),
-                        false,
-                        PendingToken: newUserPt));
-                }
+                // 4. Create new user — default to Student if no role specified
+                var role = request.InitialRole ?? UserRole.Student;
 
                 var displayName = request.DisplayName ?? externalUser.DisplayName;
                 user = User.CreateExternal(
@@ -136,9 +119,9 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
                     provider,
                     externalUser.ExternalId);
 
-                user.AddRole(request.InitialRole.Value);
+                user.AddRole(role);
                 // Mentor seçen kullanıcıya otomatik olarak Student rolünü de ekle
-                if (request.InitialRole.Value == UserRole.Mentor)
+                if (role == UserRole.Mentor)
                 {
                     user.AddRole(UserRole.Student);
                 }
@@ -149,7 +132,7 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        // 5. If user has no roles, require role selection
+        // 5. If user has no roles, assign Student as default
         _logger.LogInformation(
             "ExternalLogin user {UserId} email={Email} rolesCount={RolesCount} roles=[{Roles}] initialRole={InitialRole}",
             user.Id, user.Email, user.Roles.Count,
@@ -158,37 +141,13 @@ public class ExternalLoginCommandHandler : IRequestHandler<ExternalLoginCommand,
 
         if (!user.Roles.Any())
         {
-            if (request.InitialRole != null)
+            var fallbackRole = request.InitialRole ?? UserRole.Student;
+            user.AddRole(fallbackRole);
+            if (fallbackRole == UserRole.Mentor)
             {
-                // Role provided — assign it now
-                user.AddRole(request.InitialRole.Value);
-                // Mentor seçen kullanıcıya otomatik olarak Student rolünü de ekle
-                if (request.InitialRole.Value == UserRole.Mentor)
-                {
-                    user.AddRole(UserRole.Student);
-                }
-                await _context.SaveChangesAsync(cancellationToken);
+                user.AddRole(UserRole.Student);
             }
-            else
-            {
-                // No role yet — ask frontend to show role selection
-                // Use a guaranteed non-empty sentinel if no real token is available
-                var pt = !string.IsNullOrEmpty(request.Token)
-                    ? request.Token
-                    : !string.IsNullOrEmpty(externalUser?.ProviderAccessToken)
-                        ? externalUser.ProviderAccessToken
-                        : "ROLE_REQUIRED";
-                _logger.LogWarning(
-                    "ExternalLogin returning pendingToken for role-less user {UserId}, token length={TokenLen}, requestToken length={ReqLen}",
-                    user.Id, pt?.Length ?? 0, request.Token?.Length ?? 0);
-                return Result<ExternalLoginResponse>.Success(new ExternalLoginResponse(
-                    Guid.Empty,
-                    "",
-                    "",
-                    Array.Empty<UserRole>(),
-                    false,
-                    PendingToken: pt));
-            }
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         // 6. Check if account is active
