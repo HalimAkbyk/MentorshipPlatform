@@ -89,5 +89,18 @@ public interface IApplicationDbContext
     DbSet<StudentOnboardingProfile> StudentOnboardingProfiles { get; }
     DbSet<MentorOnboardingProfile> MentorOnboardingProfiles { get; }
 
+    // Pivot entities — Package & Credit
+    DbSet<Package> Packages { get; }
+    DbSet<PackagePurchase> PackagePurchases { get; }
+    DbSet<StudentCredit> StudentCredits { get; }
+    DbSet<CreditTransaction> CreditTransactions { get; }
+
+    // Pivot entities — Instructor Performance & Accrual
+    DbSet<InstructorSessionLog> InstructorSessionLogs { get; }
+    DbSet<VideoWatchLog> VideoWatchLogs { get; }
+    DbSet<InstructorPerformanceSummary> InstructorPerformanceSummaries { get; }
+    DbSet<InstructorAccrual> InstructorAccruals { get; }
+    DbSet<InstructorAccrualParameter> InstructorAccrualParameters { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

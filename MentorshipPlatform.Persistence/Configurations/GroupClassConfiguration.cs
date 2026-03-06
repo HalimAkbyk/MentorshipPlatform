@@ -30,6 +30,10 @@ public class GroupClassConfiguration : IEntityTypeConfiguration<GroupClass>
         builder.Property(x => x.Currency)
             .HasMaxLength(10);
 
+        // Pivot: Credit cost and recording
+        builder.Property(x => x.CreditCost).HasDefaultValue(0);
+        builder.Property(x => x.RecordingUrl).HasMaxLength(500);
+
         builder.HasMany(x => x.Enrollments)
             .WithOne(x => x.Class)
             .HasForeignKey(x => x.ClassId);

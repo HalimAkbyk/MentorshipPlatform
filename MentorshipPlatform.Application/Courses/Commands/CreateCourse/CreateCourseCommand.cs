@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Courses.Commands.CreateCourse;
 
+[RequiresFeature(FeatureFlags.MentorSelfCourseCreation)]
 public record CreateCourseCommand(
     string Title,
     string? ShortDescription,

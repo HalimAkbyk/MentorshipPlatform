@@ -14,6 +14,11 @@ public class User : BaseEntity
     public int? BirthYear { get; private set; }
     public UserStatus Status { get; private set; } = UserStatus.Active;
 
+    // Instructor (pivot) fields
+    public bool IsOwner { get; private set; }
+    public DateTime? InstructorAssignedAt { get; private set; }
+    public InstructorStatus? InstructorStatus { get; private set; }
+
     // External (social) login
     public string? ExternalProvider { get; private set; }
     public string? ExternalId { get; private set; }
@@ -109,5 +114,33 @@ public class User : BaseEntity
         if (!BirthYear.HasValue) return false;
         var currentYear = DateTime.UtcNow.Year;
         return (currentYear - BirthYear.Value) < 18;
+    }
+
+    public void AssignAsInstructor()
+    {
+        if (!_roles.Contains(UserRole.Mentor))
+            _roles.Add(UserRole.Mentor);
+        InstructorAssignedAt = DateTime.UtcNow;
+        InstructorStatus = Enums.InstructorStatus.Active;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetOwner(bool isOwner)
+    {
+        IsOwner = isOwner;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SuspendInstructor()
+    {
+        InstructorStatus = Enums.InstructorStatus.Suspended;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void RemoveInstructor()
+    {
+        InstructorStatus = Enums.InstructorStatus.Removed;
+        RemoveRole(UserRole.Mentor);
+        UpdatedAt = DateTime.UtcNow;
     }
 }

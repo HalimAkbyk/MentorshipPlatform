@@ -108,6 +108,19 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<StudentOnboardingProfile> StudentOnboardingProfiles => Set<StudentOnboardingProfile>();
     public DbSet<MentorOnboardingProfile> MentorOnboardingProfiles => Set<MentorOnboardingProfile>();
 
+    // Pivot entities — Package & Credit
+    public DbSet<Package> Packages => Set<Package>();
+    public DbSet<PackagePurchase> PackagePurchases => Set<PackagePurchase>();
+    public DbSet<StudentCredit> StudentCredits => Set<StudentCredit>();
+    public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
+
+    // Pivot entities — Instructor Performance & Accrual
+    public DbSet<InstructorSessionLog> InstructorSessionLogs => Set<InstructorSessionLog>();
+    public DbSet<VideoWatchLog> VideoWatchLogs => Set<VideoWatchLog>();
+    public DbSet<InstructorPerformanceSummary> InstructorPerformanceSummaries => Set<InstructorPerformanceSummary>();
+    public DbSet<InstructorAccrual> InstructorAccruals => Set<InstructorAccrual>();
+    public DbSet<InstructorAccrualParameter> InstructorAccrualParameters => Set<InstructorAccrualParameter>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);

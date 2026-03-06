@@ -10,6 +10,7 @@ public class CourseEnrollment : BaseEntity
     public CourseEnrollmentStatus Status { get; private set; }
     public decimal CompletionPercentage { get; private set; }
     public DateTime? LastAccessedAt { get; private set; }
+    public Guid? CreditTransactionId { get; private set; }
 
     // Navigation
     public Course Course { get; private set; } = null!;
@@ -71,5 +72,10 @@ public class CourseEnrollment : BaseEntity
             return 0.5m; // 50%
 
         return 0m; // No refund
+    }
+
+    public void SetCreditTransaction(Guid creditTransactionId)
+    {
+        CreditTransactionId = creditTransactionId;
     }
 }

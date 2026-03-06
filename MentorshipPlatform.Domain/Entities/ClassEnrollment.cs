@@ -10,6 +10,8 @@ public class ClassEnrollment : BaseEntity
     public Guid StudentUserId { get; private set; }
     public User StudentUser { get; private set; } = null!;
     public EnrollmentStatus Status { get; private set; }
+    public PaymentType PaymentType { get; private set; } = PaymentType.Direct;
+    public Guid? CreditTransactionId { get; private set; }
 
    
     
@@ -30,4 +32,10 @@ public class ClassEnrollment : BaseEntity
     public void Cancel() => Status = EnrollmentStatus.Cancelled;
     public void MarkAttended() => Status = EnrollmentStatus.Attended;
     public void Refund() => Status = EnrollmentStatus.Refunded;
+
+    public void SetCreditPayment(Guid creditTransactionId)
+    {
+        PaymentType = PaymentType.Credit;
+        CreditTransactionId = creditTransactionId;
+    }
 }

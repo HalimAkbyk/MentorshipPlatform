@@ -17,6 +17,8 @@ public class GroupClass : BaseEntity
     public decimal PricePerSeat { get; private set; }
     public string Currency { get; private set; } = "TRY";
     public ClassStatus Status { get; private set; }
+    public int CreditCost { get; private set; }
+    public string? RecordingUrl { get; private set; }
 
     private readonly List<ClassEnrollment> _enrollments = new();
     public IReadOnlyCollection<ClassEnrollment> Enrollments => _enrollments.AsReadOnly();
@@ -90,4 +92,7 @@ public class GroupClass : BaseEntity
         Status = ClassStatus.Completed;
         AddDomainEvent(new GroupClassCompletedEvent(Id, MentorUserId));
     }
+
+    public void SetCreditCost(int creditCost) => CreditCost = creditCost;
+    public void SetRecordingUrl(string? recordingUrl) => RecordingUrl = recordingUrl;
 }

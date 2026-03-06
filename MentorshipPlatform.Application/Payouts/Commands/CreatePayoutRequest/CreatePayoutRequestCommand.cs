@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Payouts.Commands.CreatePayoutRequest;
 
+[RequiresFeature(FeatureFlags.CommissionPaymentModel)]
 public record CreatePayoutRequestCommand(
     decimal Amount,
     string? Note = null) : IRequest<Result<PayoutRequestDto>>;

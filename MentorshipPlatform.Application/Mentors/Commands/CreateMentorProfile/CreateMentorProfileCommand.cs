@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Mentors.Commands.CreateMentorProfile;
 
+[RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record CreateMentorProfileCommand(
     string University,
     string Department,

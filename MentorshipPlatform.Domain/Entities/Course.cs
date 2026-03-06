@@ -20,6 +20,7 @@ public class Course : BaseEntity
     public CourseLevel Level { get; private set; }
     public string? Language { get; private set; } = "tr";
     public string? Category { get; private set; }
+    public Guid? InstructorId { get; private set; }
 
     // JSONB serialized string arrays
     public string? WhatYouWillLearnJson { get; private set; }
@@ -35,6 +36,7 @@ public class Course : BaseEntity
 
     // Navigation
     public User MentorUser { get; private set; } = null!;
+    public User? Instructor { get; private set; }
     private readonly List<CourseSection> _sections = new();
     public IReadOnlyCollection<CourseSection> Sections => _sections.AsReadOnly();
     private readonly List<CourseReviewRound> _reviewRounds = new();
@@ -178,6 +180,12 @@ public class Course : BaseEntity
     public void IncrementEnrollmentCount()
     {
         EnrollmentCount++;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetInstructor(Guid? instructorId)
+    {
+        InstructorId = instructorId;
         UpdatedAt = DateTime.UtcNow;
     }
 }

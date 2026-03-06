@@ -53,7 +53,14 @@ public class CourseConfiguration : IEntityTypeConfiguration<Course>
             .HasForeignKey(x => x.MentorUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Pivot: Instructor tagging
+        builder.HasOne(x => x.Instructor)
+            .WithMany()
+            .HasForeignKey(x => x.InstructorId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => x.MentorUserId);
+        builder.HasIndex(x => x.InstructorId);
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => new { x.MentorUserId, x.Status });
     }

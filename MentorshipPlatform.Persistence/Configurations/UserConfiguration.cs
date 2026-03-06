@@ -50,6 +50,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsUnique()
             .HasFilter("\"ExternalProvider\" IS NOT NULL");
 
+        // Pivot: Instructor fields
+        builder.Property(u => u.IsOwner).HasDefaultValue(false);
+        builder.Property(u => u.InstructorStatus)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
         builder.HasOne(u => u.MentorProfile)
             .WithOne(m => m.User)
             .HasForeignKey<MentorProfile>(m => m.UserId);

@@ -4,5 +4,6 @@ public enum OrderType
 {
     Booking,
     GroupClass,
-    Course
+    Course,
+    Package
 }

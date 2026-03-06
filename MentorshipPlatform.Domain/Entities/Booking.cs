@@ -16,6 +16,9 @@ public class Booking : BaseEntity
     public BookingStatus Status { get; private set; }
     public string? CancellationReason { get; private set; }
 
+    // Credit payment reference
+    public Guid? CreditTransactionId { get; private set; }
+
     // Reschedule fields
     public int RescheduleCountStudent { get; private set; }
     public int RescheduleCountMentor { get; private set; }
@@ -193,5 +196,10 @@ public class Booking : BaseEntity
         PendingRescheduleStartAt = null;
         PendingRescheduleEndAt = null;
         PendingRescheduleRequestedBy = null;
+    }
+
+    public void SetCreditTransaction(Guid creditTransactionId)
+    {
+        CreditTransactionId = creditTransactionId;
     }
 }

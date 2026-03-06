@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Mentors.Commands.SubmitVerification;
 
+[RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record SubmitVerificationCommand(
     string Type, // ✅ String olarak al, handler'da enum'a çevir
     IFormFile? Document) : IRequest<Result<Guid>>;

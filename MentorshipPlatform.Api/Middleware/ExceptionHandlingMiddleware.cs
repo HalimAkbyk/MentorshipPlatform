@@ -1,5 +1,6 @@
 
 using FluentValidation;
+using MentorshipPlatform.Application.Common.Behaviours;
 using MentorshipPlatform.Domain.Exceptions;
 
 namespace MentorshipPlatform.Api.Middleware;
@@ -31,6 +32,11 @@ public class ExceptionHandlingMiddleware
             _logger.LogWarning(ex, "Validation error occurred");
             await HandleValidationExceptionAsync(context, ex);
         }
+        catch (FeatureDisabledException ex)
+        {
+            _logger.LogWarning(ex, "Feature disabled: {FeatureFlag}", ex.FeatureFlagKey);
+            await HandleFeatureDisabledExceptionAsync(context, ex);
+        }
         catch (DomainException ex)
         {
             _logger.LogWarning(ex, "Domain exception occurred");
@@ -59,6 +65,22 @@ public class ExceptionHandlingMiddleware
             title = "Validation error",
             status = 400,
             errors
+        };
+
+        return context.Response.WriteAsJsonAsync(response);
+    }
+
+    private static Task HandleFeatureDisabledExceptionAsync(HttpContext context, FeatureDisabledException exception)
+    {
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+
+        var response = new
+        {
+            title = "Feature disabled",
+            status = 403,
+            detail = exception.Message,
+            featureFlag = exception.FeatureFlagKey
         };
 
         return context.Response.WriteAsJsonAsync(response);

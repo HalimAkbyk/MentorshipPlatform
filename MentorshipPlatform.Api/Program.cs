@@ -9,6 +9,7 @@ using MediatR;
 using MentorshipPlatform.Application.Auth.Commands.RegisterUser;
 using MentorshipPlatform.Application.Common.Behaviours;
 using MentorshipPlatform.Application.Common.Interfaces;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Domain.Enums;
 using MentorshipPlatform.Identity.Services;
@@ -121,6 +122,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(RegisterUserCommand).Assembly);
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(FeatureFlagCheckBehaviour<,>));
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
 });
 
@@ -377,6 +379,9 @@ try
         await dbContext.Database.MigrateAsync();
         Log.Information("Database migrations applied successfully");
 
+        // Seed pivot feature flags
+        await SeedPivotFeatureFlags(dbContext);
+
         // Seed CMS data if tables are empty
         await SeedCmsData(dbContext);
 
@@ -450,6 +455,37 @@ static async Task SyncEmailSettingsFromEnv(ApplicationDbContext db)
         await db.SaveChangesAsync();
         Log.Information("Email settings synced from environment variables");
     }
+}
+
+// Pivot Feature Flags Seed Data
+static async Task SeedPivotFeatureFlags(ApplicationDbContext db)
+{
+    var pivotFlags = new List<(string key, bool enabled, string description)>
+    {
+        ("MARKETPLACE_MODE", false, "Marketplace modu: true = mentor basvurusu acik, mentor kurs olusturma acik"),
+        ("EXTERNAL_MENTOR_REGISTRATION", false, "Disaridan mentor kayit formu"),
+        ("MENTOR_SELF_COURSE_CREATION", false, "Mentorlerin kendi kurslarini olusturmasi"),
+        ("MULTI_CATEGORY_MODE", false, "TYT/AYT disinda kategori eklenmesi"),
+        ("COMMISSION_PAYMENT_MODEL", false, "Mentor komisyon bazli odeme sistemi"),
+        ("PACKAGE_SYSTEM_ENABLED", true, "Paket satis ve kredi sistemi"),
+        ("PRIVATE_LESSON_ENABLED", true, "Ozel ders modulu"),
+        ("INSTRUCTOR_SELF_SCHEDULING", true, "Egitmenlerin kendi takvimlerini yonetmesi"),
+        ("INSTRUCTOR_PERFORMANCE_TRACKING", true, "Egitmen performans takip sistemi"),
+        ("INSTRUCTOR_PERFORMANCE_SELF_VIEW", false, "Egitmenlerin kendi performanslarini gormesi"),
+        ("INSTRUCTOR_ACCRUAL_SELF_VIEW", false, "Egitmenlerin kendi hakedislerini gormesi"),
+        ("INSTRUCTOR_COMPARISON_REPORT", true, "Egitmenler arasi karsilastirma raporu"),
+    };
+
+    foreach (var (key, enabled, description) in pivotFlags)
+    {
+        var exists = await db.FeatureFlags.AnyAsync(f => f.Key == key);
+        if (!exists)
+        {
+            db.FeatureFlags.Add(FeatureFlag.Create(key, enabled, description));
+        }
+    }
+
+    await db.SaveChangesAsync();
 }
 
 // CMS Seed Data

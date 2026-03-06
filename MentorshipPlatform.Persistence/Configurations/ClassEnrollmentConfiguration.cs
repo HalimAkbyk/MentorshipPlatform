@@ -11,7 +11,13 @@ public class ClassEnrollmentConfiguration : IEntityTypeConfiguration<ClassEnroll
         builder.Property(x => x.Status)
             .HasConversion<string>()
             .HasMaxLength(30);
-        
+
+        // Pivot: Payment type and credit reference
+        builder.Property(x => x.PaymentType)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(Domain.Enums.PaymentType.Direct);
+
         builder.HasIndex(x => new { ClassId = x.ClassId, x.StudentUserId })
             .IsUnique();
 
