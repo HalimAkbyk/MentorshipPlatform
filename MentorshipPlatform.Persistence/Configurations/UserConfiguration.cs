@@ -30,19 +30,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasConversion<string>()
             .HasMaxLength(20);
 
-        // Store roles as JSON array — use backing field for change tracking
+        // Store roles as JSON array
         builder.Property(u => u.Roles)
-            .HasField("_roles")
-            .UsePropertyAccessMode(PropertyAccessMode.Field)
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null!),
-                v => JsonSerializer.Deserialize<List<UserRole>>(v, (JsonSerializerOptions)null!) ?? new List<UserRole>())
-            .HasColumnType("jsonb")
-            .Metadata.SetValueComparer(
-                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<UserRole>>(
-                    (c1, c2) => c1!.SequenceEqual(c2!),
-                    c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-                    c => c.ToList()));
+                v => JsonSerializer.Deserialize<List<UserRole>>(v, (JsonSerializerOptions)null!)!)
+            .HasColumnType("jsonb");
 
         builder.Property(u => u.ExternalProvider)
             .HasMaxLength(20);

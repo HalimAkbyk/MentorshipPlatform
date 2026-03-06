@@ -23,7 +23,7 @@ public class User : BaseEntity
     public string? ExternalProvider { get; private set; }
     public string? ExternalId { get; private set; }
 
-    private readonly List<UserRole> _roles = new();
+    private List<UserRole> _roles = new();
     public IReadOnlyCollection<UserRole> Roles => _roles.AsReadOnly();
 
     public MentorProfile? MentorProfile { get; private set; }
@@ -64,13 +64,13 @@ public class User : BaseEntity
     {
         if (!_roles.Contains(role))
         {
-            _roles.Add(role);
+            _roles = new List<UserRole>(_roles) { role };
         }
     }
 
     public void RemoveRole(UserRole role)
     {
-        _roles.Remove(role);
+        _roles = _roles.Where(r => r != role).ToList();
     }
 
     public void UpdateProfile(string displayName,string? phone, string? avatarUrl, int? birthYear)
@@ -118,8 +118,7 @@ public class User : BaseEntity
 
     public void AssignAsInstructor()
     {
-        if (!_roles.Contains(UserRole.Mentor))
-            _roles.Add(UserRole.Mentor);
+        AddRole(UserRole.Mentor);
         InstructorAssignedAt = DateTime.UtcNow;
         InstructorStatus = Enums.InstructorStatus.Active;
         UpdatedAt = DateTime.UtcNow;
