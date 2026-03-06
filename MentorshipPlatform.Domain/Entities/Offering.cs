@@ -28,6 +28,13 @@ public class Offering : BaseEntity
     public string? CoverImageTransform { get; private set; }
     public Guid? AvailabilityTemplateId { get; private set; }
 
+    // Price approval fields
+    public OfferingApprovalStatus ApprovalStatus { get; private set; } = OfferingApprovalStatus.Approved;
+    public decimal? AdminApprovedPrice { get; private set; }
+    public string? AdminPriceNote { get; private set; }
+    public Guid? ApprovedByUserId { get; private set; }
+    public DateTime? ApprovedAt { get; private set; }
+
     // Navigation properties
     private readonly List<BookingQuestion> _questions = new();
     public IReadOnlyCollection<BookingQuestion> Questions => _questions.AsReadOnly();
@@ -122,6 +129,32 @@ public class Offering : BaseEntity
 
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
+
+    public void SubmitForApproval()
+    {
+        ApprovalStatus = OfferingApprovalStatus.PendingApproval;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ApprovePrice(decimal? adminPrice, string? note, Guid adminUserId)
+    {
+        ApprovalStatus = OfferingApprovalStatus.Approved;
+        AdminApprovedPrice = adminPrice;
+        AdminPriceNote = note;
+        ApprovedByUserId = adminUserId;
+        ApprovedAt = DateTime.UtcNow;
+        if (adminPrice.HasValue && adminPrice.Value > 0)
+            PriceAmount = adminPrice.Value;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void RejectApproval(string? reason, Guid adminUserId)
+    {
+        ApprovalStatus = OfferingApprovalStatus.Rejected;
+        AdminPriceNote = reason;
+        ApprovedByUserId = adminUserId;
+        UpdatedAt = DateTime.UtcNow;
+    }
 
     public void SetAvailabilityTemplate(Guid? templateId)
     {

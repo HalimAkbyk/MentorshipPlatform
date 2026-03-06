@@ -95,6 +95,12 @@ public interface IApplicationDbContext
     DbSet<StudentCredit> StudentCredits { get; }
     DbSet<CreditTransaction> CreditTransactions { get; }
 
+    // Session Request entities
+    DbSet<SessionRequest> SessionRequests { get; }
+
+    // Free Session entities
+    DbSet<FreeSession> FreeSessions { get; }
+
     // Pivot entities — Instructor Performance & Accrual
     DbSet<InstructorSessionLog> InstructorSessionLogs { get; }
     DbSet<VideoWatchLog> VideoWatchLogs { get; }

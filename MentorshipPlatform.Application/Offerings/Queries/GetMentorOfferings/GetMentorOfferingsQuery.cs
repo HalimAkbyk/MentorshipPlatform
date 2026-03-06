@@ -1,6 +1,7 @@
 using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
+using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Offerings.Queries.GetMentorOfferings;
@@ -55,7 +56,8 @@ public class GetMentorOfferingsQueryHandler : IRequestHandler<GetMentorOfferings
         var offerings = await _context.Offerings
             .Include(o => o.Questions)
             .AsNoTracking()
-            .Where(o => o.MentorUserId == request.MentorUserId && o.IsActive)
+            .Where(o => o.MentorUserId == request.MentorUserId && o.IsActive
+                && (isOwnProfile || o.ApprovalStatus == OfferingApprovalStatus.Approved))
             .OrderBy(o => o.SortOrder)
             .Select(o => new MentorOfferingDto(
                 o.Id,

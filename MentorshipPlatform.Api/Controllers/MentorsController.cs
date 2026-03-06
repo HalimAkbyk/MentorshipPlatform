@@ -7,6 +7,7 @@ using MentorshipPlatform.Application.Availability.Commands.DeleteAvailabilitySlo
 using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
 using MentorshipPlatform.Application.Availability.Queries.GetAvailabilityTemplate;
 using MentorshipPlatform.Application.Availability.Queries.GetAvailableTimeSlots;
+using MentorshipPlatform.Application.Availability.Queries.GetMentorFullCalendar;
 using MentorshipPlatform.Application.Availability.Queries.GetMentorAvailability;
 using MentorshipPlatform.Application.Availability.Queries.GetMyAvailability;
 using MentorshipPlatform.Application.Mentors.Commands.BecomeMentor;
@@ -391,6 +392,24 @@ public class MentorsController : ControllerBase
             return BadRequest(new { errors = result.Errors });
         }
 
+        return Ok(result.Data);
+    }
+
+    /// <summary>
+    /// Public: Mentor'un tam takvim gorunumu.
+    /// Musait (Available), dolu (Booked), musait olmayan (Unavailable) slotlar doner.
+    /// </summary>
+    [HttpGet("{id}/calendar")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetMentorFullCalendar(
+        Guid id,
+        [FromQuery] Guid offeringId,
+        [FromQuery] DateTime start,
+        [FromQuery] DateTime end,
+        CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetMentorFullCalendarQuery(id, offeringId, start, end), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
         return Ok(result.Data);
     }
 

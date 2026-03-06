@@ -23,6 +23,9 @@ using MentorshipPlatform.Application.Admin.Commands.UpdateInstructorStatus;
 using MentorshipPlatform.Application.Bookings.Commands.ResolveDispute;
 using MentorshipPlatform.Application.Messages.Queries.GetMessageReports;
 using MentorshipPlatform.Application.Messages.Commands.ReviewMessageReport;
+using MentorshipPlatform.Application.Admin.Commands.ApproveOfferingPrice;
+using MentorshipPlatform.Application.Admin.Commands.RejectOfferingPrice;
+using MentorshipPlatform.Application.Admin.Queries.GetPendingOfferingApprovals;
 
 [ApiController]
 [Route("api/admin")]
@@ -792,6 +795,51 @@ public class AdminController : ControllerBase
         Guid userId, [FromBody] UpdateInstructorStatusRequest request)
     {
         var result = await _mediator.Send(new UpdateInstructorStatusCommand(userId, request.Status));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    // -----------------------------
+    // OFFERING PRICE APPROVAL (Faz C)
+    // -----------------------------
+
+    [HttpGet("offering-approvals")]
+    public async Task<IActionResult> GetPendingOfferingApprovals()
+    {
+        var result = await _mediator.Send(new GetPendingOfferingApprovalsQuery());
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(result.Data);
+    }
+
+    public record ApproveOfferingPriceRequest(decimal? AdminPrice, string? Note);
+
+    [HttpPost("offerings/{id:guid}/approve-price")]
+    public async Task<IActionResult> ApproveOfferingPrice(
+        Guid id, [FromBody] ApproveOfferingPriceRequest request)
+    {
+        var result = await _mediator.Send(new ApproveOfferingPriceCommand(
+            id, request.AdminPrice, request.Note));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    public record RejectOfferingPriceRequest(string? Reason);
+
+    [HttpPost("offerings/{id:guid}/reject-price")]
+    public async Task<IActionResult> RejectOfferingPrice(
+        Guid id, [FromBody] RejectOfferingPriceRequest request)
+    {
+        var result = await _mediator.Send(new RejectOfferingPriceCommand(
+            id, request.Reason));
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });

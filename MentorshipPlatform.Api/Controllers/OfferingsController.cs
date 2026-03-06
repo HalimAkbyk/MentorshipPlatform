@@ -6,6 +6,7 @@ using MentorshipPlatform.Application.Offerings.Commands.DeleteOffering;
 using MentorshipPlatform.Application.Offerings.Commands.ReorderOfferings;
 using MentorshipPlatform.Application.Offerings.Commands.ToggleOffering;
 using MentorshipPlatform.Application.Offerings.Commands.UpdateOffering;
+using MentorshipPlatform.Application.Offerings.Commands.SubmitOfferingForApproval;
 using MentorshipPlatform.Application.Offerings.Commands.UpsertBookingQuestions;
 using MentorshipPlatform.Application.Offerings.Queries.GetMentorOfferings;
 using MentorshipPlatform.Application.Offerings.Queries.GetMyOfferings;
@@ -139,6 +140,16 @@ public class OfferingsController : ControllerBase
         var result = await _mediator.Send(new UpsertBookingQuestionsCommand(id, questions), ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
     }
+    /// <summary>Paketi fiyat onayina gonder</summary>
+    [Authorize(Roles = "Mentor")]
+    [HttpPost("{id:guid}/submit-for-approval")]
+    public async Task<IActionResult> SubmitForApproval(Guid id, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new SubmitOfferingForApprovalCommand(id), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return Ok(new { success = true });
+    }
+
     // ---- Offering-level Availability Template ----
 
     /// <summary>Paketin müsaitlik programını getir (özel veya varsayılan)</summary>

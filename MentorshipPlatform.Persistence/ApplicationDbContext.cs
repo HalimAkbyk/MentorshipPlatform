@@ -114,6 +114,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<StudentCredit> StudentCredits => Set<StudentCredit>();
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
 
+    // Session Request entities
+    public DbSet<SessionRequest> SessionRequests => Set<SessionRequest>();
+
+    // Free Session entities
+    public DbSet<FreeSession> FreeSessions => Set<FreeSession>();
+
     // Pivot entities — Instructor Performance & Accrual
     public DbSet<InstructorSessionLog> InstructorSessionLogs => Set<InstructorSessionLog>();
     public DbSet<VideoWatchLog> VideoWatchLogs => Set<VideoWatchLog>();

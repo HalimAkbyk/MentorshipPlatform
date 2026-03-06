@@ -41,4 +41,7 @@ public static class FeatureFlags
     public const string InstructorPerformanceSelfView = "INSTRUCTOR_PERFORMANCE_SELF_VIEW";
     public const string InstructorAccrualSelfView = "INSTRUCTOR_ACCRUAL_SELF_VIEW";
     public const string InstructorComparisonReport = "INSTRUCTOR_COMPARISON_REPORT";
+    public const string SessionRequestEnabled = "SESSION_REQUEST_ENABLED";
+    public const string PriceApprovalRequired = "PRICE_APPROVAL_REQUIRED";
+    public const string FreeSessionEnabled = "FREE_SESSION_ENABLED";
 }

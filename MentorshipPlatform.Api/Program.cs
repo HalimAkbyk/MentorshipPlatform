@@ -364,6 +364,9 @@ try
 
     RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.CalculateAccrualJob>(
         "calculate-accrual", job => job.Execute(), "0 4 1 * *"); // Monthly on the 1st at 04:00 UTC
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.ExpirePendingSessionRequestsJob>(
+        "expire-pending-session-requests", job => job.Execute(), "0 * * * *"); // Every hour
 }
 catch (Exception ex)
 {
@@ -486,6 +489,9 @@ static async Task SeedPivotFeatureFlags(ApplicationDbContext db)
         ("INSTRUCTOR_PERFORMANCE_SELF_VIEW", false, "Egitmenlerin kendi performanslarini gormesi"),
         ("INSTRUCTOR_ACCRUAL_SELF_VIEW", false, "Egitmenlerin kendi hakedislerini gormesi"),
         ("INSTRUCTOR_COMPARISON_REPORT", true, "Egitmenler arasi karsilastirma raporu"),
+        ("SESSION_REQUEST_ENABLED", true, "Seans talep sistemi"),
+        ("PRICE_APPROVAL_REQUIRED", false, "Fiyat onay zorunlulugu"),
+        ("FREE_SESSION_ENABLED", true, "Anlik seans (kredi ile)"),
     };
 
     foreach (var (key, enabled, description) in pivotFlags)
