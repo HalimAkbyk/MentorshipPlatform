@@ -619,6 +619,142 @@ public class AdminController : ControllerBase
     }
 
     // -----------------------------
+    // DATABASE CLEANUP (non-admin users + data)
+    // -----------------------------
+
+    [HttpPost("cleanup-database")]
+    public async Task<IActionResult> CleanupDatabase()
+    {
+        // Admin kullanıcı ID'lerini bul
+        var adminUserIds = await _db.Users
+            .Where(u => u.Roles.Contains(UserRole.Admin))
+            .Select(u => u.Id)
+            .ToListAsync();
+
+        if (!adminUserIds.Any())
+            return BadRequest(new { errors = new[] { "No admin users found — aborting cleanup." } });
+
+        var adminIdList = string.Join("','", adminUserIds);
+        var notAdminFilter = $"NOT IN ('{adminIdList}')";
+
+        // FK bağımlılık sırasına göre sil (en derin child → parent)
+        var statements = new[]
+        {
+            // 1. Credit system (deepest children first)
+            "DELETE FROM \"CreditTransactions\"",
+            "DELETE FROM \"StudentCredits\"",
+            "DELETE FROM \"PackagePurchases\"",
+
+            // 2. Instructor performance & accrual
+            "DELETE FROM \"InstructorAccruals\"",
+            "DELETE FROM \"InstructorPerformanceSummaries\"",
+            "DELETE FROM \"InstructorSessionLogs\"",
+            "DELETE FROM \"VideoWatchLogs\"",
+
+            // 3. Exam answers → attempts
+            "DELETE FROM \"ExamAnswers\"",
+            "DELETE FROM \"ExamAttempts\"",
+
+            // 4. Course children (lecture progress, notes, review comments)
+            "DELETE FROM \"LectureProgresses\"",
+            "DELETE FROM \"LectureNotes\"",
+            "DELETE FROM \"LectureReviewComments\"",
+            "DELETE FROM \"CourseReviewRounds\"",
+            $"DELETE FROM \"CourseAdminNotes\" WHERE \"AdminUserId\" {notAdminFilter}",
+            "DELETE FROM \"CourseEnrollments\"",
+
+            // 5. Course content (lectures → sections → courses)
+            "DELETE FROM \"CourseLectures\"",
+            "DELETE FROM \"CourseSections\"",
+            $"DELETE FROM \"Courses\" WHERE \"MentorUserId\" {notAdminFilter}",
+
+            // 6. Messaging (reports → messages → conversations)
+            "DELETE FROM \"MessageReports\"",
+            "DELETE FROM \"MessageNotificationLogs\"",
+            "DELETE FROM \"Messages\"",
+            "DELETE FROM \"Conversations\"",
+
+            // 7. Booking children (question responses → bookings)
+            "DELETE FROM \"BookingQuestionResponses\"",
+            "DELETE FROM \"Reviews\"",
+            "DELETE FROM \"RefundRequests\"",
+            "DELETE FROM \"Bookings\"",
+
+            // 8. Video sessions
+            "DELETE FROM \"VideoParticipants\"",
+            "DELETE FROM \"VideoSessions\"",
+
+            // 9. Group classes (enrollments → classes)
+            "DELETE FROM \"ClassEnrollments\"",
+            $"DELETE FROM \"GroupClasses\" WHERE \"MentorUserId\" {notAdminFilter}",
+
+            // 10. Orders & ledger
+            "DELETE FROM \"Orders\"",
+            "DELETE FROM \"LedgerEntries\"",
+            "DELETE FROM \"PayoutRequests\"",
+
+            // 11. Offerings & availability
+            "DELETE FROM \"BookingQuestions\"",
+            $"DELETE FROM \"Offerings\" WHERE \"MentorUserId\" {notAdminFilter}",
+            "DELETE FROM \"AvailabilitySlots\"",
+            "DELETE FROM \"AvailabilityOverrides\"",
+            "DELETE FROM \"AvailabilityRules\"",
+            $"DELETE FROM \"AvailabilityTemplates\" WHERE \"MentorUserId\" {notAdminFilter}",
+
+            // 12. Coupon usage
+            "DELETE FROM \"CouponUsages\"",
+
+            // 13. Notifications & process history
+            "DELETE FROM \"UserNotifications\"",
+            "DELETE FROM \"BulkNotifications\"",
+            "DELETE FROM \"BlacklistEntries\"",
+            $"DELETE FROM \"ProcessHistories\" WHERE \"TriggeredByUserId\" IS NULL OR \"TriggeredByUserId\" {notAdminFilter}",
+
+            // 14. Profiles & onboarding
+            "DELETE FROM \"MentorVerifications\"",
+            $"DELETE FROM \"MentorProfiles\" WHERE \"UserId\" {notAdminFilter}",
+            $"DELETE FROM \"StudentOnboardingProfiles\" WHERE \"UserId\" {notAdminFilter}",
+            $"DELETE FROM \"MentorOnboardingProfiles\" WHERE \"MentorUserId\" {notAdminFilter}",
+
+            // 15. Exams created by non-admin mentors
+            "DELETE FROM \"ExamQuestions\"",
+            "DELETE FROM \"Exams\"",
+
+            // 16. Finally — delete non-admin users
+            $"DELETE FROM \"Users\" WHERE \"Id\" {notAdminFilter}",
+        };
+
+        var deletedCounts = new Dictionary<string, int>();
+
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var sql in statements)
+            {
+                var affected = await _db.Database.ExecuteSqlRawAsync(sql);
+                // Extract table name for reporting
+                var tableName = sql.Split('"')[1];
+                deletedCounts[tableName] = affected;
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            return StatusCode(500, new { error = ex.Message, innerError = ex.InnerException?.Message });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            message = "Database cleaned. Only admin users and system data preserved.",
+            adminUsersKept = adminUserIds.Count,
+            deletedRows = deletedCounts
+        });
+    }
+
+    // -----------------------------
     // INSTRUCTOR MANAGEMENT (Faz 2)
     // -----------------------------
 
