@@ -69,6 +69,43 @@ public class UpdateLectureProgressCommandHandler : IRequestHandler<UpdateLecture
 
             progress.UpdateProgress(request.WatchedSec, request.LastPositionSec);
             enrollment.UpdateLastAccessed();
+
+            // Create or update VideoWatchLog for instructor performance tracking
+            try
+            {
+                var courseId = lecture.Section.CourseId;
+                var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId, cancellationToken);
+                if (course?.InstructorId != null)
+                {
+                    var watchLog = await _context.VideoWatchLogs
+                        .FirstOrDefaultAsync(w => w.LectureId == request.LectureId
+                            && w.StudentId == studentId, cancellationToken);
+
+                    if (watchLog == null)
+                    {
+                        watchLog = VideoWatchLog.Create(
+                            request.LectureId,
+                            courseId,
+                            studentId,
+                            course.InstructorId.Value,
+                            DateTime.UtcNow,
+                            lecture.DurationSec);
+                        _context.VideoWatchLogs.Add(watchLog);
+                    }
+                    else
+                    {
+                        var completionPct = lecture.DurationSec > 0
+                            ? (decimal)request.WatchedSec / lecture.DurationSec * 100
+                            : 0;
+                        watchLog.UpdateProgress(request.WatchedSec, completionPct);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to update VideoWatchLog for lecture {LectureId}", request.LectureId);
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex)

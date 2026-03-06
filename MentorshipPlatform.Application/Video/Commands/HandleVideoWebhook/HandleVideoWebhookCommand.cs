@@ -80,6 +80,9 @@ public class HandleVideoWebhookCommandHandler : IRequestHandler<HandleVideoWebho
                     null, null,
                     $"Katılımcı bağlandı (webhook). Identity: {request.ParticipantIdentity}",
                     userId, "System", ct: cancellationToken);
+
+                // Create InstructorSessionLog if the participant is a mentor/instructor
+                await TryCreateInstructorSessionLog(session, userId, participant.Id, request.RoomName, cancellationToken);
                 break;
 
             case "participant-disconnected":
@@ -99,6 +102,9 @@ public class HandleVideoWebhookCommandHandler : IRequestHandler<HandleVideoWebho
                     null, null,
                     $"Katılımcı ayrıldı (webhook). Identity: {request.ParticipantIdentity}, Süre: {existingParticipant?.DurationSec ?? 0}sn",
                     userId, "System", ct: cancellationToken);
+
+                // Update InstructorSessionLog if the participant is an instructor
+                await TryUpdateInstructorSessionLog(session, userId, cancellationToken);
                 break;
 
             case "room-ended":
@@ -118,6 +124,68 @@ public class HandleVideoWebhookCommandHandler : IRequestHandler<HandleVideoWebho
         await NotifyRoomStatusToRelatedUsers(session, request.RoomName, cancellationToken);
 
         return Result.Success();
+    }
+
+    private async Task TryCreateInstructorSessionLog(
+        VideoSession session, Guid userId, Guid participantId, string roomName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Check if user has Mentor role
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+            if (user == null || !user.Roles.Contains(UserRole.Mentor))
+                return;
+
+            // Determine SessionType from room name
+            var sessionType = roomName.StartsWith("group-class-", StringComparison.OrdinalIgnoreCase)
+                ? SessionType.GroupLesson
+                : SessionType.PrivateLesson;
+
+            var sessionLog = InstructorSessionLog.Create(
+                instructorId: userId,
+                sessionType: sessionType,
+                sessionId: session.ResourceId,
+                joinedAt: DateTime.UtcNow,
+                videoParticipantId: participantId);
+
+            _context.InstructorSessionLogs.Add(sessionLog);
+
+            _logger.LogInformation("InstructorSessionLog created for instructor {InstructorId}, session {SessionId}, type {SessionType}",
+                userId, session.ResourceId, sessionType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create InstructorSessionLog for user {UserId}", userId);
+        }
+    }
+
+    private async Task TryUpdateInstructorSessionLog(
+        VideoSession session, Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Find the open session log for this instructor + session
+            var sessionLog = await _context.InstructorSessionLogs
+                .FirstOrDefaultAsync(sl =>
+                    sl.InstructorId == userId &&
+                    sl.SessionId == session.ResourceId &&
+                    !sl.LeftAt.HasValue,
+                    cancellationToken);
+
+            if (sessionLog != null)
+            {
+                sessionLog.MarkLeft(DateTime.UtcNow);
+                _logger.LogInformation("InstructorSessionLog updated (left) for instructor {InstructorId}, session {SessionId}, duration {Duration}min",
+                    userId, session.ResourceId, sessionLog.DurationMinutes);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update InstructorSessionLog for user {UserId}", userId);
+        }
     }
 
     private async Task NotifyRoomStatusToRelatedUsers(

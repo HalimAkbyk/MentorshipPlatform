@@ -23,7 +23,8 @@ public record UpdateCourseCommand(
     string? PromoVideoKey,
     List<string>? WhatYouWillLearn,
     List<string>? Requirements,
-    List<string>? TargetAudience) : IRequest<Result>;
+    List<string>? TargetAudience,
+    Guid? InstructorId = null) : IRequest<Result>;
 
 public class UpdateCourseCommandValidator : AbstractValidator<UpdateCourseCommand>
 {
@@ -55,7 +56,9 @@ public class UpdateCourseCommandHandler : IRequestHandler<UpdateCourseCommand, R
         var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == request.CourseId, cancellationToken);
         if (course == null)
             return Result.Failure("Course not found");
-        if (course.MentorUserId != _currentUser.UserId.Value)
+
+        var isAdmin = _currentUser.IsInRole(UserRole.Admin);
+        if (course.MentorUserId != _currentUser.UserId.Value && !isAdmin)
             return Result.Failure("Not authorized");
 
         var level = Enum.TryParse<CourseLevel>(request.Level, true, out var parsed) ? parsed : course.Level;
@@ -75,6 +78,10 @@ public class UpdateCourseCommandHandler : IRequestHandler<UpdateCourseCommand, R
             request.WhatYouWillLearn != null ? JsonSerializer.Serialize(request.WhatYouWillLearn) : null,
             request.Requirements != null ? JsonSerializer.Serialize(request.Requirements) : null,
             request.TargetAudience != null ? JsonSerializer.Serialize(request.TargetAudience) : null);
+
+        // Admin can set InstructorId
+        if (isAdmin && request.InstructorId.HasValue)
+            course.SetInstructor(request.InstructorId.Value);
 
         await _context.SaveChangesAsync(cancellationToken);
         return Result.Success();

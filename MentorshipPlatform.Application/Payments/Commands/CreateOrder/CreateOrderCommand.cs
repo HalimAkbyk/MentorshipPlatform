@@ -147,11 +147,22 @@ public class CreateOrderCommandHandler
                 amount = enrollment.Course.Price;
                 currency = enrollment.Course.Currency;
             }
+            else if (orderType == OrderType.Package)
+            {
+                var package = await _context.Packages
+                    .FirstOrDefaultAsync(p => p.Id == request.ResourceId && p.IsActive, cancellationToken);
+
+                if (package == null)
+                    return Result<CreateOrderResponse>.Failure("Package not found");
+
+                amount = package.Price;
+                currency = "TRY";
+            }
 
             // Platform fee - Sadece Booking ve GroupClass için öğrenciye ek ücret yansıtılır.
-            // Kurs satın almalarda öğrenci direk kurs fiyatını öder, komisyon eğitmenden kesilir.
+            // Kurs ve Paket satın almalarda öğrenci direk fiyatı öder, komisyon yok.
             decimal totalAmount;
-            if (orderType == OrderType.Course)
+            if (orderType == OrderType.Course || orderType == OrderType.Package)
             {
                 totalAmount = amount; // Öğrenci tam fiyat öder, komisyon yok
             }

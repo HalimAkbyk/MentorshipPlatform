@@ -94,6 +94,83 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                 $"Iyzico ödeme doğrulandı. ProviderPaymentId: {verification.ProviderPaymentId}, ProviderTransactionId: {verification.ProviderTransactionId}",
                 order.BuyerUserId, "Student", ct: cancellationToken);
 
+            // Handle Package purchase early — no mentor, no escrow
+            if (order.Type == OrderType.Package)
+            {
+                var package = await _context.Packages
+                    .FirstOrDefaultAsync(p => p.Id == order.ResourceId, cancellationToken);
+
+                if (package == null)
+                {
+                    _logger.LogError("Related package not found: {ResourceId}", order.ResourceId);
+                    return Result<bool>.Failure("Related package not found");
+                }
+
+                // Create PackagePurchase record
+                var purchase = PackagePurchase.Create(
+                    order.BuyerUserId,
+                    package.Id,
+                    order.AmountTotal,
+                    order.Id);
+                _context.PackagePurchases.Add(purchase);
+                await _context.SaveChangesAsync(cancellationToken); // save to get purchase.Id
+
+                await _history.LogAsync("PackagePurchase", purchase.Id, "Created",
+                    null, "Completed",
+                    $"Paket satın alındı: {package.Name}, Tutar: {order.AmountTotal} TRY",
+                    order.BuyerUserId, "Student", ct: cancellationToken);
+
+                // Calculate expiry date
+                DateTime? expiresAt = package.ValidityDays.HasValue
+                    ? DateTime.UtcNow.AddDays(package.ValidityDays.Value)
+                    : null;
+
+                // Create StudentCredit records for each credit type (only if credits > 0)
+                var creditEntries = new List<(CreditType type, int amount)>
+                {
+                    (CreditType.PrivateLesson, package.PrivateLessonCredits),
+                    (CreditType.GroupLesson, package.GroupLessonCredits),
+                    (CreditType.VideoAccess, package.VideoAccessCredits)
+                };
+
+                foreach (var (creditType, creditAmount) in creditEntries)
+                {
+                    if (creditAmount <= 0) continue;
+
+                    var credit = StudentCredit.Create(
+                        order.BuyerUserId,
+                        purchase.Id,
+                        creditType,
+                        creditAmount,
+                        expiresAt);
+                    _context.StudentCredits.Add(credit);
+                    await _context.SaveChangesAsync(cancellationToken); // save to get credit.Id
+
+                    var transaction = CreditTransaction.Create(
+                        credit.Id,
+                        CreditTransactionType.Purchase,
+                        creditAmount,
+                        relatedEntityId: purchase.Id,
+                        relatedEntityType: "PackagePurchase",
+                        description: $"{package.Name} paketi ile {creditAmount} {creditType} kredisi eklendi.");
+                    _context.CreditTransactions.Add(transaction);
+                }
+
+                // Package purchases: all revenue goes to platform
+                _context.LedgerEntries.Add(LedgerEntry.Create(
+                    LedgerAccountType.Platform,
+                    LedgerDirection.Credit,
+                    order.AmountTotal,
+                    order.Type.ToString(),
+                    order.Id));
+
+                await _context.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation("Package purchase processed successfully for Order: {OrderId}, Package: {PackageName}",
+                    order.Id, package.Name);
+                return Result.Success();
+            }
+
             // Update booking/enrollment status
             Guid mentorUserId;
             if (order.Type == OrderType.Booking)
@@ -243,7 +320,7 @@ public class ProcessPaymentWebhookCommandHandler : IRequestHandler<ProcessPaymen
                 }
             }
 
-            // Create ledger entries (escrow model)
+            // Create ledger entries (escrow model) — for Booking, GroupClass, Course orders
             // Coupon-aware split:
             //   Admin coupon  → discount comes from platform's share. Mentor earns as if no discount.
             //   Mentor coupon → standard split on actual paid amount. Mentor bears the discount.

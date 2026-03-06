@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MentorshipPlatform.Application.Common.Interfaces;
+using MentorshipPlatform.Application.Courses.Commands.AdminCreateCourse;
 using MentorshipPlatform.Application.Courses.Commands.AddCourseAdminNote;
+using MentorshipPlatform.Application.Courses.Commands.SetCourseInstructor;
 using MentorshipPlatform.Application.Courses.Commands.SuspendCourse;
 using MentorshipPlatform.Application.Courses.Commands.ToggleLectureActive;
 using MentorshipPlatform.Application.Courses.Commands.UnsuspendCourse;
@@ -894,7 +896,24 @@ public class AdminEducationController : ControllerBase
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
     }
 
+    // POST /api/admin/education/courses - Admin create course
+    [HttpPost("courses")]
+    public async Task<IActionResult> AdminCreateCourse([FromBody] AdminCreateCourseCommand command)
+    {
+        var result = await _mediator.Send(command);
+        return result.IsSuccess ? Ok(new { id = result.Data }) : BadRequest(new { errors = result.Errors });
+    }
+
+    // POST /api/admin/education/courses/{courseId}/set-instructor
+    [HttpPost("courses/{courseId:guid}/set-instructor")]
+    public async Task<IActionResult> SetCourseInstructor(Guid courseId, [FromBody] SetCourseInstructorRequest body)
+    {
+        var result = await _mediator.Send(new SetCourseInstructorCommand(courseId, body.InstructorId));
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
     // Request DTOs
+    public record SetCourseInstructorRequest(Guid? InstructorId);
     public record SuspendCourseRequest(string Reason);
     public record UnsuspendCourseRequest(string? Note);
     public record ToggleLectureActiveRequest(bool IsActive, string? Reason);

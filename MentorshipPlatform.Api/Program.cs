@@ -355,6 +355,15 @@ try
 
     RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.EnforceSessionEndJob>(
         "enforce-session-end", job => job.Execute(), "*/2 * * * *"); // Every 2 minutes — grace period enforcer
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.ExpireCreditJob>(
+        "expire-credits", job => job.Execute(), "0 3 * * *"); // Daily at 03:00 UTC
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.CalculatePerformanceSummaryJob>(
+        "calculate-performance-summary", job => job.Execute(), "0 2 * * *"); // Daily at 02:00 UTC
+
+    RecurringJob.AddOrUpdate<MentorshipPlatform.Application.Jobs.CalculateAccrualJob>(
+        "calculate-accrual", job => job.Execute(), "0 4 1 * *"); // Monthly on the 1st at 04:00 UTC
 }
 catch (Exception ex)
 {
@@ -384,6 +393,9 @@ try
 
         // Seed CMS data if tables are empty
         await SeedCmsData(dbContext);
+
+        // Seed TYT/AYT categories
+        await SeedTytAytCategories(dbContext);
 
         // Seed email notification templates
         await MentorshipPlatform.Api.EmailTemplateSeedData.SeedEmailTemplates(dbContext);
@@ -486,6 +498,46 @@ static async Task SeedPivotFeatureFlags(ApplicationDbContext db)
     }
 
     await db.SaveChangesAsync();
+}
+
+// TYT/AYT Category Seed Data
+static async Task SeedTytAytCategories(ApplicationDbContext db)
+{
+    var tytAytCategories = new List<(string name, string icon, int sortOrder)>
+    {
+        // TYT
+        ("TYT Matematik", "📐", 101),
+        ("TYT Turkce", "📖", 102),
+        ("TYT Fizik", "⚡", 103),
+        ("TYT Kimya", "🧪", 104),
+        ("TYT Biyoloji", "🧬", 105),
+        ("TYT Tarih", "📜", 106),
+        ("TYT Cografya", "🌍", 107),
+        ("TYT Geometri", "📏", 108),
+        // AYT
+        ("AYT Matematik", "📐", 201),
+        ("AYT Fizik", "⚡", 202),
+        ("AYT Kimya", "🧪", 203),
+        ("AYT Biyoloji", "🧬", 204),
+        ("AYT Tarih", "📜", 205),
+        ("AYT Cografya", "🌍", 206),
+        ("AYT Edebiyat", "📚", 207),
+        ("AYT Felsefe", "🤔", 208),
+        // General
+        ("Genel", "📂", 999),
+    };
+
+    foreach (var (name, icon, sortOrder) in tytAytCategories)
+    {
+        var exists = await db.Categories.AnyAsync(c => c.Name == name && c.EntityType == "Course");
+        if (!exists)
+        {
+            db.Categories.Add(Category.Create(name, icon, sortOrder, "Course"));
+        }
+    }
+
+    await db.SaveChangesAsync();
+    Log.Information("TYT/AYT categories seeded successfully");
 }
 
 // CMS Seed Data
