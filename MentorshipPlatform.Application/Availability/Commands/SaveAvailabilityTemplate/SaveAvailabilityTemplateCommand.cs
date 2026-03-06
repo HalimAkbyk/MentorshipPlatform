@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -17,6 +18,7 @@ public record AvailabilitySettingsDto(
     int? MaxBookingsPerDay);
 
 // ---- Command ----
+[RequiresFeature(FeatureFlags.InstructorSelfScheduling)]
 public record SaveAvailabilityTemplateCommand(
     string? Name,
     string? Timezone,

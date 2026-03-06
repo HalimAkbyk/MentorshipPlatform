@@ -17,6 +17,9 @@ using MentorshipPlatform.Application.Admin.Queries.GetPlatformTransactions;
 using MentorshipPlatform.Application.Admin.Queries.GetAllUsers;
 using MentorshipPlatform.Application.Admin.Queries.GetUserDetail;
 using MentorshipPlatform.Application.Admin.Commands.ChangeUserRole;
+using MentorshipPlatform.Application.Admin.Commands.AssignInstructor;
+using MentorshipPlatform.Application.Admin.Commands.SetOwner;
+using MentorshipPlatform.Application.Admin.Commands.UpdateInstructorStatus;
 using MentorshipPlatform.Application.Bookings.Commands.ResolveDispute;
 using MentorshipPlatform.Application.Messages.Queries.GetMessageReports;
 using MentorshipPlatform.Application.Messages.Commands.ReviewMessageReport;
@@ -608,6 +611,48 @@ public class AdminController : ControllerBase
     {
         var result = await _mediator.Send(new ChangeUserRoleCommand(
             userId, request.Role, request.Action));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    // -----------------------------
+    // INSTRUCTOR MANAGEMENT (Faz 2)
+    // -----------------------------
+
+    [HttpPost("users/{userId:guid}/assign-instructor")]
+    public async Task<IActionResult> AssignInstructor(Guid userId)
+    {
+        var result = await _mediator.Send(new AssignInstructorCommand(userId));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    public record SetOwnerRequest(bool IsOwner);
+
+    [HttpPost("users/{userId:guid}/set-owner")]
+    public async Task<IActionResult> SetOwner(Guid userId, [FromBody] SetOwnerRequest request)
+    {
+        var result = await _mediator.Send(new SetOwnerCommand(userId, request.IsOwner));
+
+        if (!result.IsSuccess)
+            return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    public record UpdateInstructorStatusRequest(string Status);
+
+    [HttpPost("users/{userId:guid}/instructor-status")]
+    public async Task<IActionResult> UpdateInstructorStatus(
+        Guid userId, [FromBody] UpdateInstructorStatusRequest request)
+    {
+        var result = await _mediator.Send(new UpdateInstructorStatusCommand(userId, request.Status));
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });

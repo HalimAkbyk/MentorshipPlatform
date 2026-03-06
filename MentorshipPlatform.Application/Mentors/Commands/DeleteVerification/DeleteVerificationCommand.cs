@@ -1,4 +1,5 @@
 using MediatR;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Enums;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MentorshipPlatform.Application.Mentors.Commands.DeleteVerification;
 
+[RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record DeleteVerificationCommand(Guid VerificationId) : IRequest<Result<bool>>;
 
 public class DeleteVerificationCommandHandler 

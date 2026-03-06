@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using MentorshipPlatform.Application.Availability.Commands.SaveAvailabilityTemplate;
+using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Availability.Commands.SaveOfferingAvailabilityTemplate;
 
+[RequiresFeature(FeatureFlags.InstructorSelfScheduling)]
 public record SaveOfferingAvailabilityTemplateCommand(
     Guid OfferingId,
     string? Name,
