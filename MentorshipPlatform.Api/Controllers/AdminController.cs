@@ -625,16 +625,19 @@ public class AdminController : ControllerBase
     [HttpPost("cleanup-database")]
     public async Task<IActionResult> CleanupDatabase()
     {
-        // Admin kullanıcı ID'lerini bul
+        // Admin kullanıcı ID'lerini bul (Roles JSON column, EF LINQ çeviremez → raw SQL)
         var adminUserIds = await _db.Users
+            .AsNoTracking()
+            .ToListAsync();
+        var adminIds = adminUserIds
             .Where(u => u.Roles.Contains(UserRole.Admin))
             .Select(u => u.Id)
-            .ToListAsync();
+            .ToList();
 
-        if (!adminUserIds.Any())
+        if (!adminIds.Any())
             return BadRequest(new { errors = new[] { "No admin users found — aborting cleanup." } });
 
-        var adminIdList = string.Join("','", adminUserIds);
+        var adminIdList = string.Join("','", adminIds);
         var notAdminFilter = $"NOT IN ('{adminIdList}')";
 
         // FK bağımlılık sırasına göre sil (en derin child → parent)
@@ -749,7 +752,7 @@ public class AdminController : ControllerBase
         {
             success = true,
             message = "Database cleaned. Only admin users and system data preserved.",
-            adminUsersKept = adminUserIds.Count,
+            adminUsersKept = adminIds.Count,
             deletedRows = deletedCounts
         });
     }
