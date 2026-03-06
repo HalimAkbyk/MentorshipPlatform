@@ -7,12 +7,10 @@ public class BecomeMentorCommandValidator : AbstractValidator<BecomeMentorComman
     public BecomeMentorCommandValidator()
     {
         RuleFor(x => x.University)
-            .NotEmpty().WithMessage("Üniversite adı gereklidir")
-            .MaximumLength(200);
+            .MaximumLength(200).When(x => x.University != null);
 
         RuleFor(x => x.Department)
-            .NotEmpty().WithMessage("Bölüm adı gereklidir")
-            .MaximumLength(200);
+            .MaximumLength(200).When(x => x.Department != null);
 
         RuleFor(x => x.Bio)
             .MaximumLength(2000);

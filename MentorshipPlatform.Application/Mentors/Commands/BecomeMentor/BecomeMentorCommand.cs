@@ -11,8 +11,8 @@ namespace MentorshipPlatform.Application.Mentors.Commands.BecomeMentor;
 
 [RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record BecomeMentorCommand(
-    string University,
-    string Department,
+    string? University,
+    string? Department,
     string Bio,
     int? GraduationYear,
     string? Headline) : IRequest<Result<BecomeMentorResponse>>;

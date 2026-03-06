@@ -14,11 +14,11 @@ public class MentorProfileConfiguration : IEntityTypeConfiguration<MentorProfile
             .HasMaxLength(2000);
 
         builder.Property(m => m.University)
-            .IsRequired()
+            .IsRequired(false)
             .HasMaxLength(200);
 
         builder.Property(m => m.Department)
-            .IsRequired()
+            .IsRequired(false)
             .HasMaxLength(200);
 
         builder.Property(m => m.Headline)

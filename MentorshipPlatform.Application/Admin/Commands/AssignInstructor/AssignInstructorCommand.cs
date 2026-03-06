@@ -50,7 +50,7 @@ public class AssignInstructorCommandHandler : IRequestHandler<AssignInstructorCo
 
         if (!profileExists)
         {
-            var profile = MentorProfile.Create(request.UserId, "", "");
+            var profile = MentorProfile.Create(request.UserId);
             profile.UpdateProfile("", null, null);
             _context.MentorProfiles.Add(profile);
         }

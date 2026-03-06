@@ -9,8 +9,8 @@ namespace MentorshipPlatform.Application.Admin.Queries.GetUserDetail;
 // DTOs
 public class MentorProfileSummaryDto
 {
-    public string University { get; set; } = string.Empty;
-    public string Department { get; set; } = string.Empty;
+    public string? University { get; set; }
+    public string? Department { get; set; }
     public int? GraduationYear { get; set; }
     public bool IsListed { get; set; }
     public bool IsApprovedForBookings { get; set; }

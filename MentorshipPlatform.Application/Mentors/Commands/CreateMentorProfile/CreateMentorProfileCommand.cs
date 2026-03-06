@@ -11,8 +11,8 @@ namespace MentorshipPlatform.Application.Mentors.Commands.CreateMentorProfile;
 
 [RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record CreateMentorProfileCommand(
-    string University,
-    string Department,
+    string? University,
+    string? Department,
     string Bio,
     int? GraduationYear) : IRequest<Result<Guid>>;
 
@@ -20,8 +20,8 @@ public class CreateMentorProfileCommandValidator : AbstractValidator<CreateMento
 {
     public CreateMentorProfileCommandValidator()
     {
-        RuleFor(x => x.University).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Department).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.University).MaximumLength(200).When(x => x.University != null);
+        RuleFor(x => x.Department).MaximumLength(200).When(x => x.Department != null);
         RuleFor(x => x.Bio).MaximumLength(2000);
     }
 }

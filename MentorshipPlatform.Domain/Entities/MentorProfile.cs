@@ -9,8 +9,8 @@ public class MentorProfile : BaseEntity
     public User User { get; private set; } = null!;
     
     public string Bio { get; private set; } = string.Empty;
-    public string University { get; private set; } = string.Empty;
-    public string Department { get; private set; } = string.Empty;
+    public string? University { get; private set; }
+    public string? Department { get; private set; }
     public int? GraduationYear { get; private set; }
     public string? Headline { get; private set; }
     
@@ -26,7 +26,7 @@ public class MentorProfile : BaseEntity
 
     private MentorProfile() { }
 
-    public static MentorProfile Create(Guid userId, string university, string department)
+    public static MentorProfile Create(Guid userId, string? university = null, string? department = null)
     {
         return new MentorProfile
         {
@@ -37,11 +37,13 @@ public class MentorProfile : BaseEntity
         };
     }
 
-    public void UpdateProfile(string bio, string? headline, int? graduationYear)
+    public void UpdateProfile(string bio, string? headline, int? graduationYear, string? university = null, string? department = null)
     {
         Bio = bio;
         Headline = headline;
         GraduationYear = graduationYear;
+        if (university != null) University = university;
+        if (department != null) Department = department;
         UpdatedAt = DateTime.UtcNow;
     }
 

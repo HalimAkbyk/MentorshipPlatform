@@ -40,7 +40,7 @@ public class SetOwnerCommandHandler : IRequestHandler<SetOwnerCommand, Result>
                 .AnyAsync(m => m.UserId == request.UserId, cancellationToken);
             if (!profileExists)
             {
-                var profile = MentorProfile.Create(request.UserId, "", "");
+                var profile = MentorProfile.Create(request.UserId);
                 _context.MentorProfiles.Add(profile);
             }
         }
