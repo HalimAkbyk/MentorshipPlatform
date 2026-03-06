@@ -711,7 +711,7 @@ public class AdminController : ControllerBase
             "DELETE FROM \"UserNotifications\"",
             "DELETE FROM \"BulkNotifications\"",
             "DELETE FROM \"BlacklistEntries\"",
-            $"DELETE FROM \"ProcessHistories\" WHERE \"TriggeredByUserId\" IS NULL OR \"TriggeredByUserId\" {notAdminFilter}",
+            $"DELETE FROM \"ProcessHistories\" WHERE \"PerformedBy\" IS NULL OR \"PerformedBy\" {notAdminFilter}",
 
             // 14. Profiles & onboarding
             "DELETE FROM \"MentorVerifications\"",
