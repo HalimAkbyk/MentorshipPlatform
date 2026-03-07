@@ -88,26 +88,37 @@ public class OnboardingController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(m => m.UserId == userId);
 
-        if (mentorProfile is not { HasPendingReviewRequest: true })
-            return Ok(new { hasPendingReview = false });
-
-        // Get the latest admin message notification for this user
-        var lastAdminMessage = await _db.UserNotifications
-            .AsNoTracking()
-            .Where(n => n.UserId == userId && n.Type == "AdminMessage" && n.ReferenceType == "MentorApproval")
-            .OrderByDescending(n => n.CreatedAt)
-            .Select(n => new { n.Title, n.Message })
-            .FirstOrDefaultAsync();
-
         return Ok(new
         {
-            hasPendingReview = true,
-            adminTitle = lastAdminMessage?.Title,
-            adminMessage = lastAdminMessage?.Message
+            hasPendingReview = mentorProfile?.HasPendingReviewRequest ?? false
         });
     }
 
-    public record ReviewResponseRequest(string? Message);
+    [HttpGet("mentor/review-notes")]
+    public async Task<IActionResult> GetMentorReviewNotes()
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        var userId = _currentUser.UserId.Value;
+
+        var notes = await _db.MentorReviewNotes
+            .AsNoTracking()
+            .Where(n => n.MentorUserId == userId)
+            .OrderBy(n => n.CreatedAt)
+            .Select(n => new
+            {
+                n.Id,
+                n.SenderRole,
+                n.Message,
+                n.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(notes);
+    }
+
+    public record ReviewResponseRequest(string Message);
 
     [HttpPost("mentor/review-response")]
     public async Task<IActionResult> RespondToReviewRequest([FromBody] ReviewResponseRequest request)
@@ -115,33 +126,44 @@ public class OnboardingController : ControllerBase
         if (!_currentUser.UserId.HasValue)
             return Unauthorized();
 
+        if (string.IsNullOrWhiteSpace(request.Message))
+            return BadRequest(new { errors = new[] { "Mesaj bos olamaz" } });
+
         var userId = _currentUser.UserId.Value;
 
-        var mentorProfile = await _db.MentorProfiles
-            .FirstOrDefaultAsync(m => m.UserId == userId);
+        // Save the note
+        var note = MentorReviewNote.Create(userId, userId, "Mentor", request.Message.Trim());
+        _db.MentorReviewNotes.Add(note);
 
-        if (mentorProfile is not { HasPendingReviewRequest: true })
-            return BadRequest(new { errors = new[] { "Aktif duzenleme talebi yok" } });
-
+        // Notify admin
         var user = await _db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         var displayName = user?.DisplayName ?? "Egitmen";
-        var responseMessage = string.IsNullOrWhiteSpace(request.Message)
-            ? $"{displayName} istenen duzenlemeyi yapti ve tekrar incelemenizi bekliyor."
-            : $"{displayName} duzenleme talebine cevap verdi: \"{request.Message}\"";
 
         await _adminNotifications.CreateOrUpdateGroupedAsync(
             "MentorProfileUpdate",
             $"mentor-profile-{userId}",
-            count => ("Egitmen duzenleme talebi yaniti", responseMessage),
+            count => ("Egitmen yanit verdi", $"{displayName}: \"{request.Message.Trim()}\""),
             "MentorApproval",
             userId);
 
-        mentorProfile.ClearReviewRequest();
+        // Clear pending flag if exists
+        var mentorProfile = await _db.MentorProfiles
+            .FirstOrDefaultAsync(m => m.UserId == userId);
+
+        if (mentorProfile is { HasPendingReviewRequest: true })
+            mentorProfile.ClearReviewRequest();
+
         await _db.SaveChangesAsync();
 
-        return Ok(new { success = true });
+        return Ok(new
+        {
+            note.Id,
+            note.SenderRole,
+            note.Message,
+            note.CreatedAt
+        });
     }
 }

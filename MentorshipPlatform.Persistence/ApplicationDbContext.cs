@@ -120,6 +120,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     // Free Session entities
     public DbSet<FreeSession> FreeSessions => Set<FreeSession>();
 
+    // Mentor Review Notes
+    public DbSet<MentorReviewNote> MentorReviewNotes => Set<MentorReviewNote>();
+
     // Pivot entities — Instructor Performance & Accrual
     public DbSet<InstructorSessionLog> InstructorSessionLogs => Set<InstructorSessionLog>();
     public DbSet<VideoWatchLog> VideoWatchLogs => Set<VideoWatchLog>();

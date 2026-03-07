@@ -101,6 +101,9 @@ public interface IApplicationDbContext
     // Free Session entities
     DbSet<FreeSession> FreeSessions { get; }
 
+    // Mentor Review Notes
+    DbSet<MentorReviewNote> MentorReviewNotes { get; }
+
     // Pivot entities — Instructor Performance & Accrual
     DbSet<InstructorSessionLog> InstructorSessionLogs { get; }
     DbSet<VideoWatchLog> VideoWatchLogs { get; }

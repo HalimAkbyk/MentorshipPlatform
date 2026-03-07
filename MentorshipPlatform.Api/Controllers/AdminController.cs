@@ -804,8 +804,28 @@ public class AdminController : ControllerBase
     }
 
     // -----------------------------
-    // ADMIN → MENTOR NOTIFICATION
+    // ADMIN ↔ MENTOR REVIEW NOTES
     // -----------------------------
+
+    [HttpGet("mentors/{userId:guid}/review-notes")]
+    public async Task<IActionResult> GetMentorReviewNotes([FromRoute] Guid userId)
+    {
+        var notes = await _db.MentorReviewNotes
+            .AsNoTracking()
+            .Where(n => n.MentorUserId == userId)
+            .OrderBy(n => n.CreatedAt)
+            .Select(n => new
+            {
+                n.Id,
+                n.SenderRole,
+                n.Message,
+                n.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(notes);
+    }
+
     public record SendMentorNotificationRequest(string Title, string Message);
 
     [HttpPost("mentors/{userId:guid}/notify")]
@@ -826,6 +846,11 @@ public class AdminController : ControllerBase
             userId);
 
         _db.UserNotifications.Add(notification);
+
+        // Save as review note for conversation history
+        var adminUserId = Guid.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? Guid.Empty.ToString());
+        var reviewNote = MentorReviewNote.Create(userId, adminUserId, "Admin", request.Message);
+        _db.MentorReviewNotes.Add(reviewNote);
 
         // Set flag on mentor profile so we know there's a pending review request
         var mentorProfile = await _db.MentorProfiles
