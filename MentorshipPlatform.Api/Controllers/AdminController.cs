@@ -826,6 +826,12 @@ public class AdminController : ControllerBase
             userId);
 
         _db.UserNotifications.Add(notification);
+
+        // Set flag on mentor profile so we know there's a pending review request
+        var mentorProfile = await _db.MentorProfiles
+            .FirstOrDefaultAsync(m => m.UserId == userId);
+        mentorProfile?.RequestReview();
+
         await _db.SaveChangesAsync();
 
         return Ok(new { success = true });

@@ -17,6 +17,7 @@ public class MentorProfile : BaseEntity
     public decimal RatingAvg { get; private set; }
     public int RatingCount { get; private set; }
     public bool IsListed { get; private set; }
+    public bool HasPendingReviewRequest { get; private set; }
 
     private readonly List<MentorVerification> _verifications = new();
     public IReadOnlyCollection<MentorVerification> Verifications => _verifications.AsReadOnly();
@@ -54,8 +55,11 @@ public class MentorProfile : BaseEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void Publish() => IsListed = true;
+    public void Publish() { IsListed = true; HasPendingReviewRequest = false; }
     public void Unpublish() => IsListed = false;
+
+    public void RequestReview() { HasPendingReviewRequest = true; UpdatedAt = DateTime.UtcNow; }
+    public void ClearReviewRequest() { HasPendingReviewRequest = false; UpdatedAt = DateTime.UtcNow; }
 
     // ✅ Mentor'un booking kabul edebilmesi için en az bir doğrulama onaylı olmalı
     public bool IsApprovedForBookings()

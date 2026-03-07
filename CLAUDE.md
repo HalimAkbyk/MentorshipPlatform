@@ -82,3 +82,28 @@ Settings in `appsettings.json` / `appsettings.Development.json`:
 - Interfaces defined in `Application/Common/Interfaces/`
 - Entity configurations in `Persistence/Configurations/`
 - No test projects currently exist
+
+## Pivot: Dikey Eğitim Modeli (v1.2)
+
+Platform marketplace modelinden TYT/AYT odaklı dikey eğitim modeline geçiyor.
+Detaylı analiz: `/Users/halimakbiyik/Desktop/MentorApp/degisim-mentorluk-pivot-analizi-v1.2.md`
+
+### Özet Değişiklikler
+- Mentor alımı dışarıya kapalı (admin ataması ile), feature flag ile geri açılabilir
+- Paket & Kredi sistemi (yeni): Öğrenci paket satın alır, kredi olarak kullanır
+- Eğitmen Performans & Hakediş modülü (yeni): Session tracking, video izleme, raporlama
+- Mevcut modüller flag ile pasife çekilebilir (MARKETPLACE_MODE, EXTERNAL_MENTOR_REGISTRATION, vb.)
+- UI'da "Mentor" → "Eğitmen" terminolojisi (kod tarafında UserRole.Mentor korunur)
+
+### Geliştirme Sırası (Faz)
+1. **Faz 1**: Yeni feature flag'ler + DB migration + mevcut modülleri flag ile sarmalama
+2. **Faz 2**: Eğitmen atama (admin) + yetki uyarlama
+3. **Faz 3**: İçerik yönetimi + eğitmen etiketleme + TYT/AYT kategoriler
+4. **Faz 4**: Paket & Kredi sistemi (en kapsamlı yeni modül)
+5. **Faz 5**: Eğitmen Performans & Hakediş
+6. **Faz 6**: Test & Lansman
+
+### Son Tamamlanan İşler
+- SignalR ile anlık oda durumu (polling kaldırıldı)
+- Menü yapısı yenilendi (Genel, İçerik Yönetimi, Kazanç, Katılımlarım, Hesap)
+- Backend v90 deploy edildi (Koyeb), frontend Vercel'de

@@ -135,16 +135,11 @@ public class SaveMentorOnboardingCommandHandler
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // If admin sent an unread review request to this mentor, notify admin back on save
-        var hasPendingReviewRequest = await _context.UserNotifications
-            .AnyAsync(n =>
-                n.UserId == userId &&
-                n.Type == "AdminMessage" &&
-                n.ReferenceType == "MentorApproval" &&
-                !n.IsRead,
-                cancellationToken);
+        // If admin requested changes, notify admin back when mentor saves
+        var mentorProfile = await _context.MentorProfiles
+            .FirstOrDefaultAsync(m => m.UserId == userId, cancellationToken);
 
-        if (hasPendingReviewRequest)
+        if (mentorProfile is { HasPendingReviewRequest: true })
         {
             var user = await _context.Users
                 .AsNoTracking()
@@ -163,18 +158,7 @@ public class SaveMentorOnboardingCommandHandler
                 userId,
                 cancellationToken);
 
-            // Mark the admin's review request notifications as read (fulfilled)
-            var reviewNotifications = await _context.UserNotifications
-                .Where(n =>
-                    n.UserId == userId &&
-                    n.Type == "AdminMessage" &&
-                    n.ReferenceType == "MentorApproval" &&
-                    !n.IsRead)
-                .ToListAsync(cancellationToken);
-
-            foreach (var notif in reviewNotifications)
-                notif.MarkAsRead();
-
+            mentorProfile.ClearReviewRequest();
             await _context.SaveChangesAsync(cancellationToken);
         }
 
