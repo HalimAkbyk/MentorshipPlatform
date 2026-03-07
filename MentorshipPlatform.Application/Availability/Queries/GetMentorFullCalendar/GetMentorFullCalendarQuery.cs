@@ -95,7 +95,7 @@ public class GetMentorFullCalendarQueryHandler
 
         // Generate unavailable slots for gaps (hourly blocks for the time range)
         // Only generate for business hours (8:00 - 22:00 local time)
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
+        var tz = FindTimezone("Europe/Istanbul");
         var currentDay = start.Date;
         while (currentDay < end)
         {
@@ -125,5 +125,27 @@ public class GetMentorFullCalendarQueryHandler
 
         return Result<List<CalendarSlotDto>>.Success(
             result.OrderBy(r => r.StartAt).ToList());
+    }
+
+    private static TimeZoneInfo FindTimezone(string timezone)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timezone);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            var mapping = new Dictionary<string, string>
+            {
+                ["Europe/Istanbul"] = "Turkey Standard Time",
+                ["Turkey Standard Time"] = "Europe/Istanbul",
+            };
+            if (mapping.TryGetValue(timezone, out var alt))
+            {
+                try { return TimeZoneInfo.FindSystemTimeZoneById(alt); }
+                catch { }
+            }
+            return TimeZoneInfo.CreateCustomTimeZone("TR", TimeSpan.FromHours(3), "Turkey", "Turkey Standard Time");
+        }
     }
 }
