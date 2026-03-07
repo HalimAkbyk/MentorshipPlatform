@@ -6,7 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Admin.Queries.GetAdminPendingCounts;
 
-public record AdminPendingCountsDto(int PendingVerifications, int PendingCourseReviews);
+public record AdminPendingCountsDto(
+    int PendingVerifications,
+    int PendingCourseReviews,
+    int PendingSessionRequests,
+    int PendingOfferingApprovals);
 
 public record GetAdminPendingCountsQuery() : IRequest<Result<AdminPendingCountsDto>>;
 
@@ -27,7 +31,17 @@ public class GetAdminPendingCountsQueryHandler : IRequestHandler<GetAdminPending
         var pendingCourseReviews = await _context.Courses
             .CountAsync(c => c.Status == CourseStatus.PendingReview, cancellationToken);
 
+        var pendingSessionRequests = await _context.SessionRequests
+            .CountAsync(r => r.Status == SessionRequestStatus.Pending, cancellationToken);
+
+        var pendingOfferingApprovals = await _context.Offerings
+            .CountAsync(o => o.ApprovalStatus == OfferingApprovalStatus.PendingApproval, cancellationToken);
+
         return Result<AdminPendingCountsDto>.Success(
-            new AdminPendingCountsDto(pendingVerifications, pendingCourseReviews));
+            new AdminPendingCountsDto(
+                pendingVerifications,
+                pendingCourseReviews,
+                pendingSessionRequests,
+                pendingOfferingApprovals));
     }
 }
