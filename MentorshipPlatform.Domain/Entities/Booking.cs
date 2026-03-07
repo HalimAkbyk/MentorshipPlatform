@@ -202,4 +202,20 @@ public class Booking : BaseEntity
     {
         CreditTransactionId = creditTransactionId;
     }
+
+    // ─── Admin Edit Methods ───
+
+    public void AdminUpdateSchedule(DateTime newStartAt, int durationMin)
+    {
+        StartAt = newStartAt;
+        EndAt = newStartAt.AddMinutes(durationMin);
+        DurationMin = durationMin;
+    }
+
+    public void AdminSetStatus(BookingStatus newStatus, string? reason = null)
+    {
+        Status = newStatus;
+        if (!string.IsNullOrEmpty(reason))
+            CancellationReason = reason;
+    }
 }

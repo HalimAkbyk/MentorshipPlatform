@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,12 +24,21 @@ public class AdminEducationController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IMediator _mediator;
     private readonly IStorageService _storage;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IProcessHistoryService _processHistory;
 
-    public AdminEducationController(ApplicationDbContext db, IMediator mediator, IStorageService storage)
+    public AdminEducationController(
+        ApplicationDbContext db,
+        IMediator mediator,
+        IStorageService storage,
+        ICurrentUserService currentUser,
+        IProcessHistoryService processHistory)
     {
         _db = db;
         _mediator = mediator;
         _storage = storage;
+        _currentUser = currentUser;
+        _processHistory = processHistory;
     }
 
     // GET /api/admin/education/bookings - All bookings (paginated, filtered)
@@ -912,10 +922,320 @@ public class AdminEducationController : ControllerBase
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
     }
 
+    // ========================================================================
+    // Admin Edit Endpoints (with audit logging)
+    // ========================================================================
+
+    // PUT /api/admin/education/bookings/{id}
+    [HttpPut("bookings/{id:guid}")]
+    public async Task<IActionResult> UpdateBooking(Guid id, [FromBody] AdminUpdateBookingRequest body)
+    {
+        var booking = await _db.Bookings.Include(b => b.Offering).FirstOrDefaultAsync(b => b.Id == id);
+        if (booking == null) return NotFound(new { errors = new[] { "Booking not found." } });
+
+        var changes = new List<string>();
+        var adminId = _currentUser.UserId;
+
+        if (body.StartAt.HasValue)
+        {
+            var oldStart = booking.StartAt;
+            var dur = body.DurationMin ?? booking.DurationMin;
+            booking.AdminUpdateSchedule(body.StartAt.Value.ToUniversalTime(), dur);
+            changes.Add($"Tarih: {oldStart:g} → {booking.StartAt:g}");
+            if (body.DurationMin.HasValue) changes.Add($"Sure: {booking.DurationMin} dk");
+        }
+        else if (body.DurationMin.HasValue)
+        {
+            var oldDur = booking.DurationMin;
+            booking.AdminUpdateSchedule(booking.StartAt, body.DurationMin.Value);
+            changes.Add($"Sure: {oldDur} → {body.DurationMin.Value} dk");
+        }
+
+        if (!string.IsNullOrEmpty(body.Status) && Enum.TryParse<BookingStatus>(body.Status, true, out var newStatus) && newStatus != booking.Status)
+        {
+            var oldStatus = booking.Status.ToString();
+            booking.AdminSetStatus(newStatus, body.Reason);
+            changes.Add($"Durum: {oldStatus} → {newStatus}");
+        }
+
+        if (changes.Count == 0)
+            return BadRequest(new { errors = new[] { "Degisiklik bulunamadi." } });
+
+        await _db.SaveChangesAsync();
+
+        var description = $"Admin ({adminId}) booking guncelledi: {string.Join(", ", changes)}";
+        await _processHistory.LogAsync(
+            "Booking", id, "AdminUpdate",
+            null, JsonSerializer.Serialize(body),
+            description, adminId, "Admin",
+            body.Reason);
+
+        return Ok(new { ok = true, changes });
+    }
+
+    // PUT /api/admin/education/group-classes/{id}
+    [HttpPut("group-classes/{id:guid}")]
+    public async Task<IActionResult> UpdateGroupClass(Guid id, [FromBody] AdminUpdateGroupClassRequest body)
+    {
+        var gc = await _db.GroupClasses.FirstOrDefaultAsync(c => c.Id == id);
+        if (gc == null) return NotFound(new { errors = new[] { "Group class not found." } });
+
+        var changes = new List<string>();
+        var adminId = _currentUser.UserId;
+
+        var oldTitle = gc.Title;
+        var oldPrice = gc.PricePerSeat;
+        var oldCapacity = gc.Capacity;
+        var oldCategory = gc.Category;
+        var oldStartAt = gc.StartAt;
+        var oldEndAt = gc.EndAt;
+
+        gc.AdminUpdate(
+            body.Title ?? gc.Title,
+            body.Description ?? gc.Description,
+            body.Category ?? gc.Category,
+            body.PricePerSeat ?? gc.PricePerSeat,
+            body.Capacity ?? gc.Capacity,
+            body.StartAt?.ToUniversalTime() ?? gc.StartAt,
+            body.EndAt?.ToUniversalTime() ?? gc.EndAt);
+
+        if (body.Title != null && body.Title != oldTitle) changes.Add($"Baslik: {oldTitle} → {body.Title}");
+        if (body.PricePerSeat.HasValue && body.PricePerSeat != oldPrice) changes.Add($"Fiyat: {oldPrice} → {body.PricePerSeat}");
+        if (body.Capacity.HasValue && body.Capacity != oldCapacity) changes.Add($"Kapasite: {oldCapacity} → {body.Capacity}");
+        if (body.Category != null && body.Category != oldCategory) changes.Add($"Kategori: {oldCategory} → {body.Category}");
+        if (body.StartAt.HasValue) changes.Add($"Baslangic: {oldStartAt:g} → {body.StartAt:g}");
+        if (body.EndAt.HasValue) changes.Add($"Bitis: {oldEndAt:g} → {body.EndAt:g}");
+        if (body.Description != null) changes.Add("Aciklama guncellendi");
+
+        if (!string.IsNullOrEmpty(body.Status) && Enum.TryParse<ClassStatus>(body.Status, true, out var newStatus) && newStatus != gc.Status)
+        {
+            var oldStatus = gc.Status.ToString();
+            gc.AdminSetStatus(newStatus);
+            changes.Add($"Durum: {oldStatus} → {newStatus}");
+        }
+
+        if (changes.Count == 0)
+            return BadRequest(new { errors = new[] { "Degisiklik bulunamadi." } });
+
+        await _db.SaveChangesAsync();
+
+        var description = $"Admin ({adminId}) grup dersi guncelledi: {string.Join(", ", changes)}";
+        await _processHistory.LogAsync(
+            "GroupClass", id, "AdminUpdate",
+            null, JsonSerializer.Serialize(body),
+            description, adminId, "Admin",
+            body.Reason);
+
+        return Ok(new { ok = true, changes });
+    }
+
+    // PUT /api/admin/education/courses/{id}
+    [HttpPut("courses/{id:guid}")]
+    public async Task<IActionResult> UpdateCourse(Guid id, [FromBody] AdminUpdateCourseRequest body)
+    {
+        var course = await _db.Courses.FirstOrDefaultAsync(c => c.Id == id);
+        if (course == null) return NotFound(new { errors = new[] { "Course not found." } });
+
+        var changes = new List<string>();
+        var adminId = _currentUser.UserId;
+
+        var oldTitle = course.Title;
+        var oldPrice = course.Price;
+        var oldCategory = course.Category;
+
+        course.Update(
+            body.Title ?? course.Title,
+            body.ShortDescription ?? course.ShortDescription,
+            body.Description ?? course.Description,
+            body.Price ?? course.Price,
+            body.Category ?? course.Category,
+            body.Language ?? course.Language,
+            body.Level.HasValue ? body.Level.Value : course.Level,
+            course.CoverImageUrl,
+            course.CoverImagePosition,
+            course.CoverImageTransform,
+            course.PromoVideoKey,
+            course.WhatYouWillLearnJson,
+            course.RequirementsJson,
+            course.TargetAudienceJson);
+
+        if (body.Title != null && body.Title != oldTitle) changes.Add($"Baslik: {oldTitle} → {body.Title}");
+        if (body.Price.HasValue && body.Price != oldPrice) changes.Add($"Fiyat: {oldPrice} → {body.Price}");
+        if (body.Category != null && body.Category != oldCategory) changes.Add($"Kategori: {oldCategory} → {body.Category}");
+        if (body.ShortDescription != null) changes.Add("Kisa aciklama guncellendi");
+        if (body.Description != null) changes.Add("Detayli aciklama guncellendi");
+        if (body.Language != null) changes.Add($"Dil: {body.Language}");
+        if (body.Level.HasValue) changes.Add($"Seviye: {body.Level}");
+
+        if (changes.Count == 0)
+            return BadRequest(new { errors = new[] { "Degisiklik bulunamadi." } });
+
+        await _db.SaveChangesAsync();
+
+        var description = $"Admin ({adminId}) kursu guncelledi: {string.Join(", ", changes)}";
+        await _processHistory.LogAsync(
+            "Course", id, "AdminUpdate",
+            null, JsonSerializer.Serialize(body),
+            description, adminId, "Admin",
+            body.Reason);
+
+        return Ok(new { ok = true, changes });
+    }
+
+    // PUT /api/admin/education/offerings/{id}
+    [HttpPut("offerings/{id:guid}")]
+    public async Task<IActionResult> UpdateOffering(Guid id, [FromBody] AdminUpdateOfferingRequest body)
+    {
+        var offering = await _db.Offerings.FirstOrDefaultAsync(o => o.Id == id);
+        if (offering == null) return NotFound(new { errors = new[] { "Offering not found." } });
+
+        var changes = new List<string>();
+        var adminId = _currentUser.UserId;
+
+        var oldTitle = offering.Title;
+        var oldPrice = offering.PriceAmount;
+        var oldDuration = offering.DurationMinDefault;
+
+        offering.Update(
+            body.Title ?? offering.Title,
+            body.Description ?? offering.Description,
+            body.DurationMin ?? offering.DurationMinDefault,
+            body.Price ?? offering.PriceAmount,
+            body.Category ?? offering.Category,
+            offering.Subtitle,
+            offering.DetailedDescription,
+            offering.SessionType,
+            offering.MaxBookingDaysAhead,
+            offering.MinNoticeHours,
+            offering.CoverImageUrl,
+            offering.CoverImagePosition,
+            offering.CoverImageTransform);
+
+        if (body.Title != null && body.Title != oldTitle) changes.Add($"Baslik: {oldTitle} → {body.Title}");
+        if (body.Price.HasValue && body.Price != oldPrice) changes.Add($"Fiyat: {oldPrice} → {body.Price}");
+        if (body.DurationMin.HasValue && body.DurationMin != oldDuration) changes.Add($"Sure: {oldDuration} → {body.DurationMin} dk");
+        if (body.Description != null) changes.Add("Aciklama guncellendi");
+        if (body.Category != null) changes.Add($"Kategori: {body.Category}");
+
+        if (body.IsActive.HasValue && body.IsActive.Value != offering.IsActive)
+        {
+            if (body.IsActive.Value) offering.Activate(); else offering.Deactivate();
+            changes.Add($"Aktiflik: {!body.IsActive.Value} → {body.IsActive.Value}");
+        }
+
+        if (changes.Count == 0)
+            return BadRequest(new { errors = new[] { "Degisiklik bulunamadi." } });
+
+        await _db.SaveChangesAsync();
+
+        var description = $"Admin ({adminId}) offering guncelledi: {string.Join(", ", changes)}";
+        await _processHistory.LogAsync(
+            "Offering", id, "AdminUpdate",
+            null, JsonSerializer.Serialize(body),
+            description, adminId, "Admin",
+            body.Reason);
+
+        return Ok(new { ok = true, changes });
+    }
+
+    // ========================================================================
+    // Change Log (Audit Trail)
+    // ========================================================================
+
+    // GET /api/admin/education/change-log
+    [HttpGet("change-log")]
+    public async Task<IActionResult> GetChangeLog(
+        [FromQuery] string? entityType = null,
+        [FromQuery] Guid? entityId = null,
+        [FromQuery] string? action = null,
+        [FromQuery] string? from = null,
+        [FromQuery] string? to = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 30)
+    {
+        var query = _db.ProcessHistories.AsNoTracking().AsQueryable();
+
+        // Default to education-related entity types
+        var educationTypes = new[] { "Booking", "GroupClass", "Course", "Offering" };
+        if (!string.IsNullOrEmpty(entityType))
+            query = query.Where(p => p.EntityType == entityType);
+        else
+            query = query.Where(p => educationTypes.Contains(p.EntityType));
+
+        if (entityId.HasValue)
+            query = query.Where(p => p.EntityId == entityId.Value);
+
+        if (!string.IsNullOrEmpty(action))
+            query = query.Where(p => p.Action == action);
+
+        if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var fromDate))
+            query = query.Where(p => p.CreatedAt >= fromDate.ToUniversalTime());
+        if (!string.IsNullOrEmpty(to) && DateTime.TryParse(to, out var toDate))
+            query = query.Where(p => p.CreatedAt <= toDate.ToUniversalTime());
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new
+            {
+                p.Id,
+                p.EntityType,
+                p.EntityId,
+                p.Action,
+                p.OldValue,
+                p.NewValue,
+                p.Description,
+                p.PerformedBy,
+                p.PerformedByRole,
+                p.Metadata,
+                p.CreatedAt,
+            })
+            .ToListAsync();
+
+        // Resolve performer names
+        var performerIds = items
+            .Where(i => i.PerformedBy.HasValue)
+            .Select(i => i.PerformedBy!.Value)
+            .Distinct().ToList();
+
+        var performerNames = performerIds.Count > 0
+            ? await _db.Users
+                .Where(u => performerIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.DisplayName })
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName)
+            : new Dictionary<Guid, string>();
+
+        var result = items.Select(i => new
+        {
+            i.Id,
+            i.EntityType,
+            i.EntityId,
+            i.Action,
+            i.Description,
+            i.Metadata,
+            i.CreatedAt,
+            PerformedByName = i.PerformedBy.HasValue
+                ? performerNames.GetValueOrDefault(i.PerformedBy.Value, "?")
+                : null,
+            i.PerformedByRole,
+        });
+
+        return Ok(new { items = result, totalCount, page, pageSize, totalPages = (int)Math.Ceiling((double)totalCount / pageSize) });
+    }
+
     // Request DTOs
     public record SetCourseInstructorRequest(Guid? InstructorId);
     public record SuspendCourseRequest(string Reason);
     public record UnsuspendCourseRequest(string? Note);
     public record ToggleLectureActiveRequest(bool IsActive, string? Reason);
     public record AddCourseAdminNoteRequest(Guid? LectureId, string? Flag, string Content);
+
+    // Admin Edit Request DTOs
+    public record AdminUpdateBookingRequest(DateTime? StartAt, int? DurationMin, string? Status, string? Reason);
+    public record AdminUpdateGroupClassRequest(string? Title, string? Description, string? Category, decimal? PricePerSeat, int? Capacity, DateTime? StartAt, DateTime? EndAt, string? Status, string? Reason);
+    public record AdminUpdateCourseRequest(string? Title, string? ShortDescription, string? Description, decimal? Price, string? Category, string? Language, CourseLevel? Level, string? Reason);
+    public record AdminUpdateOfferingRequest(string? Title, string? Description, decimal? Price, int? DurationMin, string? Category, bool? IsActive, string? Reason);
 }

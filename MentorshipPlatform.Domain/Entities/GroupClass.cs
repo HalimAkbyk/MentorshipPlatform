@@ -95,4 +95,22 @@ public class GroupClass : BaseEntity
 
     public void SetCreditCost(int creditCost) => CreditCost = creditCost;
     public void SetRecordingUrl(string? recordingUrl) => RecordingUrl = recordingUrl;
+
+    // ─── Admin Edit Methods ───
+
+    public void AdminUpdate(string title, string? description, string category, decimal pricePerSeat, int capacity, DateTime startAt, DateTime endAt)
+    {
+        Title = title;
+        Description = description;
+        Category = category;
+        PricePerSeat = pricePerSeat;
+        Capacity = capacity;
+        StartAt = startAt;
+        EndAt = endAt;
+    }
+
+    public void AdminSetStatus(ClassStatus newStatus)
+    {
+        Status = newStatus;
+    }
 }
