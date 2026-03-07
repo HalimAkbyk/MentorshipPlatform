@@ -1,6 +1,5 @@
 using FluentValidation;
 using MediatR;
-using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Domain.Entities;
@@ -78,16 +77,13 @@ public class SaveMentorOnboardingCommandHandler
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
-    private readonly IAdminNotificationService _adminNotifications;
 
     public SaveMentorOnboardingCommandHandler(
         IApplicationDbContext context,
-        ICurrentUserService currentUser,
-        IAdminNotificationService adminNotifications)
+        ICurrentUserService currentUser)
     {
         _context = context;
         _currentUser = currentUser;
-        _adminNotifications = adminNotifications;
     }
 
     public async Task<Result<MentorOnboardingDto>> Handle(
@@ -134,33 +130,6 @@ public class SaveMentorOnboardingCommandHandler
             request.OfferFreeIntro);
 
         await _context.SaveChangesAsync(cancellationToken);
-
-        // If admin requested changes, notify admin back when mentor saves
-        var mentorProfile = await _context.MentorProfiles
-            .FirstOrDefaultAsync(m => m.UserId == userId, cancellationToken);
-
-        if (mentorProfile is { HasPendingReviewRequest: true })
-        {
-            var user = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
-
-            var displayName = user?.DisplayName ?? "Egitmen";
-
-            await _adminNotifications.CreateOrUpdateGroupedAsync(
-                "MentorProfileUpdate",
-                $"mentor-profile-{userId}",
-                count => (
-                    "Egitmen duzenleme yapti",
-                    $"{displayName} istenen duzenlemeyi yapti ve tekrar incelemenizi bekliyor."
-                ),
-                "MentorApproval",
-                userId,
-                cancellationToken);
-
-            mentorProfile.ClearReviewRequest();
-            await _context.SaveChangesAsync(cancellationToken);
-        }
 
         return Result<MentorOnboardingDto>.Success(new MentorOnboardingDto(
             profile.Id,

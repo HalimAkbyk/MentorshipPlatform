@@ -1,5 +1,4 @@
 using MediatR;
-using MentorshipPlatform.Application.Common.Attributes;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
 using MentorshipPlatform.Application.Onboarding.Commands.SaveMentorOnboarding;
@@ -7,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Onboarding.Queries.GetMentorOnboarding;
 
-[RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record GetMentorOnboardingQuery : IRequest<Result<MentorOnboardingDto?>>;
 
 public class GetMentorOnboardingQueryHandler
