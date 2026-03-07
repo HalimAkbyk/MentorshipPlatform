@@ -19,6 +19,8 @@ public class Assignment : BaseEntity
     public Guid? BookingId { get; private set; }
     public Guid? GroupClassId { get; private set; }
     public Guid? CurriculumTopicId { get; private set; }
+    public bool IsTemplate { get; private set; }
+    public string? TemplateName { get; private set; }
     public AssignmentStatus Status { get; private set; }
 
     // Navigation
@@ -105,5 +107,37 @@ public class Assignment : BaseEntity
     {
         Status = AssignmentStatus.Closed;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetAsTemplate(string templateName)
+    {
+        IsTemplate = true;
+        TemplateName = templateName;
+        BookingId = null;
+        GroupClassId = null;
+        CurriculumTopicId = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public Assignment DeepCopyFromTemplate(Guid mentorUserId, string? newTitle, Guid? bookingId, Guid? groupClassId, Guid? curriculumTopicId)
+    {
+        return new Assignment
+        {
+            MentorUserId = mentorUserId,
+            Title = newTitle ?? Title,
+            AssignmentType = AssignmentType,
+            Description = Description,
+            Instructions = Instructions,
+            DifficultyLevel = DifficultyLevel,
+            EstimatedMinutes = EstimatedMinutes,
+            MaxScore = MaxScore,
+            AllowLateSubmission = AllowLateSubmission,
+            LatePenaltyPercent = LatePenaltyPercent,
+            BookingId = bookingId,
+            GroupClassId = groupClassId,
+            CurriculumTopicId = curriculumTopicId,
+            IsTemplate = false,
+            Status = AssignmentStatus.Draft
+        };
     }
 }

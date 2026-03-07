@@ -7,10 +7,13 @@ using MentorshipPlatform.Application.Assignments.Commands.PublishAssignment;
 using MentorshipPlatform.Application.Assignments.Commands.RemoveAssignmentMaterial;
 using MentorshipPlatform.Application.Assignments.Commands.ReviewSubmission;
 using MentorshipPlatform.Application.Assignments.Commands.SubmitAssignment;
+using MentorshipPlatform.Application.Assignments.Commands.CreateFromTemplate;
+using MentorshipPlatform.Application.Assignments.Commands.SaveAsTemplate;
 using MentorshipPlatform.Application.Assignments.Commands.UpdateAssignment;
 using MentorshipPlatform.Application.Assignments.Queries.GetAssignmentById;
 using MentorshipPlatform.Application.Assignments.Queries.GetAssignmentSubmissions;
 using MentorshipPlatform.Application.Assignments.Queries.GetMyAssignments;
+using MentorshipPlatform.Application.Assignments.Queries.GetMyTemplates;
 using MentorshipPlatform.Application.Assignments.Queries.GetStudentAssignments;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -201,6 +204,45 @@ public class AssignmentsController : ControllerBase
         var result = await _mediator.Send(new GetStudentAssignmentsQuery(search, page, pageSize), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
     }
+
+    /// <summary>Odevi sablon olarak kaydet</summary>
+    [HttpPost("{id:guid}/save-as-template")]
+    [Authorize(Policy = "RequireMentorRole")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SaveAsTemplate(Guid id, [FromBody] AssignmentSaveAsTemplateRequest body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new SaveAssignmentAsTemplateCommand(id, body.TemplateName), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return CreatedAtAction(nameof(GetById), new { id = result.Data }, new { id = result.Data });
+    }
+
+    /// <summary>Sablondan odev olustur</summary>
+    [HttpPost("from-template/{templateId:guid}")]
+    [Authorize(Policy = "RequireMentorRole")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateFromTemplate(Guid templateId, [FromBody] AssignmentCreateFromTemplateRequest body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new CreateAssignmentFromTemplateCommand(
+            templateId, body.NewTitle, body.BookingId, body.GroupClassId, body.CurriculumTopicId, body.DueDate), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return CreatedAtAction(nameof(GetById), new { id = result.Data }, new { id = result.Data });
+    }
+
+    /// <summary>Odev sablonlarimi listele</summary>
+    [HttpGet("templates")]
+    [Authorize(Policy = "RequireMentorRole")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyTemplates(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await _mediator.Send(new GetMyAssignmentTemplatesQuery(search, page, pageSize), ct);
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
 }
 
 public record UpdateAssignmentRequest(
@@ -223,3 +265,12 @@ public record AddMaterialRequest(Guid LibraryItemId, bool IsRequired = true);
 public record SubmitRequest(string? SubmissionText, string? FileUrl, string? OriginalFileName);
 
 public record ReviewRequest(int? Score, string? Feedback, ReviewStatus ReviewStatus);
+
+public record AssignmentSaveAsTemplateRequest(string TemplateName);
+
+public record AssignmentCreateFromTemplateRequest(
+    string? NewTitle,
+    Guid? BookingId,
+    Guid? GroupClassId,
+    Guid? CurriculumTopicId,
+    DateTime? DueDate);

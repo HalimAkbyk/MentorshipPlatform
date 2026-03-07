@@ -16,6 +16,8 @@ public class SessionPlan : BaseEntity
     public string? AgendaItemsJson { get; private set; }
     public string? PostSessionSummary { get; private set; }
     public Guid? LinkedAssignmentId { get; private set; }
+    public bool IsTemplate { get; private set; }
+    public string? TemplateName { get; private set; }
     public SessionPlanStatus Status { get; private set; }
     public DateTime? SharedAt { get; private set; }
 
@@ -79,5 +81,31 @@ public class SessionPlan : BaseEntity
     {
         Status = SessionPlanStatus.Completed;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetAsTemplate(string templateName)
+    {
+        IsTemplate = true;
+        TemplateName = templateName;
+        BookingId = null;
+        GroupClassId = null;
+        CurriculumTopicId = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public SessionPlan DeepCopyFromTemplate(Guid mentorUserId, string? newTitle, Guid? bookingId, Guid? groupClassId)
+    {
+        return new SessionPlan
+        {
+            MentorUserId = mentorUserId,
+            Title = newTitle ?? Title,
+            BookingId = bookingId,
+            GroupClassId = groupClassId,
+            PreSessionNote = PreSessionNote,
+            SessionObjective = SessionObjective,
+            AgendaItemsJson = AgendaItemsJson,
+            IsTemplate = false,
+            Status = SessionPlanStatus.Draft
+        };
     }
 }

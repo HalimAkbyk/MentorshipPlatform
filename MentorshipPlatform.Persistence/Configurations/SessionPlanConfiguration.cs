@@ -28,6 +28,12 @@ public class SessionPlanConfiguration : IEntityTypeConfiguration<SessionPlan>
         builder.Property(x => x.AgendaItemsJson)
             .HasColumnType("jsonb");
 
+        builder.Property(x => x.IsTemplate)
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.TemplateName)
+            .HasMaxLength(200);
+
         builder.Property(x => x.Status)
             .HasConversion<string>()
             .HasMaxLength(20);
@@ -50,6 +56,7 @@ public class SessionPlanConfiguration : IEntityTypeConfiguration<SessionPlan>
         builder.HasIndex(x => x.MentorUserId);
         builder.HasIndex(x => x.BookingId);
         builder.HasIndex(x => x.GroupClassId);
+        builder.HasIndex(x => x.IsTemplate);
     }
 }
 

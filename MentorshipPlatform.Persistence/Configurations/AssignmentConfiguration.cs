@@ -28,6 +28,12 @@ public class AssignmentConfiguration : IEntityTypeConfiguration<Assignment>
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        builder.Property(x => x.IsTemplate)
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.TemplateName)
+            .HasMaxLength(200);
+
         builder.Property(x => x.Status)
             .HasConversion<string>()
             .HasMaxLength(20);
@@ -38,6 +44,7 @@ public class AssignmentConfiguration : IEntityTypeConfiguration<Assignment>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => x.MentorUserId);
+        builder.HasIndex(x => x.IsTemplate);
     }
 }
 

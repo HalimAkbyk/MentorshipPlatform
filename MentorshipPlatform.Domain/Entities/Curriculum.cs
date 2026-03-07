@@ -15,6 +15,8 @@ public class Curriculum : BaseEntity
     public string? CoverImageUrl { get; private set; }
     public CurriculumStatus Status { get; private set; }
     public bool IsDefault { get; private set; }
+    public bool IsTemplate { get; private set; }
+    public string? TemplateName { get; private set; }
 
     // Navigation
     public User Mentor { get; private set; } = null!;
@@ -79,5 +81,30 @@ public class Curriculum : BaseEntity
     {
         Status = CurriculumStatus.Archived;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetAsTemplate(string templateName)
+    {
+        IsTemplate = true;
+        TemplateName = templateName;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public Curriculum DeepCopyFromTemplate(Guid mentorUserId, string? newTitle)
+    {
+        return new Curriculum
+        {
+            MentorUserId = mentorUserId,
+            Title = newTitle ?? Title,
+            Description = Description,
+            Subject = Subject,
+            Level = Level,
+            TotalWeeks = TotalWeeks,
+            EstimatedHoursPerWeek = EstimatedHoursPerWeek,
+            CoverImageUrl = CoverImageUrl,
+            Status = CurriculumStatus.Draft,
+            IsDefault = false,
+            IsTemplate = false
+        };
     }
 }

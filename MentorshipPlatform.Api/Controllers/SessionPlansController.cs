@@ -7,6 +7,9 @@ using MentorshipPlatform.Application.SessionPlans.Commands.RemoveSessionPlanMate
 using MentorshipPlatform.Application.SessionPlans.Commands.ShareSessionPlan;
 using MentorshipPlatform.Application.SessionPlans.Commands.UpdateSessionPlan;
 using MentorshipPlatform.Application.SessionPlans.Queries.GetMySessionPlans;
+using MentorshipPlatform.Application.SessionPlans.Commands.CreateFromTemplate;
+using MentorshipPlatform.Application.SessionPlans.Commands.SaveAsTemplate;
+using MentorshipPlatform.Application.SessionPlans.Queries.GetMyTemplates;
 using MentorshipPlatform.Application.SessionPlans.Queries.GetSessionPlanByBooking;
 using MentorshipPlatform.Application.SessionPlans.Queries.GetSessionPlanByGroupClass;
 using MentorshipPlatform.Application.SessionPlans.Queries.GetSessionPlanById;
@@ -137,6 +140,41 @@ public class SessionPlansController : ControllerBase
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
     }
 
+    /// <summary>Oturum planini sablon olarak kaydet</summary>
+    [HttpPost("{id:guid}/save-as-template")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SaveAsTemplate(Guid id, [FromBody] SaveAsTemplateRequest body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new SaveSessionPlanAsTemplateCommand(id, body.TemplateName), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return CreatedAtAction(nameof(GetById), new { id = result.Data }, new { id = result.Data });
+    }
+
+    /// <summary>Sablondan oturum plani olustur</summary>
+    [HttpPost("from-template/{templateId:guid}")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateFromTemplate(Guid templateId, [FromBody] CreateFromTemplateRequest body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new CreateSessionPlanFromTemplateCommand(templateId, body.NewTitle, body.BookingId, body.GroupClassId), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return CreatedAtAction(nameof(GetById), new { id = result.Data }, new { id = result.Data });
+    }
+
+    /// <summary>Oturum plani sablonlarimi listele</summary>
+    [HttpGet("templates")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyTemplates(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await _mediator.Send(new GetMySessionPlanTemplatesQuery(search, page, pageSize), ct);
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
+
     /// <summary>Booking'e ait oturum plani</summary>
     [HttpGet("booking/{bookingId:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -175,3 +213,10 @@ public record AddSessionPlanMaterialRequest(
     Guid LibraryItemId,
     SessionPhase Phase,
     string? Note);
+
+public record SaveAsTemplateRequest(string TemplateName);
+
+public record CreateFromTemplateRequest(
+    string? NewTitle,
+    Guid? BookingId,
+    Guid? GroupClassId);

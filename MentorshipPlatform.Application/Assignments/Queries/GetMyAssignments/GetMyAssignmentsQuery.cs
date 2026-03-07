@@ -47,7 +47,7 @@ public class GetMyAssignmentsQueryHandler : IRequestHandler<GetMyAssignmentsQuer
 
         var query = _context.Assignments
             .AsNoTracking()
-            .Where(x => x.MentorUserId == _currentUser.UserId.Value);
+            .Where(x => x.MentorUserId == _currentUser.UserId.Value && !x.IsTemplate);
 
         if (request.Status.HasValue)
             query = query.Where(x => x.Status == request.Status.Value);

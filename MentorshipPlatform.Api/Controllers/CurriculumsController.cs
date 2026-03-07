@@ -12,9 +12,15 @@ using MentorshipPlatform.Application.Curriculum.Commands.DeleteCurriculumTopic;
 using MentorshipPlatform.Application.Curriculum.Commands.AddTopicMaterial;
 using MentorshipPlatform.Application.Curriculum.Commands.RemoveTopicMaterial;
 using MentorshipPlatform.Application.Curriculum.Commands.AssignCurriculumToStudent;
+using MentorshipPlatform.Application.Curriculum.Commands.CreateFromTemplate;
+using MentorshipPlatform.Application.Curriculum.Commands.SaveAsTemplate;
+using MentorshipPlatform.Application.Curriculum.Commands.UpdateTopicProgress;
 using MentorshipPlatform.Application.Curriculum.Queries.GetMyCurriculums;
+using MentorshipPlatform.Application.Curriculum.Queries.GetMyTemplates;
 using MentorshipPlatform.Application.Curriculum.Queries.GetCurriculumById;
 using MentorshipPlatform.Application.Curriculum.Queries.GetStudentCurriculumProgress;
+using MentorshipPlatform.Application.Curriculum.Queries.GetMyEnrolledCurriculums;
+using MentorshipPlatform.Application.Curriculum.Queries.GetMentorStudentsProgress;
 using MentorshipPlatform.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -225,6 +231,75 @@ public class CurriculumsController : ControllerBase
         if (result.Data == null) return NotFound();
         return Ok(result.Data);
     }
+
+    /// <summary>Konu ilerlemesini guncelle (egitmen)</summary>
+    [HttpPut("progress/topics/{topicId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateTopicProgress(Guid topicId, [FromBody] UpdateTopicProgressRequest body, CancellationToken ct)
+    {
+        var command = new UpdateTopicProgressCommand(
+            body.EnrollmentId,
+            topicId,
+            body.Status,
+            body.MentorNote,
+            body.BookingId);
+        var result = await _mediator.Send(command, ct);
+        return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
+    }
+
+    /// <summary>Kayitli mufredatlarim (ogrenci)</summary>
+    [HttpGet("my-enrollments")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyEnrollments(CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetMyEnrolledCurriculumsQuery(), ct);
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
+
+    /// <summary>Ogrenci ilerleme ozeti (egitmen)</summary>
+    [HttpGet("students-progress")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStudentsProgress([FromQuery] Guid? curriculumId, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new GetMentorStudentsProgressQuery(curriculumId), ct);
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
+
+    /// <summary>Mufredati sablon olarak kaydet</summary>
+    [HttpPost("{id:guid}/save-as-template")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SaveAsTemplate(Guid id, [FromBody] CurriculumSaveAsTemplateRequest body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new SaveCurriculumAsTemplateCommand(id, body.TemplateName), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return CreatedAtAction(nameof(GetById), new { id = result.Data }, new { id = result.Data });
+    }
+
+    /// <summary>Sablondan mufredat olustur</summary>
+    [HttpPost("from-template/{templateId:guid}")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateFromTemplate(Guid templateId, [FromBody] CurriculumCreateFromTemplateRequest body, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new CreateCurriculumFromTemplateCommand(templateId, body.NewTitle), ct);
+        if (!result.IsSuccess) return BadRequest(new { errors = result.Errors });
+        return CreatedAtAction(nameof(GetById), new { id = result.Data }, new { id = result.Data });
+    }
+
+    /// <summary>Mufredat sablonlarimi listele</summary>
+    [HttpGet("templates")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyTemplates(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await _mediator.Send(new GetMyCurriculumTemplatesQuery(search, page, pageSize), ct);
+        return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
 }
 
 // Request DTOs
@@ -259,3 +334,13 @@ public record UpdateTopicRequest(
 public record AddTopicMaterialRequest(Guid LibraryItemId, string? MaterialRole);
 
 public record AssignStudentRequest(Guid StudentUserId);
+
+public record UpdateTopicProgressRequest(
+    Guid EnrollmentId,
+    TopicStatus Status,
+    string? MentorNote,
+    Guid? BookingId);
+
+public record CurriculumSaveAsTemplateRequest(string TemplateName);
+
+public record CurriculumCreateFromTemplateRequest(string? NewTitle);
