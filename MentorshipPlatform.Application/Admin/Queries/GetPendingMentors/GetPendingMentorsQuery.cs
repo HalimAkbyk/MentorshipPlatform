@@ -13,6 +13,7 @@ public class PendingMentorDto
 {
     public Guid UserId { get; set; }
     public string FullName { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
     public string Email { get; set; } = string.Empty;
     public string? University { get; set; }
     public string? Department { get; set; }
@@ -22,7 +23,22 @@ public class PendingMentorDto
     public decimal? HourlyRate { get; set; }
     public bool IsListed { get; set; }
     public DateTime CreatedAt { get; set; }
-    
+
+    // Onboarding profile info
+    public string? City { get; set; }
+    public string? EducationStatus { get; set; }
+    public string? Categories { get; set; }
+    public string? Subtopics { get; set; }
+    public string? Languages { get; set; }
+    public string? Certifications { get; set; }
+    public string? LinkedinUrl { get; set; }
+    public string? GithubUrl { get; set; }
+    public string? PortfolioUrl { get; set; }
+    public string? SessionFormats { get; set; }
+
+    public int OfferingCount { get; set; }
+    public bool HasAvailability { get; set; }
+
     public List<VerificationDto> Verifications { get; set; } = new();
 }
 
@@ -37,7 +53,7 @@ public class VerificationDto
     public string? Notes { get; set; }
 }
 
-public class GetPendingMentorsQueryHandler 
+public class GetPendingMentorsQueryHandler
     : IRequestHandler<GetPendingMentorsQuery, Result<List<PendingMentorDto>>>
 {
     private readonly IApplicationDbContext _context;
@@ -57,37 +73,68 @@ public class GetPendingMentorsQueryHandler
     {
         try
         {
-            // ✅ Onay bekleyen mentörleri getir
-            // - En az 1 pending verification var
-            // - VEYA IsListed = false (ama verifications approved)
-            var mentors = await _context.MentorProfiles
+            // All mentor profiles that are not listed (pending admin review)
+            // OR have pending verifications
+            var mentorProfiles = await _context.MentorProfiles
                 .Include(m => m.User)
                 .Include(m => m.Verifications)
                 .Include(m => m.Offerings)
-                .Where(m => 
-                    // Pending verification var
+                .Where(m =>
+                    !m.IsListed ||
                     m.Verifications.Any(v => v.Status == VerificationStatus.Pending)
-                    ||
-                    // Veya: Tüm verifications approved ama IsListed = false
-                    (!m.IsListed && m.Verifications.Any() && 
-                     m.Verifications.All(v => v.Status == VerificationStatus.Approved))
                 )
                 .OrderByDescending(m => m.CreatedAt)
-                .Select(m => new PendingMentorDto
+                .ToListAsync(cancellationToken);
+
+            var mentorUserIds = mentorProfiles.Select(m => m.UserId).ToList();
+
+            // Batch load onboarding profiles
+            var onboardings = await _context.MentorOnboardingProfiles
+                .AsNoTracking()
+                .Where(o => mentorUserIds.Contains(o.MentorUserId))
+                .ToListAsync(cancellationToken);
+
+            var onboardingMap = onboardings.ToDictionary(o => o.MentorUserId);
+
+            // Check availability
+            var mentorsWithAvailability = await _context.AvailabilitySlots
+                .AsNoTracking()
+                .Where(s => mentorUserIds.Contains(s.MentorUserId) && !s.IsBooked && s.StartAt > DateTime.UtcNow)
+                .Select(s => s.MentorUserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var availabilitySet = mentorsWithAvailability.ToHashSet();
+
+            var result = mentorProfiles.Select(m =>
+            {
+                onboardingMap.TryGetValue(m.UserId, out var ob);
+                return new PendingMentorDto
                 {
                     UserId = m.UserId,
                     FullName = m.User.DisplayName,
+                    AvatarUrl = m.User.AvatarUrl,
                     Email = m.User.Email,
                     University = m.University,
                     Department = m.Department,
                     GraduationYear = m.GraduationYear,
                     Headline = m.Headline,
                     Bio = m.Bio,
-                    HourlyRate = m.Offerings.FirstOrDefault() != null 
-                        ? m.Offerings.FirstOrDefault()!.PriceAmount 
-                        : null,
+                    HourlyRate = m.Offerings.FirstOrDefault()?.PriceAmount,
                     IsListed = m.IsListed,
                     CreatedAt = m.CreatedAt,
+                    City = ob?.City,
+                    EducationStatus = ob?.YearsOfExperience,
+                    Categories = ob?.Categories,
+                    Subtopics = ob?.Subtopics,
+                    Languages = ob?.Languages,
+                    Certifications = ob?.Certifications,
+                    LinkedinUrl = ob?.LinkedinUrl,
+                    GithubUrl = ob?.GithubUrl,
+                    PortfolioUrl = ob?.PortfolioUrl,
+                    SessionFormats = ob?.SessionFormats,
+                    OfferingCount = m.Offerings.Count(o => o.IsActive),
+                    HasAvailability = availabilitySet.Contains(m.UserId),
                     Verifications = m.Verifications
                         .OrderByDescending(v => v.CreatedAt)
                         .Select(v => new VerificationDto
@@ -101,16 +148,14 @@ public class GetPendingMentorsQueryHandler
                             Notes = v.Notes
                         })
                         .ToList()
-                })
-                .ToListAsync(cancellationToken);
+                };
+            }).ToList();
 
-            _logger.LogInformation("✅ Retrieved {Count} pending mentors", mentors.Count);
-
-            return Result<List<PendingMentorDto>>.Success(mentors);
+            return Result<List<PendingMentorDto>>.Success(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error retrieving pending mentors");
+            _logger.LogError(ex, "Error retrieving pending mentors");
             return Result<List<PendingMentorDto>>.Failure("Failed to retrieve pending mentors");
         }
     }

@@ -23,6 +23,7 @@ using MentorshipPlatform.Application.Admin.Commands.UpdateInstructorStatus;
 using MentorshipPlatform.Application.Bookings.Commands.ResolveDispute;
 using MentorshipPlatform.Application.Messages.Queries.GetMessageReports;
 using MentorshipPlatform.Application.Messages.Commands.ReviewMessageReport;
+using MentorshipPlatform.Domain.Entities;
 using MentorshipPlatform.Application.Admin.Commands.ApproveOfferingPrice;
 using MentorshipPlatform.Application.Admin.Commands.RejectOfferingPrice;
 using MentorshipPlatform.Application.Admin.Queries.GetPendingOfferingApprovals;
@@ -798,6 +799,34 @@ public class AdminController : ControllerBase
 
         if (!result.IsSuccess)
             return BadRequest(new { errors = result.Errors });
+
+        return Ok(new { success = true });
+    }
+
+    // -----------------------------
+    // ADMIN → MENTOR NOTIFICATION
+    // -----------------------------
+    public record SendMentorNotificationRequest(string Title, string Message);
+
+    [HttpPost("mentors/{userId:guid}/notify")]
+    public async Task<IActionResult> SendMentorNotification(
+        [FromRoute] Guid userId,
+        [FromBody] SendMentorNotificationRequest request)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            return NotFound(new { errors = new[] { "Kullanici bulunamadi" } });
+
+        var notification = UserNotification.Create(
+            userId,
+            "AdminMessage",
+            request.Title,
+            request.Message,
+            "MentorApproval",
+            userId);
+
+        _db.UserNotifications.Add(notification);
+        await _db.SaveChangesAsync();
 
         return Ok(new { success = true });
     }
