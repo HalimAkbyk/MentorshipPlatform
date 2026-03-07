@@ -1082,6 +1082,96 @@ public class AdminEducationController : ControllerBase
         return Ok(new { ok = true, changes });
     }
 
+    // GET /api/admin/education/offerings
+    [HttpGet("offerings")]
+    public async Task<IActionResult> GetOfferings(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? category = null,
+        [FromQuery] string? mentorId = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var query = _db.Offerings.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(o => o.Title.Contains(search));
+
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(o => o.Category == category);
+
+        if (!string.IsNullOrWhiteSpace(mentorId) && Guid.TryParse(mentorId, out var mid))
+            query = query.Where(o => o.MentorUserId == mid);
+
+        if (isActive.HasValue)
+            query = query.Where(o => o.IsActive == isActive.Value);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(o => new
+            {
+                o.Id,
+                o.MentorUserId,
+                o.Type,
+                o.Title,
+                o.Description,
+                o.DurationMinDefault,
+                PriceAmount = o.PriceAmount,
+                o.Currency,
+                o.IsActive,
+                o.Category,
+                o.Subtitle,
+                o.DetailedDescription,
+                o.SessionType,
+                o.MaxBookingDaysAhead,
+                o.MinNoticeHours,
+                o.SortOrder,
+                o.ApprovalStatus,
+                o.CreatedAt,
+                o.UpdatedAt,
+            })
+            .ToListAsync();
+
+        // Resolve mentor names
+        var mentorIds = items.Select(i => i.MentorUserId).Distinct().ToList();
+        var mentorNames = mentorIds.Count > 0
+            ? await _db.Users
+                .Where(u => mentorIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.DisplayName })
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName)
+            : new Dictionary<Guid, string>();
+
+        var result = items.Select(i => new
+        {
+            i.Id,
+            i.MentorUserId,
+            MentorName = mentorNames.GetValueOrDefault(i.MentorUserId, "?"),
+            Type = i.Type.ToString(),
+            i.Title,
+            i.Description,
+            DurationMin = i.DurationMinDefault,
+            Price = i.PriceAmount,
+            i.Currency,
+            i.IsActive,
+            i.Category,
+            i.Subtitle,
+            i.DetailedDescription,
+            i.SessionType,
+            i.MaxBookingDaysAhead,
+            i.MinNoticeHours,
+            i.SortOrder,
+            ApprovalStatus = i.ApprovalStatus.ToString(),
+            i.CreatedAt,
+            i.UpdatedAt,
+        });
+
+        return Ok(new { items = result, totalCount, page, pageSize, totalPages = (int)Math.Ceiling((double)totalCount / pageSize) });
+    }
+
     // PUT /api/admin/education/offerings/{id}
     [HttpPut("offerings/{id:guid}")]
     public async Task<IActionResult> UpdateOffering(Guid id, [FromBody] AdminUpdateOfferingRequest body)
@@ -1095,6 +1185,10 @@ public class AdminEducationController : ControllerBase
         var oldTitle = offering.Title;
         var oldPrice = offering.PriceAmount;
         var oldDuration = offering.DurationMinDefault;
+        var oldSubtitle = offering.Subtitle;
+        var oldSessionType = offering.SessionType;
+        var oldMaxDays = offering.MaxBookingDaysAhead;
+        var oldMinHours = offering.MinNoticeHours;
 
         offering.Update(
             body.Title ?? offering.Title,
@@ -1102,11 +1196,11 @@ public class AdminEducationController : ControllerBase
             body.DurationMin ?? offering.DurationMinDefault,
             body.Price ?? offering.PriceAmount,
             body.Category ?? offering.Category,
-            offering.Subtitle,
-            offering.DetailedDescription,
-            offering.SessionType,
-            offering.MaxBookingDaysAhead,
-            offering.MinNoticeHours,
+            body.Subtitle ?? offering.Subtitle,
+            body.DetailedDescription ?? offering.DetailedDescription,
+            body.SessionType ?? offering.SessionType,
+            body.MaxBookingDaysAhead ?? offering.MaxBookingDaysAhead,
+            body.MinNoticeHours ?? offering.MinNoticeHours,
             offering.CoverImageUrl,
             offering.CoverImagePosition,
             offering.CoverImageTransform);
@@ -1115,7 +1209,12 @@ public class AdminEducationController : ControllerBase
         if (body.Price.HasValue && body.Price != oldPrice) changes.Add($"Fiyat: {oldPrice} → {body.Price}");
         if (body.DurationMin.HasValue && body.DurationMin != oldDuration) changes.Add($"Sure: {oldDuration} → {body.DurationMin} dk");
         if (body.Description != null) changes.Add("Aciklama guncellendi");
+        if (body.DetailedDescription != null) changes.Add("Detayli aciklama guncellendi");
         if (body.Category != null) changes.Add($"Kategori: {body.Category}");
+        if (body.Subtitle != null && body.Subtitle != oldSubtitle) changes.Add($"Alt baslik guncellendi");
+        if (body.SessionType != null && body.SessionType != oldSessionType) changes.Add($"Seans tipi: {body.SessionType}");
+        if (body.MaxBookingDaysAhead.HasValue && body.MaxBookingDaysAhead != oldMaxDays) changes.Add($"Max rezervasyon gun: {body.MaxBookingDaysAhead}");
+        if (body.MinNoticeHours.HasValue && body.MinNoticeHours != oldMinHours) changes.Add($"Min bildirim saat: {body.MinNoticeHours}");
 
         if (body.IsActive.HasValue && body.IsActive.Value != offering.IsActive)
         {
@@ -1237,5 +1336,5 @@ public class AdminEducationController : ControllerBase
     public record AdminUpdateBookingRequest(DateTime? StartAt, int? DurationMin, string? Status, string? Reason);
     public record AdminUpdateGroupClassRequest(string? Title, string? Description, string? Category, decimal? PricePerSeat, int? Capacity, DateTime? StartAt, DateTime? EndAt, string? Status, string? Reason);
     public record AdminUpdateCourseRequest(string? Title, string? ShortDescription, string? Description, decimal? Price, string? Category, string? Language, CourseLevel? Level, string? Reason);
-    public record AdminUpdateOfferingRequest(string? Title, string? Description, decimal? Price, int? DurationMin, string? Category, bool? IsActive, string? Reason);
+    public record AdminUpdateOfferingRequest(string? Title, string? Description, decimal? Price, int? DurationMin, string? Category, bool? IsActive, string? Subtitle, string? DetailedDescription, string? SessionType, int? MaxBookingDaysAhead, int? MinNoticeHours, string? Reason);
 }
