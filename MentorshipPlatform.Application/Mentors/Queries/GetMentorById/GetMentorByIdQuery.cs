@@ -24,7 +24,19 @@ public record MentorDetailDto(
     string? VerificationStatus,
     List<OfferingDto> Offerings,
     List<VerificationBadgeDto> Badges,
-    List<AvailabilitySlotDto> AvailableSlots);
+    List<AvailabilitySlotDto> AvailableSlots,
+    MentorProfileInfoDto? ProfileInfo = null);
+
+public record MentorProfileInfoDto(
+    string? City,
+    string? EducationStatus,
+    string? Categories,
+    string? Subtopics,
+    string? Languages,
+    string? Certifications,
+    string? LinkedinUrl,
+    string? GithubUrl,
+    string? PortfolioUrl);
 
 public record OfferingDto(
     Guid Id,
@@ -120,6 +132,26 @@ public class GetMentorByIdQueryHandler
             }
         }
 
+        // Fetch onboarding profile info for public display
+        var onboarding = await _context.MentorOnboardingProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.MentorUserId == request.MentorUserId, cancellationToken);
+
+        MentorProfileInfoDto? profileInfo = null;
+        if (onboarding != null)
+        {
+            profileInfo = new MentorProfileInfoDto(
+                onboarding.City,
+                onboarding.YearsOfExperience, // repurposed as education status
+                onboarding.Categories,
+                onboarding.Subtopics,
+                onboarding.Languages,
+                onboarding.Certifications,
+                onboarding.LinkedinUrl,
+                onboarding.GithubUrl,
+                onboarding.PortfolioUrl);
+        }
+
         var dto = new MentorDetailDto(
             mentor.UserId,
             mentor.User.DisplayName,
@@ -136,7 +168,8 @@ public class GetMentorByIdQueryHandler
             verificationStatus,
             offerings,
             badges,
-            availableSlots);
+            availableSlots,
+            profileInfo);
 
         return Result<MentorDetailDto>.Success(dto);
     }
