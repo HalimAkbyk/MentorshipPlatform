@@ -78,13 +78,16 @@ public class SaveMentorOnboardingCommandHandler
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAdminNotificationService _adminNotifications;
 
     public SaveMentorOnboardingCommandHandler(
         IApplicationDbContext context,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        IAdminNotificationService adminNotifications)
     {
         _context = context;
         _currentUser = currentUser;
+        _adminNotifications = adminNotifications;
     }
 
     public async Task<Result<MentorOnboardingDto>> Handle(
@@ -131,6 +134,49 @@ public class SaveMentorOnboardingCommandHandler
             request.OfferFreeIntro);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // If admin sent an unread review request to this mentor, notify admin back on save
+        var hasPendingReviewRequest = await _context.UserNotifications
+            .AnyAsync(n =>
+                n.UserId == userId &&
+                n.Type == "AdminMessage" &&
+                n.ReferenceType == "MentorApproval" &&
+                !n.IsRead,
+                cancellationToken);
+
+        if (hasPendingReviewRequest)
+        {
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+            var displayName = user?.DisplayName ?? "Egitmen";
+
+            await _adminNotifications.CreateOrUpdateGroupedAsync(
+                "MentorProfileUpdate",
+                $"mentor-profile-{userId}",
+                count => (
+                    "Egitmen duzenleme yapti",
+                    $"{displayName} istenen duzenlemeyi yapti ve tekrar incelemenizi bekliyor."
+                ),
+                "MentorApproval",
+                userId,
+                cancellationToken);
+
+            // Mark the admin's review request notifications as read (fulfilled)
+            var reviewNotifications = await _context.UserNotifications
+                .Where(n =>
+                    n.UserId == userId &&
+                    n.Type == "AdminMessage" &&
+                    n.ReferenceType == "MentorApproval" &&
+                    !n.IsRead)
+                .ToListAsync(cancellationToken);
+
+            foreach (var notif in reviewNotifications)
+                notif.MarkAsRead();
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
 
         return Result<MentorOnboardingDto>.Success(new MentorOnboardingDto(
             profile.Id,
