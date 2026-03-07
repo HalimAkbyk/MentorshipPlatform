@@ -3,6 +3,7 @@ using System;
 using MentorshipPlatform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MentorshipPlatform.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260307155524_AddLibraryItems")]
+    partial class AddLibraryItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -76,7 +79,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("IsRead");
 
-                    b.ToTable("AdminNotifications", (string)null);
+                    b.ToTable("AdminNotifications");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Announcement", b =>
@@ -125,163 +128,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Announcements", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Assignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AllowLateSubmission")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("AssignmentType")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid?>("BookingId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CurriculumTopicId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<string>("DifficultyLevel")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("EstimatedMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("GroupClassId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Instructions")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<int?>("LatePenaltyPercent")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("MaxScore")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MentorUserId");
-
-                    b.ToTable("Assignments", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentMaterial", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AssignmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsRequired")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("LibraryItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignmentId");
-
-                    b.HasIndex("LibraryItemId");
-
-                    b.ToTable("AssignmentMaterials", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentSubmission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AssignmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FileUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsLate")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("OriginalFileName")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("StudentUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("SubmissionText")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<DateTime>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignmentId");
-
-                    b.HasIndex("StudentUserId");
-
-                    b.ToTable("AssignmentSubmissions", (string)null);
+                    b.ToTable("Announcements");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AvailabilityOverride", b =>
@@ -513,7 +360,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Banners", (string)null);
+                    b.ToTable("Banners");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BlacklistEntry", b =>
@@ -619,7 +466,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("Bookings", (string)null);
+                    b.ToTable("Bookings");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BookingQuestion", b =>
@@ -656,7 +503,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("OfferingId", "SortOrder");
 
-                    b.ToTable("BookingQuestions", (string)null);
+                    b.ToTable("BookingQuestions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BookingQuestionResponse", b =>
@@ -691,7 +538,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("BookingId", "QuestionId")
                         .IsUnique();
 
-                    b.ToTable("BookingQuestionResponses", (string)null);
+                    b.ToTable("BookingQuestionResponses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BulkNotification", b =>
@@ -783,7 +630,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("EntityType", "SortOrder");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ClassEnrollment", b =>
@@ -826,7 +673,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("ClassId", "StudentUserId")
                         .IsUnique();
 
-                    b.ToTable("ClassEnrollments", (string)null);
+                    b.ToTable("ClassEnrollments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Conversation", b =>
@@ -867,7 +714,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Type\" = 'Direct'");
 
-                    b.ToTable("Conversations", (string)null);
+                    b.ToTable("Conversations");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Coupon", b =>
@@ -963,7 +810,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("Coupons", (string)null);
+                    b.ToTable("Coupons");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CouponUsage", b =>
@@ -997,7 +844,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CouponId", "UserId");
 
-                    b.ToTable("CouponUsages", (string)null);
+                    b.ToTable("CouponUsages");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Course", b =>
@@ -1110,7 +957,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId", "Status");
 
-                    b.ToTable("Courses", (string)null);
+                    b.ToTable("Courses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseAdminNote", b =>
@@ -1160,7 +1007,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("LectureId");
 
-                    b.ToTable("CourseAdminNotes", (string)null);
+                    b.ToTable("CourseAdminNotes");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseEnrollment", b =>
@@ -1203,7 +1050,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("CourseId", "StudentUserId")
                         .IsUnique();
 
-                    b.ToTable("CourseEnrollments", (string)null);
+                    b.ToTable("CourseEnrollments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseLecture", b =>
@@ -1262,7 +1109,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("SectionId", "SortOrder");
 
-                    b.ToTable("CourseLectures", (string)null);
+                    b.ToTable("CourseLectures");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseReviewRound", b =>
@@ -1313,7 +1160,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CourseId", "RoundNumber");
 
-                    b.ToTable("CourseReviewRounds", (string)null);
+                    b.ToTable("CourseReviewRounds");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseSection", b =>
@@ -1345,7 +1192,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CourseId", "SortOrder");
 
-                    b.ToTable("CourseSections", (string)null);
+                    b.ToTable("CourseSections");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CreditTransaction", b =>
@@ -1392,184 +1239,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("StudentCreditId");
 
                     b.ToTable("CreditTransactions", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Curriculum", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CoverImageUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int?>("EstimatedHoursPerWeek")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Level")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Subject")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("TotalWeeks")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MentorUserId");
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("Curriculums", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopic", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CurriculumWeekId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int?>("EstimatedMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("LinkedAssignmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("LinkedExamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ObjectiveText")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurriculumWeekId");
-
-                    b.ToTable("CurriculumTopics", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopicMaterial", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CurriculumTopicId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("LibraryItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MaterialRole")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurriculumTopicId");
-
-                    b.HasIndex("LibraryItemId");
-
-                    b.ToTable("CurriculumTopicMaterials", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumWeek", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CurriculumId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("WeekNumber")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurriculumId");
-
-                    b.ToTable("CurriculumWeeks", (string)null);
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Exam", b =>
@@ -1634,7 +1303,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ScopeType", "ScopeId");
 
-                    b.ToTable("Exams", (string)null);
+                    b.ToTable("Exams");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamAnswer", b =>
@@ -1673,7 +1342,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("QuestionId");
 
-                    b.ToTable("ExamAnswers", (string)null);
+                    b.ToTable("ExamAnswers");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamAttempt", b =>
@@ -1722,7 +1391,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ExamId", "StudentUserId");
 
-                    b.ToTable("ExamAttempts", (string)null);
+                    b.ToTable("ExamAttempts");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamQuestion", b =>
@@ -1775,7 +1444,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ExamId");
 
-                    b.ToTable("ExamQuestions", (string)null);
+                    b.ToTable("ExamQuestions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.FeatureFlag", b =>
@@ -1861,7 +1530,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("FreeSessions", (string)null);
+                    b.ToTable("FreeSessions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.GroupClass", b =>
@@ -1930,7 +1599,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("GroupClasses", (string)null);
+                    b.ToTable("GroupClasses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.HomepageModule", b =>
@@ -1970,7 +1639,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("HomepageModules", (string)null);
+                    b.ToTable("HomepageModules");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.InstructorAccrual", b =>
@@ -2256,7 +1925,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("EnrollmentId", "LectureId");
 
-                    b.ToTable("LectureNotes", (string)null);
+                    b.ToTable("LectureNotes");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LectureProgress", b =>
@@ -2293,7 +1962,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("EnrollmentId", "LectureId")
                         .IsUnique();
 
-                    b.ToTable("LectureProgresses", (string)null);
+                    b.ToTable("LectureProgresses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LectureReviewComment", b =>
@@ -2342,7 +2011,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ReviewRoundId");
 
-                    b.ToTable("LectureReviewComments", (string)null);
+                    b.ToTable("LectureReviewComments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LedgerEntry", b =>
@@ -2395,7 +2064,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ReferenceType", "ReferenceId");
 
-                    b.ToTable("LedgerEntries", (string)null);
+                    b.ToTable("LedgerEntries");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LibraryItem", b =>
@@ -2486,7 +2155,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("LibraryItems", (string)null);
+                    b.ToTable("LibraryItems");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MentorOnboardingProfile", b =>
@@ -2656,7 +2325,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("University");
 
-                    b.ToTable("MentorProfiles", (string)null);
+                    b.ToTable("MentorProfiles");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MentorReviewNote", b =>
@@ -2687,7 +2356,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MentorReviewNotes", (string)null);
+                    b.ToTable("MentorReviewNotes");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MentorVerification", b =>
@@ -2728,7 +2397,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("MentorVerifications", (string)null);
+                    b.ToTable("MentorVerifications");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Message", b =>
@@ -2774,7 +2443,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ConversationId", "CreatedAt");
 
-                    b.ToTable("Messages", (string)null);
+                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MessageNotificationLog", b =>
@@ -2805,7 +2474,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("BookingId", "RecipientUserId", "SentAt");
 
-                    b.ToTable("MessageNotificationLogs", (string)null);
+                    b.ToTable("MessageNotificationLogs");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MessageReport", b =>
@@ -2854,7 +2523,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("MessageReports", (string)null);
+                    b.ToTable("MessageReports");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.NotificationTemplate", b =>
@@ -3025,7 +2694,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId", "SortOrder");
 
-                    b.ToTable("Offerings", (string)null);
+                    b.ToTable("Offerings");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Order", b =>
@@ -3104,7 +2773,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Type", "ResourceId");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Package", b =>
@@ -3321,7 +2990,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("PresetAvatars", (string)null);
+                    b.ToTable("PresetAvatars");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ProcessHistory", b =>
@@ -3380,7 +3049,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("EntityType", "EntityId");
 
-                    b.ToTable("ProcessHistories", (string)null);
+                    b.ToTable("ProcessHistories");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.RefundRequest", b =>
@@ -3442,7 +3111,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("RefundRequests", (string)null);
+                    b.ToTable("RefundRequests");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Review", b =>
@@ -3482,115 +3151,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("Reviews", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlan", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AgendaItemsJson")
-                        .HasColumnType("jsonb");
-
-                    b.Property<Guid?>("BookingId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CurriculumTopicId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("GroupClassId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("LinkedAssignmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PostSessionSummary")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<string>("PreSessionNote")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<string>("SessionNotes")
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)");
-
-                    b.Property<string>("SessionObjective")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<DateTime?>("SharedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId");
-
-                    b.HasIndex("GroupClassId");
-
-                    b.HasIndex("MentorUserId");
-
-                    b.ToTable("SessionPlans", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlanMaterial", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("LibraryItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Phase")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("SessionPlanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LibraryItemId");
-
-                    b.HasIndex("SessionPlanId");
-
-                    b.ToTable("SessionPlanMaterials", (string)null);
+                    b.ToTable("Reviews");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionRequest", b =>
@@ -3655,7 +3216,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("SessionRequests", (string)null);
+                    b.ToTable("SessionRequests");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StaticPage", b =>
@@ -3700,7 +3261,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("StaticPages", (string)null);
+                    b.ToTable("StaticPages");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentCredit", b =>
@@ -3742,50 +3303,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("StudentId", "CreditType");
 
                     b.ToTable("StudentCredits", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentCurriculumEnrollment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("CompletionPercentage")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CurriculumId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("StudentUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurriculumId");
-
-                    b.HasIndex("MentorUserId");
-
-                    b.HasIndex("StudentUserId");
-
-                    b.ToTable("StudentCurriculumEnrollments", (string)null);
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentOnboardingProfile", b =>
@@ -3870,91 +3387,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.ToTable("StudentOnboardingProfiles", (string)null);
                 });
 
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SubmissionReview", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Feedback")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<Guid>("MentorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("Score")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("SubmissionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MentorUserId");
-
-                    b.HasIndex("SubmissionId")
-                        .IsUnique();
-
-                    b.ToTable("SubmissionReviews", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.TopicProgress", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("BookingId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CurriculumTopicId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MentorNote")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("StudentCurriculumEnrollmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CurriculumTopicId");
-
-                    b.HasIndex("StudentCurriculumEnrollmentId");
-
-                    b.ToTable("TopicProgresses", (string)null);
-                });
-
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4034,7 +3466,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"ExternalProvider\" IS NOT NULL");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.UserNotification", b =>
@@ -4089,7 +3521,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("UserId", "IsRead");
 
-                    b.ToTable("UserNotifications", (string)null);
+                    b.ToTable("UserNotifications");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.VideoParticipant", b =>
@@ -4123,7 +3555,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("VideoSessionId");
 
-                    b.ToTable("VideoParticipants", (string)null);
+                    b.ToTable("VideoParticipants");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.VideoSession", b =>
@@ -4160,7 +3592,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("VideoSessions", (string)null);
+                    b.ToTable("VideoSessions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.VideoWatchLog", b =>
@@ -4217,55 +3649,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("LectureId", "StudentId");
 
                     b.ToTable("VideoWatchLogs", (string)null);
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Assignment", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Mentor");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentMaterial", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.Assignment", "Assignment")
-                        .WithMany("Materials")
-                        .HasForeignKey("AssignmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.LibraryItem", "LibraryItem")
-                        .WithMany()
-                        .HasForeignKey("LibraryItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Assignment");
-
-                    b.Navigation("LibraryItem");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentSubmission", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.Assignment", "Assignment")
-                        .WithMany("Submissions")
-                        .HasForeignKey("AssignmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Assignment");
-
-                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AvailabilityOverride", b =>
@@ -4501,58 +3884,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.Navigation("Instructor");
 
                     b.Navigation("StudentCredit");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Curriculum", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Mentor");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopic", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.CurriculumWeek", "Week")
-                        .WithMany("Topics")
-                        .HasForeignKey("CurriculumWeekId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Week");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopicMaterial", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.CurriculumTopic", "Topic")
-                        .WithMany("Materials")
-                        .HasForeignKey("CurriculumTopicId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.LibraryItem", "LibraryItem")
-                        .WithMany()
-                        .HasForeignKey("LibraryItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("LibraryItem");
-
-                    b.Navigation("Topic");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumWeek", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.Curriculum", "Curriculum")
-                        .WithMany("Weeks")
-                        .HasForeignKey("CurriculumId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Curriculum");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamAnswer", b =>
@@ -4876,50 +4207,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.Navigation("MentorUser");
                 });
 
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlan", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.Booking", "Booking")
-                        .WithMany()
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.GroupClass", "GroupClass")
-                        .WithMany()
-                        .HasForeignKey("GroupClassId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Booking");
-
-                    b.Navigation("GroupClass");
-
-                    b.Navigation("Mentor");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlanMaterial", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.LibraryItem", "LibraryItem")
-                        .WithMany()
-                        .HasForeignKey("LibraryItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.SessionPlan", "SessionPlan")
-                        .WithMany("Materials")
-                        .HasForeignKey("SessionPlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("LibraryItem");
-
-                    b.Navigation("SessionPlan");
-                });
-
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionRequest", b =>
                 {
                     b.HasOne("MentorshipPlatform.Domain.Entities.Booking", "Booking")
@@ -4971,71 +4258,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.Navigation("PackagePurchase");
 
                     b.Navigation("Student");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentCurriculumEnrollment", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.Curriculum", "Curriculum")
-                        .WithMany()
-                        .HasForeignKey("CurriculumId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Curriculum");
-
-                    b.Navigation("Mentor");
-
-                    b.Navigation("Student");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SubmissionReview", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.User", "Mentor")
-                        .WithMany()
-                        .HasForeignKey("MentorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.AssignmentSubmission", "Submission")
-                        .WithOne("Review")
-                        .HasForeignKey("MentorshipPlatform.Domain.Entities.SubmissionReview", "SubmissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Mentor");
-
-                    b.Navigation("Submission");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.TopicProgress", b =>
-                {
-                    b.HasOne("MentorshipPlatform.Domain.Entities.CurriculumTopic", "Topic")
-                        .WithMany()
-                        .HasForeignKey("CurriculumTopicId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("MentorshipPlatform.Domain.Entities.StudentCurriculumEnrollment", "Enrollment")
-                        .WithMany("TopicProgresses")
-                        .HasForeignKey("StudentCurriculumEnrollmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Enrollment");
-
-                    b.Navigation("Topic");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.UserNotification", b =>
@@ -5093,18 +4315,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Assignment", b =>
-                {
-                    b.Navigation("Materials");
-
-                    b.Navigation("Submissions");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentSubmission", b =>
-                {
-                    b.Navigation("Review");
-                });
-
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AvailabilityTemplate", b =>
                 {
                     b.Navigation("Overrides");
@@ -5134,21 +4344,6 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.Navigation("Lectures");
                 });
 
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Curriculum", b =>
-                {
-                    b.Navigation("Weeks");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopic", b =>
-                {
-                    b.Navigation("Materials");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumWeek", b =>
-                {
-                    b.Navigation("Topics");
-                });
-
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Exam", b =>
                 {
                     b.Navigation("Attempts");
@@ -5176,16 +4371,6 @@ namespace MentorshipPlatform.Persistence.Migrations
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Offering", b =>
                 {
                     b.Navigation("Questions");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlan", b =>
-                {
-                    b.Navigation("Materials");
-                });
-
-            modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentCurriculumEnrollment", b =>
-                {
-                    b.Navigation("TopicProgresses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.User", b =>

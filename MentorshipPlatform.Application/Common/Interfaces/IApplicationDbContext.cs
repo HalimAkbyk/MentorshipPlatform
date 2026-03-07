@@ -104,12 +104,33 @@ public interface IApplicationDbContext
     // Mentor Review Notes
     DbSet<MentorReviewNote> MentorReviewNotes { get; }
 
+    // Library entities
+    DbSet<LibraryItem> LibraryItems { get; }
+
+    // Session Plan entities
+    DbSet<SessionPlan> SessionPlans { get; }
+    DbSet<SessionPlanMaterial> SessionPlanMaterials { get; }
+
     // Pivot entities — Instructor Performance & Accrual
     DbSet<InstructorSessionLog> InstructorSessionLogs { get; }
     DbSet<VideoWatchLog> VideoWatchLogs { get; }
     DbSet<InstructorPerformanceSummary> InstructorPerformanceSummaries { get; }
     DbSet<InstructorAccrual> InstructorAccruals { get; }
     DbSet<InstructorAccrualParameter> InstructorAccrualParameters { get; }
+
+    // Curriculum entities
+    DbSet<Domain.Entities.Curriculum> Curriculums { get; }
+    DbSet<CurriculumWeek> CurriculumWeeks { get; }
+    DbSet<CurriculumTopic> CurriculumTopics { get; }
+    DbSet<CurriculumTopicMaterial> CurriculumTopicMaterials { get; }
+    DbSet<StudentCurriculumEnrollment> StudentCurriculumEnrollments { get; }
+    DbSet<TopicProgress> TopicProgresses { get; }
+
+    // Assignment entities
+    DbSet<Assignment> Assignments { get; }
+    DbSet<AssignmentMaterial> AssignmentMaterials { get; }
+    DbSet<AssignmentSubmission> AssignmentSubmissions { get; }
+    DbSet<SubmissionReview> SubmissionReviews { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

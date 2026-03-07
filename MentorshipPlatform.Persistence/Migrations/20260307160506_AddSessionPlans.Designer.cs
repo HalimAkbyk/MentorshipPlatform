@@ -3,6 +3,7 @@ using System;
 using MentorshipPlatform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MentorshipPlatform.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260307160506_AddSessionPlans")]
+    partial class AddSessionPlans
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -76,7 +79,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("IsRead");
 
-                    b.ToTable("AdminNotifications", (string)null);
+                    b.ToTable("AdminNotifications");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Announcement", b =>
@@ -125,7 +128,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Announcements", (string)null);
+                    b.ToTable("Announcements");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Assignment", b =>
@@ -198,7 +201,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("Assignments", (string)null);
+                    b.ToTable("Assignments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentMaterial", b =>
@@ -231,7 +234,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("LibraryItemId");
 
-                    b.ToTable("AssignmentMaterials", (string)null);
+                    b.ToTable("AssignmentMaterials");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AssignmentSubmission", b =>
@@ -281,7 +284,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("AssignmentSubmissions", (string)null);
+                    b.ToTable("AssignmentSubmissions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.AvailabilityOverride", b =>
@@ -513,7 +516,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Banners", (string)null);
+                    b.ToTable("Banners");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BlacklistEntry", b =>
@@ -619,7 +622,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("Bookings", (string)null);
+                    b.ToTable("Bookings");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BookingQuestion", b =>
@@ -656,7 +659,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("OfferingId", "SortOrder");
 
-                    b.ToTable("BookingQuestions", (string)null);
+                    b.ToTable("BookingQuestions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BookingQuestionResponse", b =>
@@ -691,7 +694,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("BookingId", "QuestionId")
                         .IsUnique();
 
-                    b.ToTable("BookingQuestionResponses", (string)null);
+                    b.ToTable("BookingQuestionResponses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.BulkNotification", b =>
@@ -783,7 +786,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("EntityType", "SortOrder");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ClassEnrollment", b =>
@@ -826,7 +829,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("ClassId", "StudentUserId")
                         .IsUnique();
 
-                    b.ToTable("ClassEnrollments", (string)null);
+                    b.ToTable("ClassEnrollments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Conversation", b =>
@@ -867,7 +870,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Type\" = 'Direct'");
 
-                    b.ToTable("Conversations", (string)null);
+                    b.ToTable("Conversations");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Coupon", b =>
@@ -963,7 +966,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("Coupons", (string)null);
+                    b.ToTable("Coupons");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CouponUsage", b =>
@@ -997,7 +1000,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CouponId", "UserId");
 
-                    b.ToTable("CouponUsages", (string)null);
+                    b.ToTable("CouponUsages");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Course", b =>
@@ -1110,7 +1113,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId", "Status");
 
-                    b.ToTable("Courses", (string)null);
+                    b.ToTable("Courses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseAdminNote", b =>
@@ -1160,7 +1163,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("LectureId");
 
-                    b.ToTable("CourseAdminNotes", (string)null);
+                    b.ToTable("CourseAdminNotes");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseEnrollment", b =>
@@ -1203,7 +1206,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("CourseId", "StudentUserId")
                         .IsUnique();
 
-                    b.ToTable("CourseEnrollments", (string)null);
+                    b.ToTable("CourseEnrollments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseLecture", b =>
@@ -1262,7 +1265,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("SectionId", "SortOrder");
 
-                    b.ToTable("CourseLectures", (string)null);
+                    b.ToTable("CourseLectures");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseReviewRound", b =>
@@ -1313,7 +1316,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CourseId", "RoundNumber");
 
-                    b.ToTable("CourseReviewRounds", (string)null);
+                    b.ToTable("CourseReviewRounds");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CourseSection", b =>
@@ -1345,7 +1348,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CourseId", "SortOrder");
 
-                    b.ToTable("CourseSections", (string)null);
+                    b.ToTable("CourseSections");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CreditTransaction", b =>
@@ -1450,7 +1453,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("Curriculums", (string)null);
+                    b.ToTable("Curriculums");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopic", b =>
@@ -1497,7 +1500,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CurriculumWeekId");
 
-                    b.ToTable("CurriculumTopics", (string)null);
+                    b.ToTable("CurriculumTopics");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumTopicMaterial", b =>
@@ -1532,7 +1535,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("LibraryItemId");
 
-                    b.ToTable("CurriculumTopicMaterials", (string)null);
+                    b.ToTable("CurriculumTopicMaterials");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.CurriculumWeek", b =>
@@ -1569,7 +1572,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("CurriculumId");
 
-                    b.ToTable("CurriculumWeeks", (string)null);
+                    b.ToTable("CurriculumWeeks");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Exam", b =>
@@ -1634,7 +1637,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ScopeType", "ScopeId");
 
-                    b.ToTable("Exams", (string)null);
+                    b.ToTable("Exams");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamAnswer", b =>
@@ -1673,7 +1676,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("QuestionId");
 
-                    b.ToTable("ExamAnswers", (string)null);
+                    b.ToTable("ExamAnswers");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamAttempt", b =>
@@ -1722,7 +1725,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ExamId", "StudentUserId");
 
-                    b.ToTable("ExamAttempts", (string)null);
+                    b.ToTable("ExamAttempts");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ExamQuestion", b =>
@@ -1775,7 +1778,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ExamId");
 
-                    b.ToTable("ExamQuestions", (string)null);
+                    b.ToTable("ExamQuestions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.FeatureFlag", b =>
@@ -1861,7 +1864,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("FreeSessions", (string)null);
+                    b.ToTable("FreeSessions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.GroupClass", b =>
@@ -1930,7 +1933,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("GroupClasses", (string)null);
+                    b.ToTable("GroupClasses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.HomepageModule", b =>
@@ -1970,7 +1973,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("HomepageModules", (string)null);
+                    b.ToTable("HomepageModules");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.InstructorAccrual", b =>
@@ -2256,7 +2259,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("EnrollmentId", "LectureId");
 
-                    b.ToTable("LectureNotes", (string)null);
+                    b.ToTable("LectureNotes");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LectureProgress", b =>
@@ -2293,7 +2296,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("EnrollmentId", "LectureId")
                         .IsUnique();
 
-                    b.ToTable("LectureProgresses", (string)null);
+                    b.ToTable("LectureProgresses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LectureReviewComment", b =>
@@ -2342,7 +2345,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ReviewRoundId");
 
-                    b.ToTable("LectureReviewComments", (string)null);
+                    b.ToTable("LectureReviewComments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LedgerEntry", b =>
@@ -2395,7 +2398,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ReferenceType", "ReferenceId");
 
-                    b.ToTable("LedgerEntries", (string)null);
+                    b.ToTable("LedgerEntries");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.LibraryItem", b =>
@@ -2486,7 +2489,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("LibraryItems", (string)null);
+                    b.ToTable("LibraryItems");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MentorOnboardingProfile", b =>
@@ -2656,7 +2659,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("University");
 
-                    b.ToTable("MentorProfiles", (string)null);
+                    b.ToTable("MentorProfiles");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MentorReviewNote", b =>
@@ -2687,7 +2690,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("MentorReviewNotes", (string)null);
+                    b.ToTable("MentorReviewNotes");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MentorVerification", b =>
@@ -2728,7 +2731,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("MentorVerifications", (string)null);
+                    b.ToTable("MentorVerifications");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Message", b =>
@@ -2774,7 +2777,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("ConversationId", "CreatedAt");
 
-                    b.ToTable("Messages", (string)null);
+                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MessageNotificationLog", b =>
@@ -2805,7 +2808,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("BookingId", "RecipientUserId", "SentAt");
 
-                    b.ToTable("MessageNotificationLogs", (string)null);
+                    b.ToTable("MessageNotificationLogs");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.MessageReport", b =>
@@ -2854,7 +2857,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("MessageReports", (string)null);
+                    b.ToTable("MessageReports");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.NotificationTemplate", b =>
@@ -3025,7 +3028,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId", "SortOrder");
 
-                    b.ToTable("Offerings", (string)null);
+                    b.ToTable("Offerings");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Order", b =>
@@ -3104,7 +3107,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Type", "ResourceId");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Package", b =>
@@ -3321,7 +3324,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("PresetAvatars", (string)null);
+                    b.ToTable("PresetAvatars");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.ProcessHistory", b =>
@@ -3380,7 +3383,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("EntityType", "EntityId");
 
-                    b.ToTable("ProcessHistories", (string)null);
+                    b.ToTable("ProcessHistories");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.RefundRequest", b =>
@@ -3442,7 +3445,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("RefundRequests", (string)null);
+                    b.ToTable("RefundRequests");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.Review", b =>
@@ -3482,7 +3485,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("Reviews", (string)null);
+                    b.ToTable("Reviews");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlan", b =>
@@ -3551,7 +3554,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("MentorUserId");
 
-                    b.ToTable("SessionPlans", (string)null);
+                    b.ToTable("SessionPlans");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionPlanMaterial", b =>
@@ -3590,7 +3593,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("SessionPlanId");
 
-                    b.ToTable("SessionPlanMaterials", (string)null);
+                    b.ToTable("SessionPlanMaterials");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.SessionRequest", b =>
@@ -3655,7 +3658,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("SessionRequests", (string)null);
+                    b.ToTable("SessionRequests");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StaticPage", b =>
@@ -3700,7 +3703,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("StaticPages", (string)null);
+                    b.ToTable("StaticPages");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentCredit", b =>
@@ -3785,7 +3788,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentUserId");
 
-                    b.ToTable("StudentCurriculumEnrollments", (string)null);
+                    b.ToTable("StudentCurriculumEnrollments");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.StudentOnboardingProfile", b =>
@@ -3910,7 +3913,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                     b.HasIndex("SubmissionId")
                         .IsUnique();
 
-                    b.ToTable("SubmissionReviews", (string)null);
+                    b.ToTable("SubmissionReviews");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.TopicProgress", b =>
@@ -3952,7 +3955,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("StudentCurriculumEnrollmentId");
 
-                    b.ToTable("TopicProgresses", (string)null);
+                    b.ToTable("TopicProgresses");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.User", b =>
@@ -4034,7 +4037,7 @@ namespace MentorshipPlatform.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"ExternalProvider\" IS NOT NULL");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.UserNotification", b =>
@@ -4089,7 +4092,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("UserId", "IsRead");
 
-                    b.ToTable("UserNotifications", (string)null);
+                    b.ToTable("UserNotifications");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.VideoParticipant", b =>
@@ -4123,7 +4126,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasIndex("VideoSessionId");
 
-                    b.ToTable("VideoParticipants", (string)null);
+                    b.ToTable("VideoParticipants");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.VideoSession", b =>
@@ -4160,7 +4163,7 @@ namespace MentorshipPlatform.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("VideoSessions", (string)null);
+                    b.ToTable("VideoSessions");
                 });
 
             modelBuilder.Entity("MentorshipPlatform.Domain.Entities.VideoWatchLog", b =>

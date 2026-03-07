@@ -123,12 +123,33 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     // Mentor Review Notes
     public DbSet<MentorReviewNote> MentorReviewNotes => Set<MentorReviewNote>();
 
+    // Library entities
+    public DbSet<LibraryItem> LibraryItems => Set<LibraryItem>();
+
+    // Session Plan entities
+    public DbSet<SessionPlan> SessionPlans => Set<SessionPlan>();
+    public DbSet<SessionPlanMaterial> SessionPlanMaterials => Set<SessionPlanMaterial>();
+
     // Pivot entities — Instructor Performance & Accrual
     public DbSet<InstructorSessionLog> InstructorSessionLogs => Set<InstructorSessionLog>();
     public DbSet<VideoWatchLog> VideoWatchLogs => Set<VideoWatchLog>();
     public DbSet<InstructorPerformanceSummary> InstructorPerformanceSummaries => Set<InstructorPerformanceSummary>();
     public DbSet<InstructorAccrual> InstructorAccruals => Set<InstructorAccrual>();
     public DbSet<InstructorAccrualParameter> InstructorAccrualParameters => Set<InstructorAccrualParameter>();
+
+    // Curriculum entities
+    public DbSet<Curriculum> Curriculums => Set<Curriculum>();
+    public DbSet<CurriculumWeek> CurriculumWeeks => Set<CurriculumWeek>();
+    public DbSet<CurriculumTopic> CurriculumTopics => Set<CurriculumTopic>();
+    public DbSet<CurriculumTopicMaterial> CurriculumTopicMaterials => Set<CurriculumTopicMaterial>();
+    public DbSet<StudentCurriculumEnrollment> StudentCurriculumEnrollments => Set<StudentCurriculumEnrollment>();
+    public DbSet<TopicProgress> TopicProgresses => Set<TopicProgress>();
+
+    // Assignment entities
+    public DbSet<Assignment> Assignments => Set<Assignment>();
+    public DbSet<AssignmentMaterial> AssignmentMaterials => Set<AssignmentMaterial>();
+    public DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
+    public DbSet<SubmissionReview> SubmissionReviews => Set<SubmissionReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
