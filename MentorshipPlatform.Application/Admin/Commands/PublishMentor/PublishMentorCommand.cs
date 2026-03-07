@@ -2,7 +2,6 @@ using MediatR;
 using MentorshipPlatform.Application.Common.Constants;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Common.Models;
-using MentorshipPlatform.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -35,24 +34,12 @@ public class PublishMentorCommandHandler
         {
             // ✅ Mentor profile'ı bul
             var mentor = await _context.MentorProfiles
-                .Include(m => m.Verifications)
                 .FirstOrDefaultAsync(m => m.UserId == request.UserId, cancellationToken);
 
             if (mentor == null)
             {
                 _logger.LogWarning("⚠️ Mentor profile not found - UserId: {UserId}", request.UserId);
                 return Result<bool>.Failure("Mentor profile not found");
-            }
-
-            // ✅ En az 1 onaylı verification olmalı
-            var hasApprovedVerification = mentor.Verifications
-                .Any(v => v.Status == VerificationStatus.Approved);
-
-            if (!hasApprovedVerification)
-            {
-                _logger.LogWarning("⚠️ Cannot publish mentor without approved verifications - UserId: {UserId}", 
-                    request.UserId);
-                return Result<bool>.Failure("Cannot publish mentor: No approved verifications found");
             }
 
             // ✅ IsListed = true yap (Publish metodu kullan)
