@@ -1,4 +1,6 @@
+using System.Text.RegularExpressions;
 using MediatR;
+using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Library.Commands.CreateLibraryItem;
 using MentorshipPlatform.Application.Library.Commands.UpdateLibraryItem;
 using MentorshipPlatform.Application.Library.Commands.DeleteLibraryItem;
@@ -17,10 +19,14 @@ namespace MentorshipPlatform.Api.Controllers;
 public class LibraryController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IStorageService _storageService;
+    private readonly ICurrentUserService _currentUser;
 
-    public LibraryController(IMediator mediator)
+    public LibraryController(IMediator mediator, IStorageService storageService, ICurrentUserService currentUser)
     {
         _mediator = mediator;
+        _storageService = storageService;
+        _currentUser = currentUser;
     }
 
     /// <summary>Yeni materyal ekle</summary>
@@ -105,6 +111,55 @@ public class LibraryController : ControllerBase
     {
         var result = await _mediator.Send(new GetLibraryStatsQuery(), ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { errors = result.Errors });
+    }
+
+    /// <summary>Dosya yukle (materyal icin)</summary>
+    [HttpPost("upload")]
+    [RequestSizeLimit(524_288_000)] // 500 MB
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Upload(IFormFile file, CancellationToken ct)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Dosya secilmedi" } });
+
+        var userId = _currentUser.UserId;
+        if (userId == null)
+            return Unauthorized();
+
+        var sanitizedFileName = SanitizeFileName(file.FileName);
+
+        using var stream = file.OpenReadStream();
+        var uploadResult = await _storageService.UploadFileAsync(
+            stream, sanitizedFileName, file.ContentType, userId.ToString()!, "library", ct);
+
+        if (!uploadResult.Success)
+            return BadRequest(new { errors = new[] { uploadResult.ErrorMessage ?? "Dosya yukleme basarisiz" } });
+
+        return Ok(new
+        {
+            fileUrl = uploadResult.PublicUrl,
+            originalFileName = file.FileName,
+            fileSizeBytes = file.Length
+        });
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return "file.bin";
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        name = name.Replace("ğ", "g").Replace("Ğ", "G")
+            .Replace("ü", "u").Replace("Ü", "U")
+            .Replace("ş", "s").Replace("Ş", "S")
+            .Replace("ı", "i").Replace("İ", "I")
+            .Replace("ö", "o").Replace("Ö", "O")
+            .Replace("ç", "c").Replace("Ç", "C");
+        var sanitized = new string(name.Where(c => c < 128)
+            .Select(c => char.IsLetterOrDigit(c) || c == '_' || c == '-' ? c : '-').ToArray());
+        sanitized = Regex.Replace(sanitized, @"-+", "-").Trim('-');
+        if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "file";
+        return sanitized + ext;
     }
 }
 
