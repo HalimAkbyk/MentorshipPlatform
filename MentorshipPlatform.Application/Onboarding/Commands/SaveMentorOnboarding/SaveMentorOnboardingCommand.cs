@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentorshipPlatform.Application.Onboarding.Commands.SaveMentorOnboarding;
 
-[RequiresFeature(FeatureFlags.ExternalMentorRegistration)]
 public record SaveMentorOnboardingCommand(
     string? MentorType,
     string? City,
