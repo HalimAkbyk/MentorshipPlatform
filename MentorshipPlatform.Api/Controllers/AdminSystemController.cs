@@ -40,12 +40,14 @@ public class FeatureFlagDto
     public string Key { get; set; } = string.Empty;
     public bool IsEnabled { get; set; }
     public string? Description { get; set; }
+    public string? Value { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
 
 public class ToggleFeatureFlagRequest
 {
     public bool IsEnabled { get; set; }
+    public string? Value { get; set; }
 }
 
 public class AuditSessionSummaryDto
@@ -295,6 +297,7 @@ public class AdminSystemController : ControllerBase
                 Key = f.Key,
                 IsEnabled = f.IsEnabled,
                 Description = f.Description,
+                Value = f.Value,
                 UpdatedAt = f.UpdatedAt
             })
             .ToListAsync(ct);
@@ -324,6 +327,9 @@ public class AdminSystemController : ControllerBase
             flag.SetEnabled(request.IsEnabled);
         }
 
+        if (request.Value != null)
+            flag.SetValue(request.Value);
+
         await _context.SaveChangesAsync(ct);
 
         // Invalidate the feature flag cache so changes take effect immediately
@@ -335,6 +341,7 @@ public class AdminSystemController : ControllerBase
             Key = flag.Key,
             IsEnabled = flag.IsEnabled,
             Description = flag.Description,
+            Value = flag.Value,
             UpdatedAt = flag.UpdatedAt
         });
     }
@@ -345,50 +352,51 @@ public class AdminSystemController : ControllerBase
     [HttpPost("feature-flags/seed")]
     public async Task<ActionResult<List<FeatureFlagDto>>> SeedFeatureFlags(CancellationToken ct)
     {
-        var existingCount = await _context.FeatureFlags.AsNoTracking().CountAsync(ct);
-        if (existingCount > 0)
+        var defaults = new List<(string key, bool enabled, string description, string? value)>
         {
-            return Ok(await _context.FeatureFlags.AsNoTracking()
-                .OrderBy(f => f.Key)
-                .Select(f => new FeatureFlagDto
-                {
-                    Id = f.Id,
-                    Key = f.Key,
-                    IsEnabled = f.IsEnabled,
-                    Description = f.Description,
-                    UpdatedAt = f.UpdatedAt
-                })
-                .ToListAsync(ct));
-        }
-
-        var defaults = new List<(string key, bool enabled, string description)>
-        {
-            ("registration_enabled", true, "Yeni kullan\u0131c\u0131 kay\u0131tlar\u0131n\u0131 a\u00e7/kapat"),
-            ("course_sales_enabled", true, "Kurs sat\u0131\u015flar\u0131n\u0131 a\u00e7/kapat"),
-            ("group_classes_enabled", true, "Grup derslerini a\u00e7/kapat"),
-            ("chat_enabled", true, "Mesajla\u015fma \u00f6zelli\u011fini a\u00e7/kapat"),
-            ("video_enabled", true, "Video g\u00f6r\u00fc\u015fme \u00f6zelli\u011fini a\u00e7/kapat"),
-            ("maintenance_mode", false, "Bak\u0131m modu"),
+            ("registration_enabled", true, "Yeni kullan\u0131c\u0131 kay\u0131tlar\u0131n\u0131 a\u00e7/kapat", null),
+            ("course_sales_enabled", true, "Kurs sat\u0131\u015flar\u0131n\u0131 a\u00e7/kapat", null),
+            ("group_classes_enabled", true, "Grup derslerini a\u00e7/kapat", null),
+            ("chat_enabled", true, "Mesajla\u015fma \u00f6zelli\u011fini a\u00e7/kapat", null),
+            ("video_enabled", true, "Video g\u00f6r\u00fc\u015fme \u00f6zelli\u011fini a\u00e7/kapat", null),
+            ("maintenance_mode", false, "Bak\u0131m modu", null),
+            ("VIDEO_PROVIDER", true, "Video sa\u011flay\u0131c\u0131 se\u00e7imi (twilio / agora)", "twilio"),
+            ("SESSION_REQUEST_ENABLED", false, "Seans talep sistemi", null),
+            ("PRICE_APPROVAL_REQUIRED", false, "Fiyat onay zorunlulu\u011fu", null),
+            ("FREE_SESSION_ENABLED", false, "Serbest seans", null),
         };
 
-        var flags = new List<FeatureFlag>();
-        foreach (var (key, enabled, description) in defaults)
+        var existingKeys = await _context.FeatureFlags.AsNoTracking()
+            .Select(f => f.Key).ToListAsync(ct);
+
+        var added = 0;
+        foreach (var (key, enabled, description, value) in defaults)
         {
+            if (existingKeys.Contains(key)) continue;
             var flag = FeatureFlag.Create(key, enabled, description);
+            if (value != null) flag.SetValue(value);
             _context.FeatureFlags.Add(flag);
-            flags.Add(flag);
+            added++;
         }
 
-        await _context.SaveChangesAsync(ct);
+        if (added > 0)
+            await _context.SaveChangesAsync(ct);
 
-        var result = flags.Select(f => new FeatureFlagDto
-        {
-            Id = f.Id,
-            Key = f.Key,
-            IsEnabled = f.IsEnabled,
-            Description = f.Description,
-            UpdatedAt = f.UpdatedAt
-        }).ToList();
+        // Invalidate cache
+        _featureFlagService.InvalidateCache();
+
+        var result = await _context.FeatureFlags.AsNoTracking()
+            .OrderBy(f => f.Key)
+            .Select(f => new FeatureFlagDto
+            {
+                Id = f.Id,
+                Key = f.Key,
+                IsEnabled = f.IsEnabled,
+                Description = f.Description,
+                Value = f.Value,
+                UpdatedAt = f.UpdatedAt
+            })
+            .ToListAsync(ct);
 
         return Ok(result);
     }
