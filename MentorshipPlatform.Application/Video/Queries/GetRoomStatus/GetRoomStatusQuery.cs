@@ -32,22 +32,35 @@ public class GetRoomStatusQueryHandler
         GetRoomStatusQuery request,
         CancellationToken cancellationToken)
     {
+        // Normalize roomName: try both raw and Booking-prefixed variants
+        var roomName = request.RoomName;
+        var altRoomName = roomName.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase)
+            ? roomName.Substring("Booking-".Length)
+            : "Booking-" + roomName;
+
         // Check if a non-Ended VideoSession exists (prefer Live, then Scheduled)
         var session = await _context.VideoSessions
             .Include(s => s.Participants)
-            .Where(s => s.RoomName == request.RoomName && s.Status != VideoSessionStatus.Ended)
+            .Where(s => (s.RoomName == roomName || s.RoomName == altRoomName)
+                        && s.Status != VideoSessionStatus.Ended)
             .OrderByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Fallback: try to find by extracting ResourceId from room name (e.g., group-class-{guid})
-        if (session == null && request.RoomName.StartsWith("group-class-"))
+        // Fallback: try to find by ResourceId from room name
+        if (session == null)
         {
-            var idPart = request.RoomName.Replace("group-class-", "");
-            if (Guid.TryParse(idPart, out var classId))
+            // Extract GUID from room name (handles "Booking-{guid}", "group-class-{guid}", or plain "{guid}")
+            var idPart = roomName;
+            if (roomName.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase))
+                idPart = roomName.Substring("Booking-".Length);
+            else if (roomName.StartsWith("group-class-"))
+                idPart = roomName.Replace("group-class-", "");
+
+            if (Guid.TryParse(idPart, out var resourceId))
             {
                 session = await _context.VideoSessions
                     .Include(s => s.Participants)
-                    .Where(s => s.ResourceId == classId && s.Status != VideoSessionStatus.Ended)
+                    .Where(s => s.ResourceId == resourceId && s.Status != VideoSessionStatus.Ended)
                     .OrderByDescending(s => s.CreatedAt)
                     .FirstOrDefaultAsync(cancellationToken);
             }

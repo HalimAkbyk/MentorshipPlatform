@@ -37,21 +37,31 @@ public class EndVideoSessionCommandHandler : IRequestHandler<EndVideoSessionComm
         if (!_currentUser.UserId.HasValue)
             return Result.Failure("User not authenticated");
 
-        // Search by room name first, then try fallback for group classes
+        // Search by room name (supports both "Booking-{guid}" and plain "{guid}" formats)
+        var roomName = request.RoomName;
+        var altRoomName = roomName.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase)
+            ? roomName.Substring("Booking-".Length)
+            : "Booking-" + roomName;
+
         var session = await _context.VideoSessions
             .Include(s => s.Participants)
-            .FirstOrDefaultAsync(s => s.RoomName == request.RoomName &&
+            .FirstOrDefaultAsync(s => (s.RoomName == roomName || s.RoomName == altRoomName) &&
                                       s.Status != VideoSessionStatus.Ended, cancellationToken);
 
-        // Fallback: try to find by extracting ResourceId from room name (e.g., group-class-{guid})
-        if (session == null && request.RoomName.StartsWith("group-class-"))
+        // Fallback: find by ResourceId extracted from room name
+        if (session == null)
         {
-            var idPart = request.RoomName.Replace("group-class-", "");
-            if (Guid.TryParse(idPart, out var classId))
+            var idPart = roomName;
+            if (roomName.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase))
+                idPart = roomName.Substring("Booking-".Length);
+            else if (roomName.StartsWith("group-class-"))
+                idPart = roomName.Replace("group-class-", "");
+
+            if (Guid.TryParse(idPart, out var resourceId))
             {
                 session = await _context.VideoSessions
                     .Include(s => s.Participants)
-                    .FirstOrDefaultAsync(s => s.ResourceId == classId &&
+                    .FirstOrDefaultAsync(s => s.ResourceId == resourceId &&
                                               s.Status != VideoSessionStatus.Ended, cancellationToken);
             }
         }

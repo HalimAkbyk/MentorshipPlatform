@@ -69,6 +69,7 @@ public class GetSessionPlanByGroupClassQueryHandler : IRequestHandler<GetSession
             plan.PreSessionNote,
             plan.SessionObjective,
             plan.SessionNotes,
+            plan.StudentNotes,
             plan.AgendaItemsJson,
             plan.PostSessionSummary,
             plan.LinkedAssignmentId,

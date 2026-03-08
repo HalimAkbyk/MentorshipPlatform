@@ -14,6 +14,7 @@ public class SessionPlan : BaseEntity
     public string? SessionObjective { get; private set; }
     public string? SessionNotes { get; private set; }
     public string? AgendaItemsJson { get; private set; }
+    public string? StudentNotes { get; private set; }
     public string? PostSessionSummary { get; private set; }
     public Guid? LinkedAssignmentId { get; private set; }
     public bool IsTemplate { get; private set; }
@@ -93,6 +94,12 @@ public class SessionPlan : BaseEntity
     public void Complete()
     {
         Status = SessionPlanStatus.Completed;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void UpdateStudentNotes(string? notes)
+    {
+        StudentNotes = notes;
         UpdatedAt = DateTime.UtcNow;
     }
 

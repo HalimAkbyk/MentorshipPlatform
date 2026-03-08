@@ -12,6 +12,7 @@ public record UpdateSessionPlanCommand(
     string? PreSessionNote,
     string? SessionObjective,
     string? SessionNotes,
+    string? StudentNotes,
     string? AgendaItemsJson,
     string? PostSessionSummary,
     Guid? LinkedAssignmentId,
@@ -27,6 +28,7 @@ public class UpdateSessionPlanCommandValidator : AbstractValidator<UpdateSession
         RuleFor(x => x.PreSessionNote).MaximumLength(5000).When(x => x.PreSessionNote != null);
         RuleFor(x => x.SessionObjective).MaximumLength(5000).When(x => x.SessionObjective != null);
         RuleFor(x => x.SessionNotes).MaximumLength(10000).When(x => x.SessionNotes != null);
+        RuleFor(x => x.StudentNotes).MaximumLength(10000).When(x => x.StudentNotes != null);
         RuleFor(x => x.PostSessionSummary).MaximumLength(5000).When(x => x.PostSessionSummary != null);
     }
 }
@@ -64,6 +66,8 @@ public class UpdateSessionPlanCommandHandler : IRequestHandler<UpdateSessionPlan
             request.AgendaItemsJson,
             request.PostSessionSummary,
             request.LinkedAssignmentId);
+
+        if (request.StudentNotes != null) plan.UpdateStudentNotes(request.StudentNotes);
 
         // Link to booking/class if provided
         if (request.BookingId.HasValue) plan.LinkToBooking(request.BookingId.Value);

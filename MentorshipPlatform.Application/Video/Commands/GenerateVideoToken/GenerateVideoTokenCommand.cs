@@ -48,26 +48,35 @@ public class GenerateVideoTokenCommandHandler
         var userId = _currentUser.UserId.Value;
 
         // Helper: find ACTIVE (non-Ended) session by RoomName, en son oluşturulanı döndür
+        // Supports both "Booking-{guid}" and plain "{guid}" formats
         async Task<VideoSession?> findSessionByRoomName(string roomName)
         {
+            // Try exact match first, then alternate prefix format
+            var altName = roomName.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase)
+                ? roomName.Substring("Booking-".Length)
+                : "Booking-" + roomName;
+
             var s = await _context.VideoSessions
-                .Where(vs => vs.RoomName == roomName && vs.Status != Domain.Enums.VideoSessionStatus.Ended)
+                .Where(vs => (vs.RoomName == roomName || vs.RoomName == altName)
+                              && vs.Status != Domain.Enums.VideoSessionStatus.Ended)
                 .OrderByDescending(vs => vs.CreatedAt)
                 .FirstOrDefaultAsync(cancellationToken);
             if (s != null) return s;
 
-            // Fallback: try to find by ResourceId from room name (e.g., group-class-{guid})
-            if (roomName.StartsWith("group-class-"))
+            // Fallback: find by ResourceId extracted from room name
+            var idPart = roomName;
+            if (roomName.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase))
+                idPart = roomName.Substring("Booking-".Length);
+            else if (roomName.StartsWith("group-class-"))
+                idPart = roomName.Replace("group-class-", "");
+
+            if (Guid.TryParse(idPart, out var resourceId))
             {
-                var idPart = roomName.Replace("group-class-", "");
-                if (Guid.TryParse(idPart, out var classId))
-                {
-                    s = await _context.VideoSessions
-                        .Where(vs => vs.ResourceId == classId &&
-                                     vs.Status != Domain.Enums.VideoSessionStatus.Ended)
-                        .OrderByDescending(vs => vs.CreatedAt)
-                        .FirstOrDefaultAsync(cancellationToken);
-                }
+                s = await _context.VideoSessions
+                    .Where(vs => vs.ResourceId == resourceId &&
+                                 vs.Status != Domain.Enums.VideoSessionStatus.Ended)
+                    .OrderByDescending(vs => vs.CreatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
             }
             return s;
         }

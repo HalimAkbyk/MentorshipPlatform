@@ -3,6 +3,7 @@ namespace MentorshipPlatform.Infrastructure.Services;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Web;
 using MentorshipPlatform.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,12 +32,14 @@ public class AgoraWhiteboardService : IAgoraWhiteboardService
     {
         try
         {
-            // Generate SDK token for API calls
-            var sdkToken = GenerateSdkToken(0); // admin role
+            // Generate SDK token for API calls (admin role = 0)
+            var sdkToken = CreateNetlessToken("NETLESSSDK", 0, 3600_000, null);
             _httpClient.DefaultRequestHeaders.Remove("token");
             _httpClient.DefaultRequestHeaders.Add("token", sdkToken);
 
-            var payload = new { name = roomName, isRecord = false };
+            // Netless v5 API: POST /rooms accepts only specific fields (limit, isRecord)
+            // "name" is not a valid field and causes "disable input" error
+            var payload = new { isRecord = false };
             var content = new StringContent(
                 JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
@@ -64,66 +67,72 @@ public class AgoraWhiteboardService : IAgoraWhiteboardService
     public async Task<string> GenerateRoomTokenAsync(
         string roomUuid, string userId, bool isWriter, CancellationToken ct = default)
     {
-        // Generate room token locally using HMAC
-        var role = isWriter ? 1 : 2; // 1=writer, 2=reader
-        return GenerateRoomToken(roomUuid, role);
+        // 1=writer, 2=reader. 4 hours lifespan.
+        var role = isWriter ? 1 : 2;
+        return CreateNetlessToken("NETLESSROOM", role, 14400_000, roomUuid);
     }
 
-    private string GenerateSdkToken(int role)
-    {
-        // Netless SDK token format
-        var ak = _options.Whiteboard.AccessKey;
-        var sk = _options.Whiteboard.SecretKey;
-
-        var header = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var payload = JsonSerializer.Serialize(new
-        {
-            ak,
-            nonce = Guid.NewGuid().ToString("N"),
-            role,
-            iat = now,
-            exp = now + 3600000 // 1 hour
-        });
-        var payloadB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(payload))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-        var toSign = $"{header}.{payloadB64}";
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(sk));
-        var sig = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(toSign)))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-        return $"NETLESSSDK_{header}.{payloadB64}.{sig}";
-    }
-
-    private string GenerateRoomToken(string roomUuid, int role)
+    /// <summary>
+    /// Generate a Netless token following the official algorithm from:
+    /// https://github.com/netless-io/netless-token
+    ///
+    /// Steps:
+    /// 1. Build sorted key-value map (all values as strings)
+    /// 2. Serialize to JSON
+    /// 3. HMAC-SHA256 sign the JSON, hex-encode the signature
+    /// 4. Add sig to map, build URL-encoded query string
+    /// 5. Base64url-encode the query string
+    /// 6. Prepend prefix (NETLESSSDK_ or NETLESSROOM_)
+    /// </summary>
+    private string CreateNetlessToken(string prefix, int role, long lifespanMs, string? roomUuid)
     {
         var ak = _options.Whiteboard.AccessKey;
         var sk = _options.Whiteboard.SecretKey;
 
-        var header = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var payload = JsonSerializer.Serialize(new
+        // Step 1: Build the map (all values as strings, sorted by key)
+        var map = new SortedDictionary<string, string>
         {
-            ak,
-            nonce = Guid.NewGuid().ToString("N"),
-            role,
-            iat = now,
-            exp = now + 14400000, // 4 hours
-            uuid = roomUuid
-        });
-        var payloadB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(payload))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            ["ak"] = ak,
+            ["nonce"] = Guid.NewGuid().ToString(),
+            ["role"] = role.ToString(),
+        };
 
-        var toSign = $"{header}.{payloadB64}";
+        if (lifespanMs > 0)
+        {
+            var expireAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + lifespanMs;
+            map["expireAt"] = expireAt.ToString();
+        }
+
+        if (!string.IsNullOrEmpty(roomUuid))
+        {
+            map["uuid"] = roomUuid;
+        }
+
+        // Step 2: Serialize sorted map to JSON
+        var jsonContent = JsonSerializer.Serialize(map);
+
+        // Step 3: HMAC-SHA256 sign, hex-encode
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(sk));
-        var sig = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(toSign)))
-            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var sigBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(jsonContent));
+        var sigHex = Convert.ToHexString(sigBytes).ToLowerInvariant();
 
-        return $"NETLESSSDK_{header}.{payloadB64}.{sig}";
+        // Step 4: Add sig to map, build query string
+        map["sig"] = sigHex;
+
+        var queryParts = new List<string>();
+        foreach (var kvp in map)
+        {
+            queryParts.Add($"{HttpUtility.UrlEncode(kvp.Key)}={HttpUtility.UrlEncode(kvp.Value)}");
+        }
+        var queryString = string.Join("&", queryParts);
+
+        // Step 5: Base64url-encode
+        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(queryString))
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+
+        // Step 6: Prepend prefix
+        return $"{prefix}_{base64}";
     }
 }

@@ -56,6 +56,47 @@ public class ChatHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
+    // ── Classroom signaling ──────────────────────────────────────
+
+    public async Task JoinClassroom(string roomName)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"classroom-{roomName}");
+    }
+
+    public async Task LeaveClassroom(string roomName)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"classroom-{roomName}");
+    }
+
+    public async Task SendClassroomMessage(string roomName, string senderName, string text)
+    {
+        var userId = GetUserId();
+        if (userId == null) return;
+
+        await Clients.Group($"classroom-{roomName}").SendAsync("ClassroomMessage", new
+        {
+            senderName,
+            text,
+            time = DateTime.UtcNow.ToString("HH:mm"),
+            senderId = userId.Value.ToString()
+        });
+    }
+
+    public async Task SendClassroomSignal(string roomName, string signalType, string data)
+    {
+        var userId = GetUserId();
+        if (userId == null) return;
+
+        await Clients.OthersInGroup($"classroom-{roomName}").SendAsync("ClassroomSignal", new
+        {
+            signalType,
+            data,
+            senderId = userId.Value.ToString()
+        });
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────
+
     private Guid? GetUserId()
     {
         var claim = Context.User?.FindFirst(ClaimTypes.NameIdentifier);
