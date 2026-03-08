@@ -75,8 +75,13 @@ public class GenerateVideoTokenCommandHandler
         // ──── Sunucu tarafında isHost doğrulaması ────
         bool serverIsHost = false;
 
+        // Extract booking ID from roomName (supports both "guid" and "Booking-guid" formats)
+        var roomNameForParse = request.RoomName;
+        if (roomNameForParse.StartsWith("Booking-", StringComparison.OrdinalIgnoreCase))
+            roomNameForParse = roomNameForParse.Substring("Booking-".Length);
+
         // Booking status kontrolü — iptal edilen/tamamlanan seanslara token verilmez
-        if (Guid.TryParse(request.RoomName, out var parsedBookingId))
+        if (Guid.TryParse(roomNameForParse, out var parsedBookingId))
         {
             var booking = await _context.Bookings
                 .FirstOrDefaultAsync(b => b.Id == parsedBookingId, cancellationToken);
@@ -203,10 +208,10 @@ public class GenerateVideoTokenCommandHandler
                 }
                 // Zaten Live ise — mentor tekrar bağlanıyor, session'ı olduğu gibi bırak
             }
-            else if (Guid.TryParse(request.RoomName, out var bookingId))
+            else if (parsedBookingId != Guid.Empty)
             {
                 // Hiç active session yok → yeni oluştur
-                session = VideoSession.Create("Booking", bookingId, request.RoomName);
+                session = VideoSession.Create("Booking", parsedBookingId, request.RoomName);
                 _context.VideoSessions.Add(session);
                 session.MarkAsLive();
                 await _context.SaveChangesAsync(cancellationToken);
@@ -221,15 +226,15 @@ public class GenerateVideoTokenCommandHandler
             // Notify students that room is active (critical for Agora which has no webhooks)
             if (sessionJustWentLive)
             {
-                // Find student(s) to notify
-                if (Guid.TryParse(request.RoomName, out var notifyBookingId))
+                // Find student(s) to notify — use parsed booking ID (handles Booking-{guid} format)
+                if (parsedBookingId != Guid.Empty)
                 {
-                    var booking = await _context.Bookings
-                        .FirstOrDefaultAsync(b => b.Id == notifyBookingId, cancellationToken);
-                    if (booking != null)
+                    var notifyBooking = await _context.Bookings
+                        .FirstOrDefaultAsync(b => b.Id == parsedBookingId, cancellationToken);
+                    if (notifyBooking != null)
                     {
                         await _chatNotification.NotifyRoomStatusChanged(
-                            booking.StudentUserId, request.RoomName,
+                            notifyBooking.StudentUserId, request.RoomName,
                             isActive: true, hostConnected: true, participantCount: 1);
                     }
                 }
