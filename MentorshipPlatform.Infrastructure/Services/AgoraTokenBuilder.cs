@@ -1,27 +1,37 @@
 namespace MentorshipPlatform.Infrastructure.Services;
 
+using System.IO.Hashing;
 using System.Security.Cryptography;
 using System.Text;
 
+/// <summary>
+/// Agora AccessToken (006) builder — compatible with Agora Web SDK NG (v4).
+/// Based on the official algorithm from github.com/AgoraIO/Tools.
+/// </summary>
 public static class AgoraTokenBuilder
 {
-    // Privilege constants
     private const ushort KJoinChannel = 1;
     private const ushort KPublishAudioStream = 2;
     private const ushort KPublishVideoStream = 3;
     private const ushort KPublishDataStream = 4;
 
+    /// <summary>
+    /// Build an RTC token for the given channel.
+    /// Use uid = "0" for wildcard (any uid can use the token).
+    /// Use uid = "12345" for a specific numeric uid.
+    /// </summary>
     public static string BuildToken(
         string appId,
         string appCertificate,
         string channelName,
-        string account,
+        string uid,
         uint privilegeExpiredTs)
     {
-        // Use RtcTokenBuilder approach
-        var msg = new Message();
-        msg.Salt = (uint)new Random().Next(1, 99999999);
-        msg.Ts = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var msg = new Message
+        {
+            Salt = (uint)Random.Shared.Next(1, 99999999),
+            Ts = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        };
         msg.Privileges[KJoinChannel] = privilegeExpiredTs;
         msg.Privileges[KPublishAudioStream] = privilegeExpiredTs;
         msg.Privileges[KPublishVideoStream] = privilegeExpiredTs;
@@ -29,69 +39,81 @@ public static class AgoraTokenBuilder
 
         var msgBytes = msg.Pack();
 
-        // Sign
-        var toSign = Encoding.UTF8.GetBytes(appId)
-            .Concat(Encoding.UTF8.GetBytes(channelName))
-            .Concat(Encoding.UTF8.GetBytes(account))
-            .Concat(msgBytes)
-            .ToArray();
+        // Signature: two-round HMAC — HMAC(HMAC(cert, appId), msgBytes)
+        var signKey = HmacSign(Encoding.UTF8.GetBytes(appCertificate), Encoding.UTF8.GetBytes(appId));
+        var signature = HmacSign(signKey, msgBytes);
 
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(appCertificate));
-        var signature = hmac.ComputeHash(toSign);
+        // CRC32 of channelName and uid
+        var crcChannel = ComputeCrc32(Encoding.UTF8.GetBytes(channelName));
+        var crcUid = ComputeCrc32(Encoding.UTF8.GetBytes(uid));
 
-        // Build final token
-        var content = PackString(appId)
-            .Concat(PackBytes(signature))
-            .Concat(PackBytes(msgBytes))
-            .ToArray();
+        // Build content: appId + signature + msgBytes + crc32(channel) + crc32(uid)
+        using var ms = new MemoryStream();
+        WriteString(ms, appId);
+        WriteBytes(ms, signature);
+        WriteBytes(ms, msgBytes);
+        WriteUint32(ms, crcChannel);
+        WriteUint32(ms, crcUid);
 
-        return "006" + Convert.ToBase64String(content);
+        return "006" + Convert.ToBase64String(ms.ToArray());
     }
 
-    private static byte[] PackString(string val)
+    private static byte[] HmacSign(byte[] key, byte[] data)
+    {
+        using var hmac = new HMACSHA256(key);
+        return hmac.ComputeHash(data);
+    }
+
+    private static uint ComputeCrc32(byte[] data)
+    {
+        return Crc32.HashToUInt32(data);
+    }
+
+    private static void WriteString(Stream s, string val)
     {
         var bytes = Encoding.UTF8.GetBytes(val);
-        return PackUint16((ushort)bytes.Length).Concat(bytes).ToArray();
+        WriteUint16(s, (ushort)bytes.Length);
+        s.Write(bytes, 0, bytes.Length);
     }
 
-    private static byte[] PackBytes(byte[] val)
+    private static void WriteBytes(Stream s, byte[] val)
     {
-        return PackUint16((ushort)val.Length).Concat(val).ToArray();
+        WriteUint16(s, (ushort)val.Length);
+        s.Write(val, 0, val.Length);
     }
 
-    private static byte[] PackUint16(ushort val)
+    private static void WriteUint16(Stream s, ushort val)
     {
-        return new[] { (byte)(val & 0xFF), (byte)((val >> 8) & 0xFF) };
+        s.WriteByte((byte)(val & 0xFF));
+        s.WriteByte((byte)((val >> 8) & 0xFF));
     }
 
-    private static byte[] PackUint32(uint val)
+    private static void WriteUint32(Stream s, uint val)
     {
-        return new[] {
-            (byte)(val & 0xFF),
-            (byte)((val >> 8) & 0xFF),
-            (byte)((val >> 16) & 0xFF),
-            (byte)((val >> 24) & 0xFF)
-        };
+        s.WriteByte((byte)(val & 0xFF));
+        s.WriteByte((byte)((val >> 8) & 0xFF));
+        s.WriteByte((byte)((val >> 16) & 0xFF));
+        s.WriteByte((byte)((val >> 24) & 0xFF));
     }
 
     private class Message
     {
         public uint Salt;
         public uint Ts;
-        public Dictionary<ushort, uint> Privileges = new();
+        public readonly Dictionary<ushort, uint> Privileges = new();
 
         public byte[] Pack()
         {
-            var result = new List<byte>();
-            result.AddRange(PackUint32(Salt));
-            result.AddRange(PackUint32(Ts));
-            result.AddRange(PackUint16((ushort)Privileges.Count));
+            using var ms = new MemoryStream();
+            WriteUint32(ms, Salt);
+            WriteUint32(ms, Ts);
+            WriteUint16(ms, (ushort)Privileges.Count);
             foreach (var kv in Privileges.OrderBy(x => x.Key))
             {
-                result.AddRange(PackUint16(kv.Key));
-                result.AddRange(PackUint32(kv.Value));
+                WriteUint16(ms, kv.Key);
+                WriteUint32(ms, kv.Value);
             }
-            return result.ToArray();
+            return ms.ToArray();
         }
     }
 }

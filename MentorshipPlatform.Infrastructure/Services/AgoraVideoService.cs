@@ -63,11 +63,12 @@ public class AgoraVideoService : IVideoService
             var identity = $"{userId}|{participantName}";
             var expireTs = (uint)DateTimeOffset.UtcNow.AddHours(4).ToUnixTimeSeconds();
 
+            // Use uid="0" for wildcard token (any numeric UID can use it)
             var token = AgoraTokenBuilder.BuildToken(
                 _options.AppId,
                 _options.AppCertificate,
                 roomName,
-                identity,
+                "0",
                 expireTs);
 
             _logger.LogInformation(
