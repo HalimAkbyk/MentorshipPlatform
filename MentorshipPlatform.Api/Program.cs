@@ -201,8 +201,27 @@ builder.Services.AddAuthorization(options =>
 builder.Services.Configure<IyzicoOptions>(builder.Configuration.GetSection("Iyzico"));
 builder.Services.AddScoped<IPaymentService, IyzicoPaymentService>();
 
+// Video providers
 builder.Services.Configure<TwilioOptions>(builder.Configuration.GetSection("Twilio"));
-builder.Services.AddScoped<IVideoService, TwilioVideoService>();
+builder.Services.Configure<AgoraOptions>(builder.Configuration.GetSection("Agora"));
+builder.Services.AddScoped<TwilioVideoService>();
+builder.Services.AddScoped<AgoraVideoService>();
+builder.Services.AddScoped<AgoraWhiteboardService>();
+builder.Services.AddHttpClient("Agora");
+builder.Services.AddHttpClient("AgoraWhiteboard");
+
+// IVideoService -- resolved at runtime based on VIDEO_PROVIDER feature flag
+builder.Services.AddScoped<IVideoService>(sp =>
+{
+    var flagService = sp.GetRequiredService<IFeatureFlagService>();
+    var provider = flagService.GetValueAsync("VIDEO_PROVIDER").GetAwaiter().GetResult() ?? "twilio";
+    return provider.Equals("agora", StringComparison.OrdinalIgnoreCase)
+        ? sp.GetRequiredService<AgoraVideoService>()
+        : sp.GetRequiredService<TwilioVideoService>();
+});
+
+// Whiteboard -- only available with Agora
+builder.Services.AddScoped<IAgoraWhiteboardService>(sp => sp.GetRequiredService<AgoraWhiteboardService>());
 
 // Storage Service: R2 > MinIO > NoOp (fallback)
 var r2Options = builder.Configuration.GetSection("R2").Get<R2Options>();
@@ -501,6 +520,12 @@ static async Task SeedPivotFeatureFlags(ApplicationDbContext db)
         {
             db.FeatureFlags.Add(FeatureFlag.Create(key, enabled, description));
         }
+    }
+
+    // VIDEO_PROVIDER flag with Value field (twilio by default, switchable to agora)
+    if (!await db.FeatureFlags.AnyAsync(f => f.Key == "VIDEO_PROVIDER"))
+    {
+        db.FeatureFlags.Add(FeatureFlag.Create("VIDEO_PROVIDER", true, "Video saglayici: Value alaninda twilio veya agora", "twilio"));
     }
 
     await db.SaveChangesAsync();

@@ -7,22 +7,30 @@ public class FeatureFlag : BaseEntity
     public string Key { get; private set; } = string.Empty;
     public bool IsEnabled { get; private set; }
     public string? Description { get; private set; }
+    public string? Value { get; private set; }
 
     private FeatureFlag() { }
 
-    public static FeatureFlag Create(string key, bool isEnabled, string? description)
+    public static FeatureFlag Create(string key, bool isEnabled, string? description, string? value = null)
     {
         return new FeatureFlag
         {
             Key = key,
             IsEnabled = isEnabled,
-            Description = description
+            Description = description,
+            Value = value
         };
     }
 
     public void SetEnabled(bool isEnabled)
     {
         IsEnabled = isEnabled;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetValue(string? value)
+    {
+        Value = value;
         UpdatedAt = DateTime.UtcNow;
     }
 }

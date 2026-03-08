@@ -15,6 +15,7 @@ public class FeatureFlagService : IFeatureFlagService
     private readonly ILogger<FeatureFlagService> _logger;
 
     private static readonly ConcurrentDictionary<string, bool> _cache = new();
+    private static readonly ConcurrentDictionary<string, string?> _valueCache = new();
     private static DateTime _cacheExpiry = DateTime.MinValue;
     private static readonly SemaphoreSlim _semaphore = new(1, 1);
     private const int CacheTtlSeconds = 60;
@@ -37,6 +38,17 @@ public class FeatureFlagService : IFeatureFlagService
         return true;
     }
 
+    public async Task<string?> GetValueAsync(string key, CancellationToken ct = default)
+    {
+        await EnsureCacheAsync(ct);
+
+        if (_valueCache.TryGetValue(key, out var value))
+            return value;
+
+        _logger.LogWarning("Feature flag '{Key}' not found for GetValueAsync, returning null", key);
+        return null;
+    }
+
     public async Task<Dictionary<string, bool>> GetAllAsync(CancellationToken ct = default)
     {
         await EnsureCacheAsync(ct);
@@ -47,6 +59,7 @@ public class FeatureFlagService : IFeatureFlagService
     {
         _cacheExpiry = DateTime.MinValue;
         _cache.Clear();
+        _valueCache.Clear();
         _logger.LogInformation("Feature flag cache invalidated");
     }
 
@@ -67,9 +80,11 @@ public class FeatureFlagService : IFeatureFlagService
                 .ToListAsync(ct);
 
             _cache.Clear();
+            _valueCache.Clear();
             foreach (var flag in flags)
             {
                 _cache[flag.Key] = flag.IsEnabled;
+                _valueCache[flag.Key] = flag.Value;
             }
 
             _cacheExpiry = DateTime.UtcNow.AddSeconds(CacheTtlSeconds);

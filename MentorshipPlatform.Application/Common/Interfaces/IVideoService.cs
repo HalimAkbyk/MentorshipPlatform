@@ -22,7 +22,7 @@ public interface IVideoService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if a Twilio room exists and is currently in-progress.
+    /// Check if a video room exists and is currently in-progress.
     /// Returns (exists, isInProgress, participantCount).
     /// </summary>
     Task<(bool Exists, bool IsInProgress, int ParticipantCount)> GetRoomInfoAsync(
@@ -30,7 +30,7 @@ public interface IVideoService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Forcibly complete/close a Twilio room, disconnecting all participants.
+    /// Forcibly complete/close a video room, disconnecting all participants.
     /// Returns true if successful, false if room not found or already completed.
     /// </summary>
     Task<bool> CompleteRoomAsync(string roomName, CancellationToken cancellationToken = default);

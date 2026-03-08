@@ -8,6 +8,9 @@ public interface IFeatureFlagService
     /// <summary>Check if a feature flag is enabled.</summary>
     Task<bool> IsEnabledAsync(string key, CancellationToken ct = default);
 
+    /// <summary>Get the string value of a feature flag (for flags that carry a value beyond enabled/disabled).</summary>
+    Task<string?> GetValueAsync(string key, CancellationToken ct = default);
+
     /// <summary>Get all feature flags as a dictionary.</summary>
     Task<Dictionary<string, bool>> GetAllAsync(CancellationToken ct = default);
 
@@ -44,4 +47,5 @@ public static class FeatureFlags
     public const string SessionRequestEnabled = "SESSION_REQUEST_ENABLED";
     public const string PriceApprovalRequired = "PRICE_APPROVAL_REQUIRED";
     public const string FreeSessionEnabled = "FREE_SESSION_ENABLED";
+    public const string VideoProvider = "VIDEO_PROVIDER";
 }

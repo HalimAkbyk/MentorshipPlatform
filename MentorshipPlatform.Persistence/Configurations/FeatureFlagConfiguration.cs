@@ -13,5 +13,6 @@ public class FeatureFlagConfiguration : IEntityTypeConfiguration<FeatureFlag>
         builder.Property(e => e.Key).IsRequired().HasMaxLength(200);
         builder.HasIndex(e => e.Key).IsUnique();
         builder.Property(e => e.Description).HasMaxLength(1000);
+        builder.Property(e => e.Value).HasMaxLength(500);
     }
 }

@@ -19,12 +19,18 @@ public class VideoController : ControllerBase
     private readonly IMediator _mediator;
     private readonly IVideoService _videoService;
     private readonly IFeatureFlagService _featureFlags;
+    private readonly IAgoraWhiteboardService _whiteboardService;
 
-    public VideoController(IMediator mediator, IVideoService videoService, IFeatureFlagService featureFlags)
+    public VideoController(
+        IMediator mediator,
+        IVideoService videoService,
+        IFeatureFlagService featureFlags,
+        IAgoraWhiteboardService whiteboardService)
     {
         _mediator = mediator;
         _videoService = videoService;
         _featureFlags = featureFlags;
+        _whiteboardService = whiteboardService;
     }
 
     [HttpPost("session")]
@@ -114,4 +120,45 @@ public class VideoController : ControllerBase
         return Ok();
     }
 
+    /// <summary>Aktif video provider bilgisini don</summary>
+    [HttpGet("provider")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetProvider()
+    {
+        var provider = await _featureFlags.GetValueAsync(FeatureFlags.VideoProvider) ?? "twilio";
+        var whiteboardEnabled = await _featureFlags.IsEnabledAsync("WHITEBOARD_ENABLED");
+        return Ok(new { provider, whiteboardEnabled });
+    }
+
+    /// <summary>Whiteboard odasi olustur</summary>
+    [HttpPost("whiteboard/room")]
+    public async Task<IActionResult> CreateWhiteboardRoom([FromBody] CreateWhiteboardRoomRequest request, CancellationToken ct)
+    {
+        var provider = await _featureFlags.GetValueAsync(FeatureFlags.VideoProvider) ?? "twilio";
+        if (provider != "agora")
+            return BadRequest(new { errors = new[] { "Whiteboard sadece Agora provider ile kullanilabilir." } });
+
+        var result = await _whiteboardService.CreateRoomAsync(request.RoomName, ct);
+        if (!result.Success)
+            return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Whiteboard odasi olusturulamadi." } });
+
+        return Ok(new { roomUuid = result.RoomUuid });
+    }
+
+    /// <summary>Whiteboard token uret</summary>
+    [HttpPost("whiteboard/token")]
+    public async Task<IActionResult> GetWhiteboardToken([FromBody] WhiteboardTokenRequest request, CancellationToken ct)
+    {
+        var provider = await _featureFlags.GetValueAsync(FeatureFlags.VideoProvider) ?? "twilio";
+        if (provider != "agora")
+            return BadRequest(new { errors = new[] { "Whiteboard sadece Agora provider ile kullanilabilir." } });
+
+        var token = await _whiteboardService.GenerateRoomTokenAsync(
+            request.RoomUuid, request.UserId, request.IsWriter, ct);
+
+        return Ok(new { token });
+    }
 }
+
+public record CreateWhiteboardRoomRequest(string RoomName);
+public record WhiteboardTokenRequest(string RoomUuid, string UserId, bool IsWriter = true);
