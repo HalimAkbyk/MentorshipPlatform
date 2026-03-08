@@ -20,19 +20,22 @@ public class GenerateVideoTokenCommandHandler
     private readonly IVideoService _videoService;
     private readonly IProcessHistoryService _history;
     private readonly IPlatformSettingService _settings;
+    private readonly IChatNotificationService _chatNotification;
 
     public GenerateVideoTokenCommandHandler(
         IApplicationDbContext context,
         ICurrentUserService currentUser,
         IVideoService videoService,
         IProcessHistoryService history,
-        IPlatformSettingService settings)
+        IPlatformSettingService settings,
+        IChatNotificationService chatNotification)
     {
         _context = context;
         _currentUser = currentUser;
         _videoService = videoService;
         _history = history;
         _settings = settings;
+        _chatNotification = chatNotification;
     }
 
     public async Task<Result<VideoTokenDto>> Handle(
@@ -179,6 +182,7 @@ public class GenerateVideoTokenCommandHandler
             return Result<VideoTokenDto>.Failure(tokenResult.ErrorMessage ?? "Failed to generate token");
 
         // ──── Mentor (host) session yönetimi ────
+        bool sessionJustWentLive = false;
         if (serverIsHost)
         {
             var session = await findSessionByRoomName(request.RoomName);
@@ -190,6 +194,7 @@ public class GenerateVideoTokenCommandHandler
                 {
                     session.MarkAsLive();
                     await _context.SaveChangesAsync(cancellationToken);
+                    sessionJustWentLive = true;
 
                     await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
                         "Scheduled", "Live",
@@ -205,11 +210,48 @@ public class GenerateVideoTokenCommandHandler
                 _context.VideoSessions.Add(session);
                 session.MarkAsLive();
                 await _context.SaveChangesAsync(cancellationToken);
+                sessionJustWentLive = true;
 
                 await _history.LogAsync("VideoSession", session.Id, "StatusChanged",
                     "Scheduled", "Live",
                     $"Mentor odaya katıldı, yeni session başlatıldı. Room: {request.RoomName}",
                     userId, "Mentor", ct: cancellationToken);
+            }
+
+            // Notify students that room is active (critical for Agora which has no webhooks)
+            if (sessionJustWentLive)
+            {
+                // Find student(s) to notify
+                if (Guid.TryParse(request.RoomName, out var notifyBookingId))
+                {
+                    var booking = await _context.Bookings
+                        .FirstOrDefaultAsync(b => b.Id == notifyBookingId, cancellationToken);
+                    if (booking != null)
+                    {
+                        await _chatNotification.NotifyRoomStatusChanged(
+                            booking.StudentUserId, request.RoomName,
+                            isActive: true, hostConnected: true, participantCount: 1);
+                    }
+                }
+                else if (request.RoomName.StartsWith("group-class-"))
+                {
+                    var gcIdStr = request.RoomName.Replace("group-class-", "");
+                    if (Guid.TryParse(gcIdStr, out var notifyGcId))
+                    {
+                        var enrollments = await _context.ClassEnrollments
+                            .Where(e => e.ClassId == notifyGcId &&
+                                        e.Status == Domain.Enums.EnrollmentStatus.Confirmed)
+                            .Select(e => e.StudentUserId)
+                            .ToListAsync(cancellationToken);
+
+                        foreach (var studentId in enrollments)
+                        {
+                            await _chatNotification.NotifyRoomStatusChanged(
+                                studentId, request.RoomName,
+                                isActive: true, hostConnected: true, participantCount: 1);
+                        }
+                    }
+                }
             }
         }
 
