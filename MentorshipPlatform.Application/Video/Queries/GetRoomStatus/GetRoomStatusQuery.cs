@@ -66,22 +66,18 @@ public class GetRoomStatusQueryHandler
             }
         }
 
-        // If DB says session is Live, use DB data for host/participant info
+        // If DB says session is Live, room is active (works for both Agora and Twilio)
         if (session != null && session.Status == VideoSessionStatus.Live)
         {
             var participantCount = session.Participants.Count(p => !p.LeftAt.HasValue);
             var hostConnected = await CheckHostConnectedFromDb(session, request.RoomName, cancellationToken);
 
-            // If DB says host is connected, trust it
-            if (hostConnected)
-            {
-                return Result<RoomStatusDto>.Success(new RoomStatusDto(
-                    request.RoomName,
-                    IsActive: true,
-                    HostConnected: true,
-                    ParticipantCount: participantCount
-                ));
-            }
+            return Result<RoomStatusDto>.Success(new RoomStatusDto(
+                request.RoomName,
+                IsActive: true,
+                HostConnected: hostConnected,
+                ParticipantCount: participantCount
+            ));
         }
 
         // Fallback: check actual Twilio room status
