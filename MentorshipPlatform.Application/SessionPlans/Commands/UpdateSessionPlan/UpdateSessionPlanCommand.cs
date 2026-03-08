@@ -55,9 +55,35 @@ public class UpdateSessionPlanCommandHandler : IRequestHandler<UpdateSessionPlan
         if (plan == null)
             return Result.Failure("Session plan not found");
 
-        if (plan.MentorUserId != _currentUser.UserId.Value)
-            return Result.Failure("You can only update your own session plans");
+        var isMentor = plan.MentorUserId == _currentUser.UserId.Value;
 
+        // Students can only update StudentNotes field
+        if (!isMentor)
+        {
+            // Verify student has access to this plan via booking
+            var hasAccess = false;
+            if (plan.BookingId.HasValue)
+            {
+                hasAccess = await _context.Bookings
+                    .AnyAsync(b => b.Id == plan.BookingId.Value && b.StudentUserId == _currentUser.UserId.Value, cancellationToken);
+            }
+            if (plan.GroupClassId.HasValue)
+            {
+                hasAccess = await _context.ClassEnrollments
+                    .AnyAsync(e => e.ClassId == plan.GroupClassId.Value &&
+                                   e.StudentUserId == _currentUser.UserId.Value &&
+                                   e.Status == Domain.Enums.EnrollmentStatus.Confirmed, cancellationToken);
+            }
+            if (!hasAccess)
+                return Result.Failure("You can only update your own session plans");
+
+            // Student can only update StudentNotes
+            if (request.StudentNotes != null) plan.UpdateStudentNotes(request.StudentNotes);
+            await _context.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+
+        // Mentor: full update
         plan.Update(
             request.Title,
             request.PreSessionNote,
