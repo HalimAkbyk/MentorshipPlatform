@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using MediatR;
 using MentorshipPlatform.Application.Common.Interfaces;
 using MentorshipPlatform.Application.Video.Commands.CreateVideoSession;
@@ -16,6 +17,9 @@ namespace MentorshipPlatform.Api.Controllers;
 [Authorize]
 public class VideoController : ControllerBase
 {
+    // Cache whiteboard roomName → roomUuid so all participants join the same room
+    private static readonly ConcurrentDictionary<string, string> _whiteboardRoomCache = new();
+
     private readonly IMediator _mediator;
     private readonly IVideoService _videoService;
     private readonly IFeatureFlagService _featureFlags;
@@ -130,7 +134,7 @@ public class VideoController : ControllerBase
         return Ok(new { provider, whiteboardEnabled });
     }
 
-    /// <summary>Whiteboard odasi olustur</summary>
+    /// <summary>Whiteboard odasi olustur (veya mevcut olanı dön)</summary>
     [HttpPost("whiteboard/room")]
     public async Task<IActionResult> CreateWhiteboardRoom([FromBody] CreateWhiteboardRoomRequest request, CancellationToken ct)
     {
@@ -138,10 +142,16 @@ public class VideoController : ControllerBase
         if (provider != "agora")
             return BadRequest(new { errors = new[] { "Whiteboard sadece Agora provider ile kullanilabilir." } });
 
+        // Return cached room UUID if already created for this classroom
+        if (_whiteboardRoomCache.TryGetValue(request.RoomName, out var cachedUuid))
+            return Ok(new { roomUuid = cachedUuid });
+
         var result = await _whiteboardService.CreateRoomAsync(request.RoomName, ct);
         if (!result.Success)
             return BadRequest(new { errors = new[] { result.ErrorMessage ?? "Whiteboard odasi olusturulamadi." } });
 
+        // Cache for future participants
+        _whiteboardRoomCache[request.RoomName] = result.RoomUuid!;
         return Ok(new { roomUuid = result.RoomUuid });
     }
 
