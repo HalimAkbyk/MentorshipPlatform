@@ -14,7 +14,9 @@ public record UpdateSessionPlanCommand(
     string? SessionNotes,
     string? AgendaItemsJson,
     string? PostSessionSummary,
-    Guid? LinkedAssignmentId) : IRequest<Result>;
+    Guid? LinkedAssignmentId,
+    Guid? BookingId = null,
+    Guid? GroupClassId = null) : IRequest<Result>;
 
 public class UpdateSessionPlanCommandValidator : AbstractValidator<UpdateSessionPlanCommand>
 {
@@ -62,6 +64,10 @@ public class UpdateSessionPlanCommandHandler : IRequestHandler<UpdateSessionPlan
             request.AgendaItemsJson,
             request.PostSessionSummary,
             request.LinkedAssignmentId);
+
+        // Link to booking/class if provided
+        if (request.BookingId.HasValue) plan.LinkToBooking(request.BookingId.Value);
+        if (request.GroupClassId.HasValue) plan.LinkToGroupClass(request.GroupClassId.Value);
 
         await _context.SaveChangesAsync(cancellationToken);
 

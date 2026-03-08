@@ -82,7 +82,9 @@ public class SessionPlansController : ControllerBase
             body.SessionNotes,
             body.AgendaItemsJson,
             body.PostSessionSummary,
-            body.LinkedAssignmentId);
+            body.LinkedAssignmentId,
+            body.BookingId,
+            body.GroupClassId);
 
         var result = await _mediator.Send(command, ct);
         return result.IsSuccess ? Ok(new { ok = true }) : BadRequest(new { errors = result.Errors });
@@ -207,7 +209,9 @@ public record UpdateSessionPlanRequest(
     string? SessionNotes,
     string? AgendaItemsJson,
     string? PostSessionSummary,
-    Guid? LinkedAssignmentId);
+    Guid? LinkedAssignmentId,
+    Guid? BookingId,
+    Guid? GroupClassId);
 
 public record AddSessionPlanMaterialRequest(
     Guid LibraryItemId,

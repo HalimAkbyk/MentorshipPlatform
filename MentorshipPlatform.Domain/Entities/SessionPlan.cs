@@ -60,13 +60,26 @@ public class SessionPlan : BaseEntity
         string? postSessionSummary,
         Guid? linkedAssignmentId)
     {
-        Title = title;
-        PreSessionNote = preSessionNote;
-        SessionObjective = sessionObjective;
-        SessionNotes = sessionNotes;
-        AgendaItemsJson = agendaItemsJson;
-        PostSessionSummary = postSessionSummary;
-        LinkedAssignmentId = linkedAssignmentId;
+        // Patch semantics: only update fields that are explicitly provided (non-null)
+        if (title != null) Title = title;
+        if (preSessionNote != null) PreSessionNote = preSessionNote;
+        if (sessionObjective != null) SessionObjective = sessionObjective;
+        if (sessionNotes != null) SessionNotes = sessionNotes;
+        if (agendaItemsJson != null) AgendaItemsJson = agendaItemsJson;
+        if (postSessionSummary != null) PostSessionSummary = postSessionSummary;
+        if (linkedAssignmentId.HasValue) LinkedAssignmentId = linkedAssignmentId;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void LinkToBooking(Guid bookingId)
+    {
+        BookingId = bookingId;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void LinkToGroupClass(Guid groupClassId)
+    {
+        GroupClassId = groupClassId;
         UpdatedAt = DateTime.UtcNow;
     }
 
