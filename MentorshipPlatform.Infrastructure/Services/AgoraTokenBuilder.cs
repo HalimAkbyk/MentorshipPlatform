@@ -5,156 +5,146 @@ using System.Security.Cryptography;
 using System.Text;
 
 /// <summary>
-/// Agora AccessToken2 (007) builder — required for newer Agora projects.
-/// Based on the official algorithm from github.com/AgoraIO/Tools.
+/// Agora AccessToken2 (007) builder.
+/// Ported exactly from the official C# implementation at:
+/// https://github.com/AgoraIO/Tools/tree/master/DynamicKey/AgoraDynamicKey/csharp
 /// </summary>
 public static class AgoraTokenBuilder
 {
     private const string Version = "007";
-
-    // Service types
     private const ushort ServiceTypeRtc = 1;
 
-    // RTC privileges
     private const ushort PrivilegeJoinChannel = 1;
     private const ushort PrivilegePublishAudioStream = 2;
     private const ushort PrivilegePublishVideoStream = 3;
     private const ushort PrivilegePublishDataStream = 4;
 
     /// <summary>
-    /// Build an RTC AccessToken2 (007 format).
-    /// uid = "0" for wildcard, or a specific numeric uid as string.
+    /// Build an RTC AccessToken2.
+    /// uid: "0" or "" for wildcard, or numeric uid as string.
+    /// tokenExpireSeconds: token lifetime in seconds (e.g. 3600).
+    /// privilegeExpireSeconds: privilege lifetime in seconds (e.g. 3600).
     /// </summary>
     public static string BuildToken(
         string appId,
         string appCertificate,
         string channelName,
         string uid,
-        uint tokenExpireSeconds = 3600)
+        uint tokenExpireSeconds = 3600,
+        uint privilegeExpireSeconds = 3600)
     {
         var issueTs = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var salt = (uint)Random.Shared.Next(1, 99999999);
 
-        var expire = tokenExpireSeconds; // token-level expire (seconds from issue)
-        var privilegeExpire = tokenExpireSeconds; // privilege-level expire
+        // ── Step 1: Build the buffer (appId + issueTs + expire + salt + services) ──
+        var buf = new BufWriter();
+        buf.PutBytes(Encoding.UTF8.GetBytes(appId));      // put = uint16 length + data
+        buf.PutUint32(issueTs);
+        buf.PutUint32(tokenExpireSeconds);
+        buf.PutUint32(salt);
+        buf.PutUint16(1); // services count = 1 (RTC only)
 
-        // Generate signature
-        var signature = GetSign(appCertificate, issueTs, salt);
+        // Service: serviceType + privileges + channelName + uid
+        // (base.pack adds type + privileges, then ServiceRtc adds channelName + uid)
+        buf.PutUint16(ServiceTypeRtc);
 
-        // Build content
-        using var content = new MemoryStream();
+        // Privileges map
+        buf.PutUint16(4); // 4 privileges
+        buf.PutUint16(PrivilegeJoinChannel);
+        buf.PutUint32(privilegeExpireSeconds);
+        buf.PutUint16(PrivilegePublishAudioStream);
+        buf.PutUint32(privilegeExpireSeconds);
+        buf.PutUint16(PrivilegePublishVideoStream);
+        buf.PutUint32(privilegeExpireSeconds);
+        buf.PutUint16(PrivilegePublishDataStream);
+        buf.PutUint32(privilegeExpireSeconds);
 
-        // 1. Signature
-        PackString(content, signature);
+        // ServiceRtc-specific: channelName + uid
+        buf.PutBytes(Encoding.UTF8.GetBytes(channelName));
+        buf.PutBytes(Encoding.UTF8.GetBytes(uid));
 
-        // 2. Issue timestamp
-        PackUint32(content, issueTs);
+        var bufBytes = buf.ToArray();
 
-        // 3. Expire (seconds)
-        PackUint32(content, expire);
+        // ── Step 2: Generate signing key (2 HMAC rounds) ──
+        var signing = GetSign(appCertificate, issueTs, salt);
 
-        // 4. Services count
-        PackUint16(content, 1); // only RTC service
+        // ── Step 3: Sign the buffer content (3rd HMAC round) ──
+        var signature = HmacSha256(signing, bufBytes);
 
-        // 5. RTC Service
-        PackUint16(content, ServiceTypeRtc);
+        // ── Step 4: Build final content = put(signature) + copy(buf) ──
+        var content = new BufWriter();
+        content.PutBytes(signature);   // put = with uint16 length prefix
+        content.CopyRaw(bufBytes);     // copy = raw bytes, no length prefix
 
-        // Service-specific fields: channelName + uid
-        PackString(content, Encoding.UTF8.GetBytes(channelName));
-        PackString(content, Encoding.UTF8.GetBytes(uid));
-
-        // Privileges
-        PackUint16(content, 4); // 4 privileges
-        PackUint16(content, PrivilegeJoinChannel);
-        PackUint32(content, privilegeExpire);
-        PackUint16(content, PrivilegePublishAudioStream);
-        PackUint32(content, privilegeExpire);
-        PackUint16(content, PrivilegePublishVideoStream);
-        PackUint32(content, privilegeExpire);
-        PackUint16(content, PrivilegePublishDataStream);
-        PackUint32(content, privilegeExpire);
-
-        // Compress with zlib
+        // ── Step 5: Compress + encode ──
         var compressed = CompressZlib(content.ToArray());
-
-        // Final: "007" + appId (plain) + base64(compressed)
-        return Version + appId + Convert.ToBase64String(compressed);
+        return Version + Convert.ToBase64String(compressed);
     }
 
+    /// <summary>
+    /// Two-round HMAC signing:
+    /// Round 1: HMAC(key=issueTs_LE, data=appCert)
+    /// Round 2: HMAC(key=salt_LE, data=round1_result)
+    /// </summary>
     private static byte[] GetSign(string appCertificate, uint issueTs, uint salt)
     {
-        // Round 1: HMAC(key=issueTs_LE_bytes, data=appCertificate)
-        var issueTsBytes = new byte[4];
-        issueTsBytes[0] = (byte)(issueTs & 0xFF);
-        issueTsBytes[1] = (byte)((issueTs >> 8) & 0xFF);
-        issueTsBytes[2] = (byte)((issueTs >> 16) & 0xFF);
-        issueTsBytes[3] = (byte)((issueTs >> 24) & 0xFF);
+        var issueTsBytes = BitConverter.GetBytes(issueTs); // LE on little-endian systems
+        var saltBytes = BitConverter.GetBytes(salt);
 
-        using var hmac1 = new HMACSHA256(issueTsBytes);
-        var signKey = hmac1.ComputeHash(Encoding.UTF8.GetBytes(appCertificate));
-
-        // Round 2: HMAC(key=salt_LE_bytes, data=signKey)
-        var saltBytes = new byte[4];
-        saltBytes[0] = (byte)(salt & 0xFF);
-        saltBytes[1] = (byte)((salt >> 8) & 0xFF);
-        saltBytes[2] = (byte)((salt >> 16) & 0xFF);
-        saltBytes[3] = (byte)((salt >> 24) & 0xFF);
-
-        using var hmac2 = new HMACSHA256(saltBytes);
-        return hmac2.ComputeHash(signKey);
+        var signKey = HmacSha256(issueTsBytes, Encoding.UTF8.GetBytes(appCertificate));
+        return HmacSha256(saltBytes, signKey);
     }
 
-    private static void PackString(Stream s, byte[] val)
+    private static byte[] HmacSha256(byte[] key, byte[] data)
     {
-        PackUint16(s, (ushort)val.Length);
-        s.Write(val, 0, val.Length);
-    }
-
-    private static void PackUint16(Stream s, ushort val)
-    {
-        s.WriteByte((byte)(val & 0xFF));
-        s.WriteByte((byte)((val >> 8) & 0xFF));
-    }
-
-    private static void PackUint32(Stream s, uint val)
-    {
-        s.WriteByte((byte)(val & 0xFF));
-        s.WriteByte((byte)((val >> 8) & 0xFF));
-        s.WriteByte((byte)((val >> 16) & 0xFF));
-        s.WriteByte((byte)((val >> 24) & 0xFF));
+        using var hmac = new HMACSHA256(key);
+        return hmac.ComputeHash(data);
     }
 
     private static byte[] CompressZlib(byte[] data)
     {
         using var output = new MemoryStream();
-        // Zlib = 2-byte header + deflate + 4-byte checksum
-        // Write zlib header (default compression)
-        output.WriteByte(0x78);
-        output.WriteByte(0x9C);
-
-        using (var deflate = new DeflateStream(output, CompressionLevel.Optimal, leaveOpen: true))
+        using (var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true))
         {
-            deflate.Write(data, 0, data.Length);
+            zlib.Write(data, 0, data.Length);
         }
-
-        // Write Adler-32 checksum
-        var adler = ComputeAdler32(data);
-        output.WriteByte((byte)((adler >> 24) & 0xFF));
-        output.WriteByte((byte)((adler >> 16) & 0xFF));
-        output.WriteByte((byte)((adler >> 8) & 0xFF));
-        output.WriteByte((byte)(adler & 0xFF));
-
         return output.ToArray();
     }
 
-    private static uint ComputeAdler32(byte[] data)
+    /// <summary>
+    /// Simple buffer writer matching Agora's ByteBuf behavior.
+    /// </summary>
+    private class BufWriter
     {
-        uint a = 1, b = 0;
-        foreach (var d in data)
+        private readonly MemoryStream _ms = new();
+
+        /// <summary>Put bytes with uint16 length prefix (like ByteBuf.put(byte[]))</summary>
+        public void PutBytes(byte[] val)
         {
-            a = (a + d) % 65521;
-            b = (b + a) % 65521;
+            PutUint16((ushort)val.Length);
+            _ms.Write(val, 0, val.Length);
         }
-        return (b << 16) | a;
+
+        /// <summary>Copy raw bytes without length prefix (like ByteBuf.copy(byte[]))</summary>
+        public void CopyRaw(byte[] val)
+        {
+            _ms.Write(val, 0, val.Length);
+        }
+
+        public void PutUint16(ushort val)
+        {
+            _ms.WriteByte((byte)(val & 0xFF));
+            _ms.WriteByte((byte)((val >> 8) & 0xFF));
+        }
+
+        public void PutUint32(uint val)
+        {
+            _ms.WriteByte((byte)(val & 0xFF));
+            _ms.WriteByte((byte)((val >> 8) & 0xFF));
+            _ms.WriteByte((byte)((val >> 16) & 0xFF));
+            _ms.WriteByte((byte)((val >> 24) & 0xFF));
+        }
+
+        public byte[] ToArray() => _ms.ToArray();
     }
 }
